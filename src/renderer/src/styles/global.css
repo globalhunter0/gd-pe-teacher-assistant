@@ -623,6 +623,79 @@ textarea {
   font-weight: 600;
 }
 
-.today-tag--next {
+.dialog textarea {
+  font: inherit;
+  width: 100%;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 8px;
+  background: #fff;
+  resize: vertical;
+  min-height: 72px;
+}
+
+.dialog--class {
+  width: min(440px, calc(100vw - 48px));
+}
+
+.empty-action {
+  margin-top: 16px;
+}
+
+.btn-small {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.page--classes {
+  width: 100%;
+  max-width: 1080px;
+  min-width: 0;
+}
+
+.data-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.data-table th,
+.data-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 13px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.data-table th {
+  background: #f7f7f7;
+  font-weight: 600;
   color: var(--text-secondary);
+}
+
+.data-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.data-table-notes {
+  color: var(--text-secondary);
+}
+
+.table-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }

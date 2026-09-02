@@ -47,7 +47,7 @@ export const PAGE_TITLES: Record<NavKey, string> = {
 export const PAGE_DESCRIPTIONS: Record<NavKey, string> = {
   dashboard: '查看当日教学概览与待办事项。',
   schedule: '查看本学期周课表。当前为 2026 学年第一学期固定课表。',
-  classes: '管理任教班级信息。后续版本将支持班级档案维护。',
+  classes: '管理任教班级，为学生、课程、体测和教学记录建立统一基础数据。',
   students: '管理学生名单与基础信息。后续版本将支持导入导出。',
   lessons: '记录体育课堂教学过程。后续版本将支持课堂登记。',
   plans: '编写和查看学期教学计划。后续版本将支持计划模板。',

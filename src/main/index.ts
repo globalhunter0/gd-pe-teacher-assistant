@@ -1,5 +1,7 @@
 import { app, BrowserWindow, Menu, shell } from 'electron'
 import { join } from 'node:path'
+import { registerClassIpc } from './classIpc'
+import { getClassFilePath, loadClasses } from './classStore'
 import { registerScheduleIpc } from './scheduleIpc'
 import { getScheduleFilePath, loadSchedule } from './scheduleStore'
 
@@ -42,8 +44,12 @@ function createMainWindow(): void {
 
 app.whenReady().then(() => {
   registerScheduleIpc()
+  registerClassIpc()
   void loadSchedule().then((items) => {
     console.log(`[schedule] ${items.length} 节课程，文件：${getScheduleFilePath()}`)
+  })
+  void loadClasses().then((items) => {
+    console.log(`[classes] ${items.length} 个班级，文件：${getClassFilePath()}`)
   })
   createMainWindow()
 
