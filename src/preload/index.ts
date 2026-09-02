@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ClassRecord } from '../shared/class/types'
 import type { ScheduleItem } from '../shared/schedule/types'
+import type { StudentRecord } from '../shared/student/types'
 
 const electronAPI = {
   schedule: {
@@ -10,6 +11,10 @@ const electronAPI = {
   classes: {
     get: (): Promise<ClassRecord[]> => ipcRenderer.invoke('classes:get'),
     save: (items: ClassRecord[]): Promise<ClassRecord[]> => ipcRenderer.invoke('classes:save', items)
+  },
+  students: {
+    get: (): Promise<StudentRecord[]> => ipcRenderer.invoke('students:get'),
+    save: (items: StudentRecord[]): Promise<StudentRecord[]> => ipcRenderer.invoke('students:save', items)
   }
 }
 

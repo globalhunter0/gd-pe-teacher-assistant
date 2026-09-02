@@ -32,7 +32,15 @@ export function createClassId(): string {
   return `class-${crypto.randomUUID()}`
 }
 
-export function getClassDeleteBlockers(_classId: string): string[] {
+export function getClassDeleteBlockers(
+  classId: string,
+  students: ReadonlyArray<{ classId: string }> = []
+): string[] {
+  const count = students.filter((item) => item.classId === classId).length
+  if (count > 0) {
+    return [`该班级仍关联 ${count} 名学生，请先处理学生数据后再删除班级。`]
+  }
+
   return []
 }
 

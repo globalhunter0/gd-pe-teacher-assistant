@@ -4,6 +4,8 @@ import { registerClassIpc } from './classIpc'
 import { getClassFilePath, loadClasses } from './classStore'
 import { registerScheduleIpc } from './scheduleIpc'
 import { getScheduleFilePath, loadSchedule } from './scheduleStore'
+import { registerStudentIpc } from './studentIpc'
+import { getStudentFilePath, loadStudents } from './studentStore'
 
 function createMainWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -45,11 +47,15 @@ function createMainWindow(): void {
 app.whenReady().then(() => {
   registerScheduleIpc()
   registerClassIpc()
+  registerStudentIpc()
   void loadSchedule().then((items) => {
     console.log(`[schedule] ${items.length} 节课程，文件：${getScheduleFilePath()}`)
   })
   void loadClasses().then((items) => {
     console.log(`[classes] ${items.length} 个班级，文件：${getClassFilePath()}`)
+  })
+  void loadStudents().then((items) => {
+    console.log(`[students] ${items.length} 名学生，文件：${getStudentFilePath()}`)
   })
   createMainWindow()
 
