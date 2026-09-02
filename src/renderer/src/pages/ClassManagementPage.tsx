@@ -1,14 +1,16 @@
 import { useState } from 'react'
+import { getClassDeleteBlockers, type ClassRecord } from '@shared/class'
 import ClassEditorDialog from '../components/ClassEditorDialog'
 import { useClasses } from '../context/ClassContext'
-import type { ClassRecord } from '@shared/class'
 
 export default function ClassManagementPage(): React.JSX.Element {
   const { classes, loading, error, upsertClass, deleteClass } = useClasses()
   const [editorOpen, setEditorOpen] = useState(false)
   const [editing, setEditing] = useState<ClassRecord | null>(null)
   const [pendingDelete, setPendingDelete] = useState<ClassRecord | null>(null)
+  const [blockedDelete, setBlockedDelete] = useState<{ className: string; message: string } | null>(null)
   const [working, setWorking] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   function openCreate(): void {
     setEditing(null)
@@ -26,15 +28,34 @@ export default function ClassManagementPage(): React.JSX.Element {
     setEditing(null)
   }
 
+  async function requestDelete(record: ClassRecord): Promise<void> {
+    setActionError(null)
+    try {
+      const students = await window.electronAPI.students.get()
+      const blockers = getClassDeleteBlockers(record.id, students)
+      if (blockers.length > 0) {
+        setBlockedDelete({ className: record.className, message: blockers.join('；') })
+        return
+      }
+
+      setPendingDelete(record)
+    } catch (loadError) {
+      setActionError(loadError instanceof Error ? loadError.message : '无法检查班级是否仍有学生')
+    }
+  }
+
   async function handleConfirmDelete(): Promise<void> {
     if (!pendingDelete) {
       return
     }
 
     setWorking(true)
+    setActionError(null)
     try {
       await deleteClass(pendingDelete.id)
       setPendingDelete(null)
+    } catch (deleteError) {
+      setActionError(deleteError instanceof Error ? deleteError.message : '删除失败')
     } finally {
       setWorking(false)
     }
@@ -66,6 +87,7 @@ export default function ClassManagementPage(): React.JSX.Element {
       </div>
 
       {error ? <p className="page-error">{error}</p> : null}
+      {actionError ? <p className="page-error">{actionError}</p> : null}
 
       {classes.length === 0 ? (
         <div className="empty-panel">
@@ -103,7 +125,11 @@ export default function ClassManagementPage(): React.JSX.Element {
                       <button type="button" className="btn btn-small" onClick={() => openEdit(item)}>
                         编辑
                       </button>
-                      <button type="button" className="btn btn-small btn-danger" onClick={() => setPendingDelete(item)}>
+                      <button
+                        type="button"
+                        className="btn btn-small btn-danger"
+                        onClick={() => void requestDelete(item)}
+                      >
                         删除
                       </button>
                     </div>
@@ -124,6 +150,29 @@ export default function ClassManagementPage(): React.JSX.Element {
           }}
           onSave={handleSave}
         />
+      ) : null}
+
+      {blockedDelete ? (
+        <div className="dialog-backdrop" onMouseDown={() => setBlockedDelete(null)}>
+          <div
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="class-delete-blocked-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <h3 id="class-delete-blocked-title">无法删除“{blockedDelete.className}”</h3>
+            <p className="dialog-slot">{blockedDelete.message}</p>
+            <div className="dialog-actions">
+              <span />
+              <div className="dialog-actions-right">
+                <button type="button" className="btn btn-primary" onClick={() => setBlockedDelete(null)}>
+                  知道了
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {pendingDelete ? (
