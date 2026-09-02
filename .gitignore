@@ -22,13 +22,21 @@ pnpm-debug.log*
 !.env.example
 
 # Local data (future SQLite / backups)
-data/
+/data/
 backup/
 backups/
 *.db
 *.db-journal
 *.sqlite
 *.sqlite3
+
+# TypeScript incremental / accidental emit
+*.tsbuildinfo
+/electron.vite.config.js
+/electron.vite.config.d.ts
+/src/main/index.js
+/src/main/index.d.ts
+/src/preload/index.js
 
 # Temp files
 tmp/

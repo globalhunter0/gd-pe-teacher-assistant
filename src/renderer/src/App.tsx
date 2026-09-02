@@ -4,6 +4,7 @@ import AppHeader from './components/AppHeader'
 import PlaceholderPage from './components/PlaceholderPage'
 import Sidebar from './components/Sidebar'
 import DashboardPage from './pages/DashboardPage'
+import SchedulePage from './pages/SchedulePage'
 
 export default function App(): React.JSX.Element {
   const [activeKey, setActiveKey] = useState<NavKey>('dashboard')
@@ -16,6 +17,8 @@ export default function App(): React.JSX.Element {
         <main className="app-content">
           {activeKey === 'dashboard' ? (
             <DashboardPage />
+          ) : activeKey === 'schedule' ? (
+            <SchedulePage />
           ) : (
             <PlaceholderPage title={PAGE_TITLES[activeKey]} pageKey={activeKey} />
           )}
