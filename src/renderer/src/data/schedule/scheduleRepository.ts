@@ -1,4 +1,3 @@
-import { WEEKLY_SCHEDULE } from './scheduleData'
 import type { Period, ScheduleItem, Weekday } from './types'
 
 export interface ScheduleRepository {
@@ -7,18 +6,18 @@ export interface ScheduleRepository {
   findBySlot(weekday: Weekday, period: Period): ScheduleItem | undefined
 }
 
-export const localScheduleRepository: ScheduleRepository = {
-  listAll() {
-    return WEEKLY_SCHEDULE
-  },
+export function createScheduleRepository(items: ScheduleItem[]): ScheduleRepository {
+  return {
+    listAll() {
+      return items
+    },
 
-  listByWeekday(weekday) {
-    return WEEKLY_SCHEDULE.filter((item) => item.weekday === weekday).sort(
-      (a, b) => a.period - b.period
-    )
-  },
+    listByWeekday(weekday) {
+      return items.filter((item) => item.weekday === weekday).sort((a, b) => a.period - b.period)
+    },
 
-  findBySlot(weekday, period) {
-    return WEEKLY_SCHEDULE.find((item) => item.weekday === weekday && item.period === period)
+    findBySlot(weekday, period) {
+      return items.find((item) => item.weekday === weekday && item.period === period)
+    }
   }
 }

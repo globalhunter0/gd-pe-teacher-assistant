@@ -6,6 +6,7 @@ out/
 dist/
 dist-electron/
 release/
+build/
 *.asar
 
 # Logs
@@ -30,13 +31,17 @@ backups/
 *.sqlite
 *.sqlite3
 
-# TypeScript incremental / accidental emit
+# TypeScript incremental cache
 *.tsbuildinfo
+
+# Accidental tsc emit next to sources (keep handwritten src/preload/index.d.ts)
 /electron.vite.config.js
 /electron.vite.config.d.ts
-/src/main/index.js
-/src/main/index.d.ts
+/src/main/*.js
+/src/main/*.d.ts
 /src/preload/index.js
+/src/shared/**/*.js
+/src/shared/**/*.d.ts
 
 # Temp files
 tmp/

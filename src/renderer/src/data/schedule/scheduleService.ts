@@ -1,4 +1,5 @@
-import { localScheduleRepository, type ScheduleRepository } from './scheduleRepository'
+import { PERIOD_TIMES } from '@shared/schedule/periodTimes'
+import { createScheduleRepository, type ScheduleRepository } from './scheduleRepository'
 import type { CourseType, Period, ScheduleItem, Weekday } from './types'
 
 export type TodayStatus = 'weekend-or-none' | 'not-started' | 'in-class' | 'between' | 'finished'
@@ -7,6 +8,7 @@ export interface WeeklySummary {
   total: number
   regularCount: number
   bigCount: number
+  otherCount: number
   semesterLabel: string
 }
 
@@ -21,16 +23,6 @@ export interface TodayOverview {
   statusLabel: string
   nextLessonLabel: string
   nextLessonHint: string
-}
-
-const PERIOD_TIMES: Partial<Record<Period, { startTime: string; endTime: string }>> = {
-  2: { startTime: '08:50', endTime: '09:30' },
-  3: { startTime: '10:00', endTime: '10:40' },
-  4: { startTime: '10:50', endTime: '11:30' },
-  5: { startTime: '11:40', endTime: '12:20' },
-  6: { startTime: '14:15', endTime: '14:55' },
-  7: { startTime: '15:10', endTime: '15:50' },
-  8: { startTime: '16:05', endTime: '16:45' }
 }
 
 const WEEKDAY_NAMES = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
@@ -65,13 +57,16 @@ export function getPeriodTimeLabel(period: Period): string {
   return formatTimeRange(slot.startTime, slot.endTime)
 }
 
-export function createScheduleService(repository: ScheduleRepository = localScheduleRepository) {
+export function createScheduleService(items: ScheduleItem[]) {
+  const repository: ScheduleRepository = createScheduleRepository(items)
+
   function getWeeklySummary(): WeeklySummary {
     const lessons = repository.listAll()
     return {
       total: lessons.length,
       regularCount: lessons.filter((item) => item.courseType === 'regular').length,
       bigCount: lessons.filter((item) => item.courseType === 'big').length,
+      otherCount: lessons.filter((item) => item.courseType === 'other').length,
       semesterLabel: '2026学年第一学期'
     }
   }
@@ -187,5 +182,3 @@ export function createScheduleService(repository: ScheduleRepository = localSche
     countByCourseType
   }
 }
-
-export const scheduleService = createScheduleService()

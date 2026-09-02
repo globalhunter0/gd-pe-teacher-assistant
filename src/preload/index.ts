@@ -1,8 +1,11 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
+import type { ScheduleItem } from '../shared/schedule/types'
 
-const appBridge = {
-  name: '广东省初中体育教师管理助手',
-  version: '0.1.0'
-} as const
+const electronAPI = {
+  schedule: {
+    get: (): Promise<ScheduleItem[]> => ipcRenderer.invoke('schedule:get'),
+    save: (items: ScheduleItem[]): Promise<ScheduleItem[]> => ipcRenderer.invoke('schedule:save', items)
+  }
+}
 
-contextBridge.exposeInMainWorld('appBridge', appBridge)
+contextBridge.exposeInMainWorld('electronAPI', electronAPI)

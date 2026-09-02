@@ -1,4 +1,12 @@
-export { localScheduleRepository } from './scheduleRepository'
-export { formatTimeRange, getPeriodTimeLabel, scheduleService } from './scheduleService'
+export { createScheduleRepository } from './scheduleRepository'
+export { createScheduleService, formatTimeRange, getPeriodTimeLabel } from './scheduleService'
 export type { ScheduleItem, Weekday, Period, CourseType } from './types'
-export { WEEKDAY_LABELS, COURSE_TYPE_LABELS, WEEKDAYS, PERIODS } from './types'
+export {
+  COURSE_TYPE_LABELS,
+  PERIODS,
+  WEEKDAYS,
+  WEEKDAY_LABELS,
+  WEEKLY_SCHEDULE,
+  getDefaultSlotTime,
+  parseScheduleItems
+} from './types'

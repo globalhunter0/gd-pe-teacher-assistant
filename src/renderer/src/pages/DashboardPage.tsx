@@ -1,20 +1,34 @@
 import StatCard from '../components/StatCard'
-import { COURSE_TYPE_LABELS, formatTimeRange, scheduleService } from '../data/schedule'
+import { useSchedule, useScheduleService } from '../context/ScheduleContext'
+import { COURSE_TYPE_LABELS, formatTimeRange } from '../data/schedule'
 import { useNow } from '../hooks/useNow'
 
 export default function DashboardPage(): React.JSX.Element {
   const now = useNow()
+  const { loading, error } = useSchedule()
+  const scheduleService = useScheduleService()
   const summary = scheduleService.getWeeklySummary()
   const today = scheduleService.getTodayOverview(now)
+
+  if (loading) {
+    return (
+      <section className="page">
+        <div className="page-heading">
+          <h2>工作台</h2>
+          <p>正在读取本地课表…</p>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className="page">
       <div className="page-heading">
         <h2>工作台</h2>
-        <p>
-          今天是{today.weekdayLabel}。课表按本机时间自动计算今日课程与下一节课。
-        </p>
+        <p>今天是{today.weekdayLabel}。课表按本机时间和已保存的课表自动计算。</p>
       </div>
+
+      {error ? <p className="page-error">{error}</p> : null}
 
       <div className="stat-grid">
         <StatCard
