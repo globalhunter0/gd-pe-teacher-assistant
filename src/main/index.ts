@@ -1,5 +1,7 @@
 import { app, BrowserWindow, Menu, shell } from 'electron'
 import { join } from 'node:path'
+import { registerScheduleIpc } from './scheduleIpc'
+import { getScheduleFilePath, loadSchedule } from './scheduleStore'
 
 function createMainWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -39,6 +41,10 @@ function createMainWindow(): void {
 }
 
 app.whenReady().then(() => {
+  registerScheduleIpc()
+  void loadSchedule().then((items) => {
+    console.log(`[schedule] ${items.length} 节课程，文件：${getScheduleFilePath()}`)
+  })
   createMainWindow()
 
   app.on('activate', () => {
