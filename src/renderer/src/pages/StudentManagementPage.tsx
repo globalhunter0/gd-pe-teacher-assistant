@@ -5,7 +5,7 @@ import { useClasses } from '../context/ClassContext'
 import { useStudents } from '../context/StudentContext'
 import { countActiveStudents, filterStudents } from '../data/student/query'
 import type { ClassRecord } from '@shared/class'
-import { STUDENT_GENDER_LABELS, STUDENT_STATUS_LABELS, type StudentRecord } from '@shared/student'
+import { STUDENT_GENDER_LABELS, STUDENT_STATUS_LABELS, getStudentDeleteBlockers, type StudentRecord } from '@shared/student'
 
 function classLabel(classes: ClassRecord[], classId: string): { grade: string; className: string } {
   const match = classes.find((item) => item.id === classId)
@@ -24,6 +24,7 @@ export default function StudentManagementPage(): React.JSX.Element {
   const [editorOpen, setEditorOpen] = useState(false)
   const [editing, setEditing] = useState<StudentRecord | null>(null)
   const [pendingDelete, setPendingDelete] = useState<StudentRecord | null>(null)
+  const [blockedDelete, setBlockedDelete] = useState<{ name: string; message: string } | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [working, setWorking] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -65,6 +66,22 @@ export default function StudentManagementPage(): React.JSX.Element {
     await upsertStudent(record)
     setEditorOpen(false)
     setEditing(null)
+  }
+
+  async function requestDelete(record: StudentRecord): Promise<void> {
+    setActionError(null)
+    try {
+      const sessions = await window.electronAPI.peSessions.get()
+      const blockers = getStudentDeleteBlockers(record.id, sessions)
+      if (blockers.length > 0) {
+        setBlockedDelete({ name: record.name, message: blockers.join('；') })
+        return
+      }
+
+      setPendingDelete(record)
+    } catch (loadError) {
+      setActionError(loadError instanceof Error ? loadError.message : '无法检查学生是否仍可删除')
+    }
   }
 
   async function handleConfirmDelete(): Promise<void> {
@@ -193,7 +210,11 @@ export default function StudentManagementPage(): React.JSX.Element {
                         <button type="button" className="btn btn-small" onClick={() => openEdit(item)}>
                           编辑
                         </button>
-                        <button type="button" className="btn btn-small btn-danger" onClick={() => setPendingDelete(item)}>
+                        <button
+                          type="button"
+                          className="btn btn-small btn-danger"
+                          onClick={() => void requestDelete(item)}
+                        >
                           删除
                         </button>
                       </div>
@@ -225,6 +246,29 @@ export default function StudentManagementPage(): React.JSX.Element {
           onClose={() => setImportOpen(false)}
           onImported={(imported) => applyImportedStudents(imported.students)}
         />
+      ) : null}
+
+      {blockedDelete ? (
+        <div className="dialog-backdrop" onMouseDown={() => setBlockedDelete(null)}>
+          <div
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="student-delete-blocked-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <h3 id="student-delete-blocked-title">无法删除“{blockedDelete.name}”</h3>
+            <p className="dialog-slot">{blockedDelete.message}</p>
+            <div className="dialog-actions">
+              <span />
+              <div className="dialog-actions-right">
+                <button type="button" className="btn btn-primary" onClick={() => setBlockedDelete(null)}>
+                  知道了
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {pendingDelete ? (

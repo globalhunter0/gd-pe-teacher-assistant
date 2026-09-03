@@ -34,14 +34,21 @@ export function createClassId(): string {
 
 export function getClassDeleteBlockers(
   classId: string,
-  students: ReadonlyArray<{ classId: string }> = []
+  students: ReadonlyArray<{ classId: string }> = [],
+  sessions: ReadonlyArray<{ classId: string }> = []
 ): string[] {
-  const count = students.filter((item) => item.classId === classId).length
-  if (count > 0) {
-    return [`该班级仍关联 ${count} 名学生，请先处理学生数据后再删除班级。`]
+  const blockers: string[] = []
+  const studentCount = students.filter((item) => item.classId === classId).length
+  if (studentCount > 0) {
+    blockers.push(`该班级仍关联 ${studentCount} 名学生，请先处理学生数据后再删除班级。`)
   }
 
-  return []
+  const sessionCount = sessions.filter((item) => item.classId === classId).length
+  if (sessionCount > 0) {
+    blockers.push(`该班级存在 ${sessionCount} 节体育课历史记录，请先处理相关课堂记录。`)
+  }
+
+  return blockers
 }
 
 export function parseClassRecords(input: unknown): ClassRecord[] {

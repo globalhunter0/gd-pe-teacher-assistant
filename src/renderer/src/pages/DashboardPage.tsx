@@ -2,8 +2,13 @@ import StatCard from '../components/StatCard'
 import { useSchedule, useScheduleService } from '../context/ScheduleContext'
 import { COURSE_TYPE_LABELS, formatTimeRange } from '../data/schedule'
 import { useNow } from '../hooks/useNow'
+import { formatLocalDate, mapScheduleCourseType, type PeSessionPrefill } from '@shared/peSession'
 
-export default function DashboardPage(): React.JSX.Element {
+interface DashboardPageProps {
+  onStartRecord: (prefill: PeSessionPrefill) => void
+}
+
+export default function DashboardPage({ onStartRecord }: DashboardPageProps): React.JSX.Element {
   const now = useNow()
   const { loading, error } = useSchedule()
   const scheduleService = useScheduleService()
@@ -80,6 +85,23 @@ export default function DashboardPage(): React.JSX.Element {
                   </div>
                   {isCurrent ? <span className="today-tag">当前</span> : null}
                   {!isCurrent && isNext ? <span className="today-tag today-tag--next">下一节</span> : null}
+                  <button
+                    type="button"
+                    className="btn btn-small today-start"
+                    onClick={() =>
+                      onStartRecord({
+                        date: formatLocalDate(now),
+                        period: lesson.period,
+                        scheduleLessonId: lesson.id,
+                        lessonType: mapScheduleCourseType(lesson.courseType),
+                        teamSnapshot: lesson.team,
+                        startTimeSnapshot: lesson.startTime,
+                        endTimeSnapshot: lesson.endTime
+                      })
+                    }
+                  >
+                    开始记录
+                  </button>
                 </li>
               )
             })}
