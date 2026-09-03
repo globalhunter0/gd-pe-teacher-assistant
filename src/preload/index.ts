@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { ClassRecord } from '../shared/class/types'
 import type { PEClassSession } from '../shared/peSession/types'
 import type { ScheduleItem } from '../shared/schedule/types'
+import type { PETestSession, TestItem } from '../shared/peTest'
 import type {
   ImportColumn,
   ImportCommitResult,
@@ -46,6 +47,14 @@ const electronAPI = {
   peSessions: {
     get: (): Promise<PEClassSession[]> => ipcRenderer.invoke('peSessions:get'),
     save: (items: PEClassSession[]): Promise<PEClassSession[]> => ipcRenderer.invoke('peSessions:save', items)
+  },
+  testItems: {
+    get: (): Promise<TestItem[]> => ipcRenderer.invoke('testItems:get'),
+    save: (items: TestItem[]): Promise<TestItem[]> => ipcRenderer.invoke('testItems:save', items)
+  },
+  peTests: {
+    get: (): Promise<PETestSession[]> => ipcRenderer.invoke('peTests:get'),
+    save: (items: PETestSession[]): Promise<PETestSession[]> => ipcRenderer.invoke('peTests:save', items)
   }
 }
 

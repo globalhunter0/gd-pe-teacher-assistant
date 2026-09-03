@@ -35,7 +35,8 @@ export function createClassId(): string {
 export function getClassDeleteBlockers(
   classId: string,
   students: ReadonlyArray<{ classId: string }> = [],
-  sessions: ReadonlyArray<{ classId: string }> = []
+  sessions: ReadonlyArray<{ classId: string }> = [],
+  testSessions: ReadonlyArray<{ classId: string }> = []
 ): string[] {
   const blockers: string[] = []
   const studentCount = students.filter((item) => item.classId === classId).length
@@ -46,6 +47,11 @@ export function getClassDeleteBlockers(
   const sessionCount = sessions.filter((item) => item.classId === classId).length
   if (sessionCount > 0) {
     blockers.push(`该班级存在 ${sessionCount} 节体育课历史记录，请先处理相关课堂记录。`)
+  }
+
+  const testCount = testSessions.filter((item) => item.classId === classId).length
+  if (testCount > 0) {
+    blockers.push(`该班级存在 ${testCount} 次体育测试记录，请先处理相关测试。`)
   }
 
   return blockers

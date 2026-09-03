@@ -895,3 +895,76 @@ textarea {
 .pe-record-table {
   table-layout: auto;
 }
+
+.score-input {
+  font: inherit;
+  width: 7.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+.link-button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #155eef;
+  cursor: pointer;
+  font: inherit;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 12px;
+}
+
+.delta--improved {
+  color: #067647;
+}
+
+.delta--declined {
+  color: #b42318;
+}
+
+.delta--same {
+  color: var(--muted, #667085);
+}
+
+.row-warning {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #b54708;
+}
+
+.pe-editor-meta {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 2fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pe-editor-meta label,
+.pe-editor-meta-wide {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted, #667085);
+}
+
+.pe-editor-meta input {
+  font: inherit;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+}

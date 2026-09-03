@@ -67,7 +67,8 @@ export function ClassProvider({ children }: { children: React.ReactNode }): Reac
     async (id: string) => {
       const students = await window.electronAPI.students.get()
       const sessions = await window.electronAPI.peSessions.get()
-      const blockers = getClassDeleteBlockers(id, students, sessions)
+      const tests = await window.electronAPI.peTests.get()
+      const blockers = getClassDeleteBlockers(id, students, sessions, tests)
       if (blockers.length > 0) {
         throw new Error(blockers.join('；'))
       }

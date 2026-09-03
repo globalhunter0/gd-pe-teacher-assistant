@@ -33,7 +33,8 @@ export default function ClassManagementPage(): React.JSX.Element {
     try {
       const students = await window.electronAPI.students.get()
       const sessions = await window.electronAPI.peSessions.get()
-      const blockers = getClassDeleteBlockers(record.id, students, sessions)
+      const tests = await window.electronAPI.peTests.get()
+      const blockers = getClassDeleteBlockers(record.id, students, sessions, tests)
       if (blockers.length > 0) {
         setBlockedDelete({ className: record.className, message: blockers.join('；') })
         return
