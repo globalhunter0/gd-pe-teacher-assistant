@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import PeTestEditor from '../components/PeTestEditor'
 import TestItemEditorDialog from '../components/TestItemEditorDialog'
 import { useClasses } from '../context/ClassContext'
@@ -18,7 +18,15 @@ import {
   type TestItem
 } from '@shared/peTest'
 
-export default function PeTestsPage(): React.JSX.Element {
+interface PeTestsPageProps {
+  openSessionId?: string | null
+  onOpenSessionConsumed?: () => void
+}
+
+export default function PeTestsPage({
+  openSessionId = null,
+  onOpenSessionConsumed
+}: PeTestsPageProps): React.JSX.Element {
   const { classes } = useClasses()
   const { students } = useStudents()
   const { items, loading: itemsLoading, error: itemsError, saveItems, upsertItem } = useTestItems()
@@ -36,6 +44,20 @@ export default function PeTestsPage(): React.JSX.Element {
   const [testItemId, setTestItemId] = useState(items.find((item) => item.isActive)?.id ?? '')
   const [date, setDate] = useState(formatLocalDate(new Date()))
   const [title, setTitle] = useState('')
+
+  useEffect(() => {
+    if (!openSessionId || loading) {
+      return
+    }
+
+    const found = sessions.find((item) => item.id === openSessionId)
+    if (found) {
+      setView('list')
+      setEditing(found)
+    }
+
+    onOpenSessionConsumed?.()
+  }, [openSessionId, loading, sessions, onOpenSessionConsumed])
 
   const activeItems = useMemo(() => items.filter((item) => item.isActive), [items])
 

@@ -15,11 +15,13 @@ import PeLessonRecordsPage from './pages/PeLessonRecordsPage'
 import PeTestsPage from './pages/PeTestsPage'
 import SchedulePage from './pages/SchedulePage'
 import StudentManagementPage from './pages/StudentManagementPage'
+import StatsPage from './pages/StatsPage'
 import type { PeSessionPrefill } from '@shared/peSession'
 
 export default function App(): React.JSX.Element {
   const [activeKey, setActiveKey] = useState<NavKey>('dashboard')
   const [pePrefill, setPePrefill] = useState<PeSessionPrefill | null>(null)
+  const [openTestSessionId, setOpenTestSessionId] = useState<string | null>(null)
 
   return (
     <ScheduleProvider>
@@ -49,7 +51,17 @@ export default function App(): React.JSX.Element {
                       ) : activeKey === 'lessons' ? (
                         <PeLessonRecordsPage prefill={pePrefill} onPrefillConsumed={() => setPePrefill(null)} />
                       ) : activeKey === 'tests' ? (
-                        <PeTestsPage />
+                        <PeTestsPage
+                          openSessionId={openTestSessionId}
+                          onOpenSessionConsumed={() => setOpenTestSessionId(null)}
+                        />
+                      ) : activeKey === 'stats' ? (
+                        <StatsPage
+                          onOpenTest={(sessionId) => {
+                            setOpenTestSessionId(sessionId)
+                            setActiveKey('tests')
+                          }}
+                        />
                       ) : (
                         <PlaceholderPage title={PAGE_TITLES[activeKey]} pageKey={activeKey} />
                       )}
