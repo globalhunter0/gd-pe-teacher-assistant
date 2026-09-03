@@ -43,6 +43,10 @@ backups/
 /src/shared/**/*.js
 /src/shared/**/*.d.ts
 
+# User Excel lists (never commit teacher spreadsheets)
+*.xlsx
+*.xls
+
 # Temp files
 tmp/
 temp/

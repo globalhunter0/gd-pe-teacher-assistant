@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import ExcelImportDialog from '../components/ExcelImportDialog'
 import StudentEditorDialog from '../components/StudentEditorDialog'
 import { useClasses } from '../context/ClassContext'
 import { useStudents } from '../context/StudentContext'
@@ -17,12 +18,13 @@ function classLabel(classes: ClassRecord[], classId: string): { grade: string; c
 
 export default function StudentManagementPage(): React.JSX.Element {
   const { classes, loading: classesLoading } = useClasses()
-  const { students, loading, error, upsertStudent, deleteStudent } = useStudents()
+  const { students, loading, error, upsertStudent, deleteStudent, applyImportedStudents } = useStudents()
   const [classFilter, setClassFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [editorOpen, setEditorOpen] = useState(false)
   const [editing, setEditing] = useState<StudentRecord | null>(null)
   const [pendingDelete, setPendingDelete] = useState<StudentRecord | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
   const [working, setWorking] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
@@ -31,6 +33,16 @@ export default function StudentManagementPage(): React.JSX.Element {
     () => filterStudents(students, { classId: classFilter, query }),
     [students, classFilter, query]
   )
+
+  function openImport(): void {
+    if (classes.length === 0) {
+      setActionError('请先在班级管理中创建班级')
+      return
+    }
+
+    setActionError(null)
+    setImportOpen(true)
+  }
 
   function openCreate(): void {
     if (classes.length === 0) {
@@ -91,6 +103,9 @@ export default function StudentManagementPage(): React.JSX.Element {
           <p>管理学生基础档案。已录入（在读）{activeCount} 人，全部记录 {students.length} 条。</p>
         </div>
         <div className="page-actions">
+          <button type="button" className="btn" onClick={openImport}>
+            Excel 导入
+          </button>
           <button type="button" className="btn btn-primary" onClick={openCreate} disabled={classes.length === 0}>
             + 新增学生
           </button>
@@ -200,6 +215,15 @@ export default function StudentManagementPage(): React.JSX.Element {
             setEditing(null)
           }}
           onSave={handleSave}
+        />
+      ) : null}
+
+      {importOpen ? (
+        <ExcelImportDialog
+          classes={classes}
+          defaultClassId={classFilter !== 'all' ? classFilter : classes[0]?.id ?? ''}
+          onClose={() => setImportOpen(false)}
+          onImported={(imported) => applyImportedStudents(imported.students)}
         />
       ) : null}
 

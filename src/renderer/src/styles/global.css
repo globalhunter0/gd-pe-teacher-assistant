@@ -640,6 +640,51 @@ textarea {
   width: min(440px, calc(100vw - 48px));
 }
 
+.dialog--import {
+  width: min(760px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+
+.import-file-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.import-file-name {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.import-summary,
+.import-result {
+  margin: 8px 0 12px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.import-preview-wrap {
+  max-height: 280px;
+  overflow: auto;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.import-preview-table {
+  table-layout: auto;
+}
+
+.import-row--warning td {
+  background: #fff4ce;
+}
+
+.import-row--error td,
+.import-row--duplicate td {
+  background: #fde7e9;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;

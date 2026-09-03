@@ -6,3 +6,13 @@ export {
   STUDENT_STATUSES
 } from './types'
 export { createStudentId, getStudentDeleteBlockers, parseStudentRecords } from './validate'
+export type {
+  ImportColumn,
+  ImportCommitResult,
+  ImportPickResult,
+  ImportPreviewResult,
+  ImportPreviewRow,
+  ImportRowStatus,
+  StudentImportMapping
+} from './importTypes'
+export { IMPORT_UNMAPPED, suggestImportMapping } from './importMapping'
