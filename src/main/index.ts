@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu, shell } from 'electron'
 import { join } from 'node:path'
 import { registerClassIpc } from './classIpc'
 import { getClassFilePath, loadClasses } from './classStore'
+import { setMainWindow } from './mainWindow'
 import { registerScheduleIpc } from './scheduleIpc'
 import { getScheduleFilePath, loadSchedule } from './scheduleStore'
 import { registerStudentIpc } from './studentIpc'
@@ -24,6 +25,11 @@ function createMainWindow(): void {
       sandbox: true,
       webSecurity: true
     }
+  })
+
+  setMainWindow(mainWindow)
+  mainWindow.on('closed', () => {
+    setMainWindow(null)
   })
 
   Menu.setApplicationMenu(null)

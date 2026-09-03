@@ -8,6 +8,7 @@ interface StudentContextValue {
   saveStudents: (items: StudentRecord[]) => Promise<void>
   upsertStudent: (item: StudentRecord) => Promise<void>
   deleteStudent: (id: string) => Promise<void>
+  applyImportedStudents: (items: StudentRecord[]) => void
 }
 
 const StudentContext = createContext<StudentContextValue | null>(null)
@@ -71,6 +72,11 @@ export function StudentProvider({ children }: { children: React.ReactNode }): Re
     [students, saveStudents]
   )
 
+  const applyImportedStudents = useCallback((items: StudentRecord[]) => {
+    setStudents(items)
+    setError(null)
+  }, [])
+
   const value = useMemo(
     () => ({
       students,
@@ -78,9 +84,10 @@ export function StudentProvider({ children }: { children: React.ReactNode }): Re
       error,
       saveStudents,
       upsertStudent,
-      deleteStudent
+      deleteStudent,
+      applyImportedStudents
     }),
-    [students, loading, error, saveStudents, upsertStudent, deleteStudent]
+    [students, loading, error, saveStudents, upsertStudent, deleteStudent, applyImportedStudents]
   )
 
   return <StudentContext.Provider value={value}>{children}</StudentContext.Provider>
