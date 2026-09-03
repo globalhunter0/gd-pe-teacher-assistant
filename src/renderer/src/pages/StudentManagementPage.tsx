@@ -72,7 +72,8 @@ export default function StudentManagementPage(): React.JSX.Element {
     setActionError(null)
     try {
       const sessions = await window.electronAPI.peSessions.get()
-      const blockers = getStudentDeleteBlockers(record.id, sessions)
+      const tests = await window.electronAPI.peTests.get()
+      const blockers = getStudentDeleteBlockers(record.id, sessions, tests)
       if (blockers.length > 0) {
         setBlockedDelete({ name: record.name, message: blockers.join('；') })
         return

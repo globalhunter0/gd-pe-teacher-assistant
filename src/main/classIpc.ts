@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { getClassDeleteBlockers, parseClassRecords } from '../shared/class/validate'
 import { loadClasses, saveClasses } from './classStore'
 import { loadPeSessions } from './peSessionStore'
+import { loadPeTests } from './peTestStore'
 import { loadStudents } from './studentStore'
 
 export function registerClassIpc(): void {
@@ -15,13 +16,14 @@ export function registerClassIpc(): void {
     const nextIds = new Set(next.map((item) => item.id))
     const students = await loadStudents()
     const sessions = await loadPeSessions()
+    const tests = await loadPeTests()
 
     for (const item of current) {
       if (nextIds.has(item.id)) {
         continue
       }
 
-      const blockers = getClassDeleteBlockers(item.id, students, sessions)
+      const blockers = getClassDeleteBlockers(item.id, students, sessions, tests)
       if (blockers.length > 0) {
         throw new Error(blockers.join('；'))
       }

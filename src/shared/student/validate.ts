@@ -22,14 +22,21 @@ export function createStudentId(): string {
 
 export function getStudentDeleteBlockers(
   studentId: string,
-  sessions: ReadonlyArray<{ records: ReadonlyArray<{ studentId: string }> }> = []
+  sessions: ReadonlyArray<{ records: ReadonlyArray<{ studentId: string }> }> = [],
+  testSessions: ReadonlyArray<{ records: ReadonlyArray<{ studentId: string }> }> = []
 ): string[] {
-  const count = sessions.filter((session) => session.records.some((record) => record.studentId === studentId)).length
-  if (count > 0) {
-    return [`该学生存在 ${count} 节体育课历史记录，不能直接删除。可将学生状态改为已转出。`]
+  const blockers: string[] = []
+  const lessonCount = sessions.filter((session) => session.records.some((record) => record.studentId === studentId)).length
+  if (lessonCount > 0) {
+    blockers.push(`该学生存在 ${lessonCount} 节体育课历史记录，不能直接删除。可将学生状态改为已转出。`)
   }
 
-  return []
+  const testCount = testSessions.filter((session) => session.records.some((record) => record.studentId === studentId)).length
+  if (testCount > 0) {
+    blockers.push(`该学生存在 ${testCount} 次体育测试历史记录，不能直接删除。可将学生状态改为已转出。`)
+  }
+
+  return blockers
 }
 
 export function parseStudentRecords(input: unknown, options: ParseStudentOptions = {}): StudentRecord[] {

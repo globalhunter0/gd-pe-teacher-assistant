@@ -9,6 +9,7 @@ import {
   previewStudentExcel
 } from './studentImport'
 import { loadPeSessions } from './peSessionStore'
+import { loadPeTests } from './peTestStore'
 import { loadStudents, saveStudents } from './studentStore'
 
 export function registerStudentIpc(): void {
@@ -23,13 +24,14 @@ export function registerStudentIpc(): void {
     const current = await loadStudents()
     const nextIds = new Set(next.map((item) => item.id))
     const sessions = await loadPeSessions()
+    const tests = await loadPeTests()
 
     for (const item of current) {
       if (nextIds.has(item.id)) {
         continue
       }
 
-      const blockers = getStudentDeleteBlockers(item.id, sessions)
+      const blockers = getStudentDeleteBlockers(item.id, sessions, tests)
       if (blockers.length > 0) {
         throw new Error(blockers.join('；'))
       }

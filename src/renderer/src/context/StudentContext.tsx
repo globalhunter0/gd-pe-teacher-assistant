@@ -63,7 +63,8 @@ export function StudentProvider({ children }: { children: React.ReactNode }): Re
   const deleteStudent = useCallback(
     async (id: string) => {
       const sessions = await window.electronAPI.peSessions.get()
-      const blockers = getStudentDeleteBlockers(id, sessions)
+      const tests = await window.electronAPI.peTests.get()
+      const blockers = getStudentDeleteBlockers(id, sessions, tests)
       if (blockers.length > 0) {
         throw new Error(blockers.join('；'))
       }
