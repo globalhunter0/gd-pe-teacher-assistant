@@ -5,6 +5,8 @@ import { getClassFilePath, loadClasses } from './classStore'
 import { setMainWindow } from './mainWindow'
 import { registerScheduleIpc } from './scheduleIpc'
 import { getScheduleFilePath, loadSchedule } from './scheduleStore'
+import { registerPeSessionIpc } from './peSessionIpc'
+import { getPeSessionFilePath, loadPeSessions } from './peSessionStore'
 import { registerStudentIpc } from './studentIpc'
 import { getStudentFilePath, loadStudents } from './studentStore'
 
@@ -54,6 +56,7 @@ app.whenReady().then(() => {
   registerScheduleIpc()
   registerClassIpc()
   registerStudentIpc()
+  registerPeSessionIpc()
   void loadSchedule().then((items) => {
     console.log(`[schedule] ${items.length} 节课程，文件：${getScheduleFilePath()}`)
   })
@@ -62,6 +65,9 @@ app.whenReady().then(() => {
   })
   void loadStudents().then((items) => {
     console.log(`[students] ${items.length} 名学生，文件：${getStudentFilePath()}`)
+  })
+  void loadPeSessions().then((items) => {
+    console.log(`[pe-sessions] ${items.length} 节课堂记录，文件：${getPeSessionFilePath()}`)
   })
   createMainWindow()
 

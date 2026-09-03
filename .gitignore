@@ -43,6 +43,12 @@ backups/
 /src/shared/**/*.js
 /src/shared/**/*.d.ts
 
+# Local JSON copies accidentally placed in the repo
+/students.json
+/classes.json
+/schedule.json
+/pe-sessions.json
+
 # User Excel lists (never commit teacher spreadsheets)
 *.xlsx
 *.xls

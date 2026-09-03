@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ClassRecord } from '../shared/class/types'
+import type { PEClassSession } from '../shared/peSession/types'
 import type { ScheduleItem } from '../shared/schedule/types'
 import type {
   ImportColumn,
@@ -41,6 +42,10 @@ const electronAPI = {
       classId: string
     ): Promise<ImportCommitResult> => ipcRenderer.invoke('students:importCommit', sessionId, sheetName, mapping, classId),
     importCancel: (): Promise<void> => ipcRenderer.invoke('students:importCancel')
+  },
+  peSessions: {
+    get: (): Promise<PEClassSession[]> => ipcRenderer.invoke('peSessions:get'),
+    save: (items: PEClassSession[]): Promise<PEClassSession[]> => ipcRenderer.invoke('peSessions:save', items)
   }
 }
 

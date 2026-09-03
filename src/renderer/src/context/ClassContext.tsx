@@ -66,7 +66,8 @@ export function ClassProvider({ children }: { children: React.ReactNode }): Reac
   const deleteClass = useCallback(
     async (id: string) => {
       const students = await window.electronAPI.students.get()
-      const blockers = getClassDeleteBlockers(id, students)
+      const sessions = await window.electronAPI.peSessions.get()
+      const blockers = getClassDeleteBlockers(id, students, sessions)
       if (blockers.length > 0) {
         throw new Error(blockers.join('；'))
       }

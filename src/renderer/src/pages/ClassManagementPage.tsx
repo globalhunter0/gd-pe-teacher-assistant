@@ -32,7 +32,8 @@ export default function ClassManagementPage(): React.JSX.Element {
     setActionError(null)
     try {
       const students = await window.electronAPI.students.get()
-      const blockers = getClassDeleteBlockers(record.id, students)
+      const sessions = await window.electronAPI.peSessions.get()
+      const blockers = getClassDeleteBlockers(record.id, students, sessions)
       if (blockers.length > 0) {
         setBlockedDelete({ className: record.className, message: blockers.join('；') })
         return
@@ -40,7 +41,7 @@ export default function ClassManagementPage(): React.JSX.Element {
 
       setPendingDelete(record)
     } catch (loadError) {
-      setActionError(loadError instanceof Error ? loadError.message : '无法检查班级是否仍有学生')
+      setActionError(loadError instanceof Error ? loadError.message : '无法检查班级是否仍可删除')
     }
   }
 
