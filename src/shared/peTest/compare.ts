@@ -77,3 +77,37 @@ export function findPreviousValidScore(
 
   return { date: previous.date, rawValue: previous.rawValue, sessionId: previous.id }
 }
+
+export function findFirstValidScore(
+  history: Array<{ date: string; id: string; createdAt?: string; rawValue: number | null; status: string }>
+): PreviousScore | null {
+  const first = history
+    .filter((item) => item.status === 'valid' && item.rawValue !== null)
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) || (a.createdAt ?? '').localeCompare(b.createdAt ?? '') || a.id.localeCompare(b.id)
+    )[0]
+
+  if (!first || first.rawValue === null) {
+    return null
+  }
+
+  return { date: first.date, rawValue: first.rawValue, sessionId: first.id }
+}
+
+export function findLatestValidScore(
+  history: Array<{ date: string; id: string; createdAt?: string; rawValue: number | null; status: string }>
+): PreviousScore | null {
+  const latest = history
+    .filter((item) => item.status === 'valid' && item.rawValue !== null)
+    .sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) || (b.createdAt ?? '').localeCompare(a.createdAt ?? '') || b.id.localeCompare(a.id)
+    )[0]
+
+  if (!latest || latest.rawValue === null) {
+    return null
+  }
+
+  return { date: latest.date, rawValue: latest.rawValue, sessionId: latest.id }
+}

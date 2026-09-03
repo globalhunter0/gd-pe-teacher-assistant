@@ -28,7 +28,7 @@ export {
   testUnitDisplay
 } from './types'
 export { BUILTIN_TEST_ITEMS, mergeBuiltinTestItems } from './builtinItems'
-export { compareToPrevious, findPreviousValidScore } from './compare'
+export { compareToPrevious, findFirstValidScore, findLatestValidScore, findPreviousValidScore } from './compare'
 export { formatRawValue, parseScoreInput, resolveTimeInputMode, usesMinuteFormat } from './scoreFormat'
 export {
   countTestRecords,
