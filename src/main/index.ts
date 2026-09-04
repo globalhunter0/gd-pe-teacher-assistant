@@ -12,6 +12,8 @@ import { getPeTestFilePath, loadPeTests } from './peTestStore'
 import { registerStudentIpc } from './studentIpc'
 import { getStudentFilePath, loadStudents } from './studentStore'
 import { getTestItemFilePath, loadTestItems } from './testItemStore'
+import { registerTeachingPlanIpc } from './teachingPlanIpc'
+import { getTeachingPlanFilePath, loadTeachingPlans } from './teachingPlanStore'
 
 function createMainWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -61,6 +63,7 @@ app.whenReady().then(() => {
   registerStudentIpc()
   registerPeSessionIpc()
   registerPeTestIpc()
+  registerTeachingPlanIpc()
   void loadSchedule().then((items) => {
     console.log(`[schedule] ${items.length} 节课程，文件：${getScheduleFilePath()}`)
   })
@@ -78,6 +81,9 @@ app.whenReady().then(() => {
   })
   void loadPeTests().then((items) => {
     console.log(`[pe-tests] ${items.length} 次体育测试，文件：${getPeTestFilePath()}`)
+  })
+  void loadTeachingPlans().then((items) => {
+    console.log(`[teaching-plans] ${items.length} 份教学计划，文件：${getTeachingPlanFilePath()}`)
   })
   createMainWindow()
 

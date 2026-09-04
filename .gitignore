@@ -50,6 +50,7 @@ backups/
 /pe-sessions.json
 /test-items.json
 /pe-tests.json
+/teaching-plans.json
 
 # User Excel lists (never commit teacher spreadsheets)
 *.xlsx

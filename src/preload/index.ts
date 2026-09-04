@@ -3,6 +3,7 @@ import type { ClassRecord } from '../shared/class/types'
 import type { PEClassSession } from '../shared/peSession/types'
 import type { ScheduleItem } from '../shared/schedule/types'
 import type { PETestSession, TestItem } from '../shared/peTest'
+import type { TeachingPlan } from '../shared/teachingPlan'
 import type {
   ImportColumn,
   ImportCommitResult,
@@ -55,6 +56,10 @@ const electronAPI = {
   peTests: {
     get: (): Promise<PETestSession[]> => ipcRenderer.invoke('peTests:get'),
     save: (items: PETestSession[]): Promise<PETestSession[]> => ipcRenderer.invoke('peTests:save', items)
+  },
+  teachingPlans: {
+    get: (): Promise<TeachingPlan[]> => ipcRenderer.invoke('teachingPlans:get'),
+    save: (items: TeachingPlan[]): Promise<TeachingPlan[]> => ipcRenderer.invoke('teachingPlans:save', items)
   }
 }
 
