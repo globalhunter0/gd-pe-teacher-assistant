@@ -2,6 +2,7 @@ import type { ClassRecord } from '../shared/class/types'
 import type { PEClassSession } from '../shared/peSession/types'
 import type { ScheduleItem } from '../shared/schedule/types'
 import type { PETestSession, TestItem } from '../shared/peTest'
+import type { TeachingPlan } from '../shared/teachingPlan'
 import type {
   ImportColumn,
   ImportCommitResult,
@@ -53,6 +54,10 @@ export interface ElectronAPI {
   peTests: {
     get: () => Promise<PETestSession[]>
     save: (items: PETestSession[]) => Promise<PETestSession[]>
+  }
+  teachingPlans: {
+    get: () => Promise<TeachingPlan[]>
+    save: (items: TeachingPlan[]) => Promise<TeachingPlan[]>
   }
 }
 
