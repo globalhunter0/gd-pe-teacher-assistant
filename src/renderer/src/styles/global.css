@@ -295,6 +295,19 @@ textarea {
   font-size: 13px;
 }
 
+.page-ok {
+  margin-bottom: 12px;
+  color: #0f7b0f;
+  font-size: 13px;
+}
+
+.settings-copy {
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
 .edit-hint {
   margin: -6px 0 12px;
   font-size: 13px;

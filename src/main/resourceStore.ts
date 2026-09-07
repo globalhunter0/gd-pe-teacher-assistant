@@ -1,6 +1,8 @@
-import { app, shell } from 'electron'
-import { copyFile, mkdir, readdir, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises'
-import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { shell } from 'electron'
+import { copyFile, mkdir, readdir, realpath, rename, stat, unlink } from 'node:fs/promises'
+import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { loadJsonItemsFile, writeJsonItemsAtomic } from '../shared/persistence/jsonFile'
+import { getUserDataRoot } from './userDataPaths'
 import {
   createResourceId,
   isAllowedResourceExtension,
@@ -14,35 +16,16 @@ import {
 } from '../shared/resource/validate'
 import { MAX_RESOURCE_FILE_BYTES, type ResourceItem } from '../shared/resource/types'
 
-interface ResourceFile {
-  version: 1
-  updatedAt: string
-  items: ResourceItem[]
-}
-
 export function getResourceMetaPath(): string {
-  return join(app.getPath('userData'), 'resources.json')
+  return join(getUserDataRoot(), 'resources.json')
 }
 
 export function getResourceFilesDir(): string {
-  return join(app.getPath('userData'), 'resources', 'files')
+  return join(getUserDataRoot(), 'resources', 'files')
 }
 
 function getResourceTmpDir(): string {
   return join(getResourceFilesDir(), '.tmp')
-}
-
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await accessStat(filePath)
-    return true
-  } catch {
-    return false
-  }
-}
-
-async function accessStat(filePath: string): Promise<void> {
-  await stat(filePath)
 }
 
 function isInsideDirectory(filePath: string, directory: string): boolean {
@@ -51,55 +34,11 @@ function isInsideDirectory(filePath: string, directory: string): boolean {
 }
 
 async function writeResourceFile(items: ResourceItem[]): Promise<void> {
-  const filePath = getResourceMetaPath()
-  await mkdir(dirname(filePath), { recursive: true })
-  const payload: ResourceFile = {
-    version: 1,
-    updatedAt: new Date().toISOString(),
-    items
-  }
-  const text = `${JSON.stringify(payload, null, 2)}\n`
-  const tmpPath = `${filePath}.${process.pid}.tmp`
-  await writeFile(tmpPath, text, 'utf8')
-  try {
-    await rename(tmpPath, filePath)
-  } catch {
-    await writeFile(filePath, text, 'utf8')
-    try {
-      await unlink(tmpPath)
-    } catch {
-      // ignore
-    }
-  }
+  await writeJsonItemsAtomic(getResourceMetaPath(), items)
 }
 
 async function readResourceItems(): Promise<ResourceItem[]> {
-  const filePath = getResourceMetaPath()
-  if (!(await fileExists(filePath))) {
-    await writeResourceFile([])
-    return []
-  }
-
-  try {
-    const raw = await readFile(filePath, 'utf8')
-    const parsed: unknown = JSON.parse(raw)
-    const itemsSource = Array.isArray(parsed)
-      ? parsed
-      : parsed !== null && typeof parsed === 'object' && 'items' in parsed
-        ? (parsed as { items: unknown }).items
-        : null
-    return parseResourceItems(itemsSource)
-  } catch (error) {
-    const backupPath = join(app.getPath('userData'), `resources.bak-${Date.now()}.json`)
-    try {
-      await rename(filePath, backupPath)
-    } catch {
-      // ignore
-    }
-    console.error('资料文件读取失败，已重置为空列表', error)
-    await writeResourceFile([])
-    return []
-  }
+  return loadJsonItemsFile(getResourceMetaPath(), parseResourceItems, [])
 }
 
 async function removeIfExists(filePath: string): Promise<void> {

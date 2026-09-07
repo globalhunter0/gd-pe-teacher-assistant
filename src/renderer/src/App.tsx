@@ -23,6 +23,7 @@ import TeachingPlansPage from './pages/TeachingPlansPage'
 import ExamStandardsPage from './pages/ExamStandardsPage'
 import TrainingTeamsPage from './pages/TrainingTeamsPage'
 import ResourcesPage from './pages/ResourcesPage'
+import SettingsPage from './pages/SettingsPage'
 import type { PeSessionPrefill } from '@shared/peSession'
 
 export default function App(): React.JSX.Element {
@@ -80,6 +81,8 @@ export default function App(): React.JSX.Element {
                               setActiveKey('tests')
                             }}
                           />
+                        ) : activeKey === 'settings' ? (
+                          <SettingsPage />
                         ) : (
                           <PlaceholderPage title={PAGE_TITLES[activeKey]} pageKey={activeKey} />
                         )}

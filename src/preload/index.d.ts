@@ -121,6 +121,14 @@ export interface ElectronAPI {
     get: () => Promise<TrainingResult[]>
     save: (items: TrainingResult[]) => Promise<TrainingResult[]>
   }
+  backup: {
+    create: () => Promise<
+      { canceled: true } | { canceled: false; filePath: string; fileCount: number; createdAt: string }
+    >
+    restore: () => Promise<
+      { canceled: true } | { canceled: false; safetyBackupPath: string; restoredCount: number }
+    >
+  }
 }
 
 declare global {
