@@ -24,8 +24,8 @@ pnpm-debug.log*
 
 # Local data (future SQLite / backups)
 /data/
-backup/
-backups/
+/backup/
+/backups/
 *.db
 *.db-journal
 *.sqlite
@@ -68,6 +68,7 @@ tmp/
 temp/
 *.tmp
 *.temp
+*.gdpebak
 
 # OS
 Thumbs.db

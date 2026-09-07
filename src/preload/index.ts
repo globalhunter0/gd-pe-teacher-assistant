@@ -126,6 +126,14 @@ const electronAPI = {
   trainingResults: {
     get: (): Promise<TrainingResult[]> => ipcRenderer.invoke('trainingResults:get'),
     save: (items: TrainingResult[]): Promise<TrainingResult[]> => ipcRenderer.invoke('trainingResults:save', items)
+  },
+  backup: {
+    create: (): Promise<
+      { canceled: true } | { canceled: false; filePath: string; fileCount: number; createdAt: string }
+    > => ipcRenderer.invoke('backup:create'),
+    restore: (): Promise<
+      { canceled: true } | { canceled: false; safetyBackupPath: string; restoredCount: number }
+    > => ipcRenderer.invoke('backup:restore')
   }
 }
 
