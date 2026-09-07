@@ -20,7 +20,16 @@ import {
   type ExamStandard,
   type ExamType
 } from '@shared/examStandard'
+import {
+  buildExamTemplatePayload,
+  templateItemColumns,
+  type ExamWorkbookSavePayload
+} from '@shared/examBatch'
+import ExamBatchPage from './ExamBatchPage'
 import { testUnitDisplay } from '@shared/peTest'
+import { useClasses } from '../context/ClassContext'
+import { useStudents } from '../context/StudentContext'
+import type { StudentGender } from '@shared/student'
 
 const DIRECTION_LABEL = {
   higherBetter: '越高越好',
@@ -47,8 +56,24 @@ function scoreModeDisplay(item: ExamItemDefinition, examType: ExamType): string 
   return SCORE_MODE_LABELS[item.scoreRule.scoreMode]
 }
 
+function templateGenderLabel(gender: StudentGender): string {
+  if (gender === 'male') {
+    return '男'
+  }
+  if (gender === 'female') {
+    return '女'
+  }
+  return ''
+}
+
 export default function ExamStandardsPage(): React.JSX.Element {
   const standards = BUILTIN_EXAM_STANDARDS
+  const { classes } = useClasses()
+  const { students } = useStudents()
+  const [batchMode, setBatchMode] = useState(false)
+  const [templateClassId, setTemplateClassId] = useState('')
+  const [templateBusy, setTemplateBusy] = useState(false)
+  const [templateMessage, setTemplateMessage] = useState<string | null>(null)
   const [examType, setExamType] = useState<ExamType>('middle_school_exam')
   const [citySlug, setCitySlug] = useState(GD_CITIES[0].citySlug)
   const [standardId, setStandardId] = useState('')
@@ -77,6 +102,62 @@ export default function ExamStandardsPage(): React.JSX.Element {
     : []
   const selectedItem = visibleItems.find((item) => item.id === itemId) ?? visibleItems[0] ?? null
   const canAutoScore = selectedItem ? itemSupportsAutoScore(selectedItem) : false
+  const templateColumns = selectedStandard ? templateItemColumns(selectedStandard) : []
+
+  async function saveTemplate(payload: ExamWorkbookSavePayload): Promise<void> {
+    setTemplateMessage(null)
+    setTemplateBusy(true)
+    try {
+      const result = await window.electronAPI.examBatch.saveWorkbook(payload)
+      if (result.canceled) {
+        return
+      }
+      setTemplateMessage(`已保存：${result.filePath}`)
+    } catch (error) {
+      setTemplateMessage(error instanceof Error ? error.message : '无法保存模板')
+    } finally {
+      setTemplateBusy(false)
+    }
+  }
+
+  function handleDownloadBlankTemplate(): void {
+    if (!selectedStandard) {
+      setTemplateMessage('请先选择地区、年份和考试类型')
+      return
+    }
+    void saveTemplate(
+      buildExamTemplatePayload({
+        standard: selectedStandard,
+        generatedAt: new Date().toLocaleString('zh-CN', { hour12: false })
+      })
+    )
+  }
+
+  function handleDownloadClassTemplate(): void {
+    if (!selectedStandard) {
+      setTemplateMessage('请先选择地区、年份和考试类型')
+      return
+    }
+    const selectedClass = classes.find((item) => item.id === templateClassId)
+    if (!selectedClass) {
+      setTemplateMessage('请选择要生成模板的班级')
+      return
+    }
+    const roster = students.filter((student) => student.classId === selectedClass.id && student.status === 'active')
+    void saveTemplate(
+      buildExamTemplatePayload({
+        standard: selectedStandard,
+        className: selectedClass.className,
+        generatedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
+        students: roster.map((student) => ({
+          name: student.name,
+          studentNo: student.studentNo,
+          className: selectedClass.className,
+          genderLabel: templateGenderLabel(student.gender)
+        }))
+      })
+    )
+  }
 
   function handleConvert(): void {
     setConvertError(null)
@@ -113,13 +194,16 @@ export default function ExamStandardsPage(): React.JSX.Element {
     }
   }
 
+  if (batchMode) {
+    return <ExamBatchPage onBack={() => setBatchMode(false)} />
+  }
+
   return (
     <section className="page page--exams">
       <div className="page-heading">
         <h2>体育考试评分标准中心</h2>
         <p>先选城市、年份和考试类型，再查看官方评分表。正式换算只使用已核验数据，不会猜测分数。</p>
       </div>
-
       <div className="exam-tabs" role="tablist">
         <button
           type="button"
@@ -251,6 +335,57 @@ export default function ExamStandardsPage(): React.JSX.Element {
           </label>
         </div>
       )}
+
+      <div className="exam-detail">
+        <h3>Excel批量成绩换算</h3>
+        <p className="exam-notes">
+          推荐工作流：按当前评分标准下载成绩登记模板 → 填写学生与原始成绩 → 导入同一模板 → 自动识别 → 批量换算。
+          模板第一行是唯一字段名，不含合并单元格。仍可导入其他 Excel（宽表/长表/手动映射）。
+        </p>
+        {selectedStandard ? (
+          <p className="exam-notes">
+            当前标准：{selectedStandard.title}。可自动换算项目列：
+            {templateColumns.length === 0
+              ? '无（没有 verified + 支持自动换算的项目，不会写入成绩列）'
+              : templateColumns.map((column) => column.header).join('、')}
+          </p>
+        ) : (
+          <p className="exam-notes">请先选择地区、年份和考试类型后再下载模板。</p>
+        )}
+        <div className="toolbar">
+          <button type="button" className="btn btn-primary" onClick={() => setBatchMode(true)}>
+            批量成绩换算
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={handleDownloadBlankTemplate}
+            disabled={templateBusy || !selectedStandard}
+          >
+            下载空白模板
+          </button>
+          <label className="toolbar-field">
+            班级
+            <select value={templateClassId} onChange={(event) => setTemplateClassId(event.target.value)}>
+              <option value="">选择班级</option>
+              {classes.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.className}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="btn"
+            onClick={handleDownloadClassTemplate}
+            disabled={templateBusy || !selectedStandard || templateClassId === ''}
+          >
+            按班级生成模板
+          </button>
+        </div>
+        {templateMessage ? <p className="exam-notes">{templateMessage}</p> : null}
+      </div>
 
       {verifiedCityStandards.length === 0 && examType === 'middle_school_exam' ? (
         <div className="empty-panel">

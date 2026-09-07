@@ -49,5 +49,5 @@ export {
   EXAM_TYPES,
   SCORE_MODE_LABELS
 } from './types'
-export { parseExamStandard, parseExamStandards } from './validate'
+export { attachExamItemAliases, aliasesForItem } from './itemAliases'
 

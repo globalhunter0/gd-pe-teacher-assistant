@@ -77,6 +77,8 @@ export interface ExamItemDefinition {
   scoreRule: ScoreRule
   /** 官方 PDF 文件页序，便于回核。广州中考等无页码时可省略。 */
   sourcePage?: number | null
+  /** 表头/常用别名，用于 Excel 列识别。不改变评分表。 */
+  aliases?: string[]
 }
 
 export interface SelectionRule {

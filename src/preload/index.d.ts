@@ -20,6 +20,13 @@ import type {
   StudentImportMapping,
   StudentRecord
 } from '../shared/student'
+import type {
+  ExamExportPayload,
+  ExamExportResult,
+  ExamPickResult,
+  ExamSheetSnapshot,
+  ExamWorkbookSavePayload
+} from '../shared/examBatch/types'
 
 export interface ElectronAPI {
   schedule: {
@@ -78,6 +85,13 @@ export interface ElectronAPI {
     update: (id: string, input: ResourceUpdateInput) => Promise<ResourceItem[]>
     delete: (id: string) => Promise<ResourceDeleteResult>
     open: (id: string) => Promise<void>
+  }
+  examBatch: {
+    pick: () => Promise<ExamPickResult>
+    loadSheet: (sessionId: string, sheetName: string) => Promise<ExamSheetSnapshot>
+    cancel: () => Promise<void>
+    export: (payload: ExamExportPayload) => Promise<ExamExportResult>
+    saveWorkbook: (payload: ExamWorkbookSavePayload) => Promise<ExamExportResult>
   }
 }
 
