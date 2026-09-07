@@ -182,8 +182,19 @@ function parseItem(value: unknown): ExamItemDefinition {
         : trimText(record.testItemId, '日常测试编号', true, 80),
     verification,
     scoreRule,
-    sourcePage: parseOptionalSourcePage(record.sourcePage)
+    sourcePage: parseOptionalSourcePage(record.sourcePage),
+    aliases: parseAliases(record.aliases)
   }
+}
+
+function parseAliases(value: unknown): string[] {
+  if (value === undefined || value === null || value === '') {
+    return []
+  }
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    throw new Error('项目别名格式不正确')
+  }
+  return value.map((item) => item.trim()).filter((item) => item !== '')
 }
 
 function parseOptionalSourcePage(value: unknown): number | null {

@@ -21,6 +21,13 @@ import type {
   StudentImportMapping,
   StudentRecord
 } from '../shared/student'
+import type {
+  ExamExportPayload,
+  ExamExportResult,
+  ExamPickResult,
+  ExamSheetSnapshot,
+  ExamWorkbookSavePayload
+} from '../shared/examBatch/types'
 
 const electronAPI = {
   schedule: {
@@ -82,6 +89,15 @@ const electronAPI = {
       ipcRenderer.invoke('resources:update', id, input),
     delete: (id: string): Promise<ResourceDeleteResult> => ipcRenderer.invoke('resources:delete', id),
     open: (id: string): Promise<void> => ipcRenderer.invoke('resources:open', id)
+  },
+  examBatch: {
+    pick: (): Promise<ExamPickResult> => ipcRenderer.invoke('examBatch:pick'),
+    loadSheet: (sessionId: string, sheetName: string): Promise<ExamSheetSnapshot> =>
+      ipcRenderer.invoke('examBatch:loadSheet', sessionId, sheetName),
+    cancel: (): Promise<void> => ipcRenderer.invoke('examBatch:cancel'),
+    export: (payload: ExamExportPayload): Promise<ExamExportResult> => ipcRenderer.invoke('examBatch:export', payload),
+    saveWorkbook: (payload: ExamWorkbookSavePayload): Promise<ExamExportResult> =>
+      ipcRenderer.invoke('examBatch:saveWorkbook', payload)
   }
 }
 
