@@ -4,6 +4,15 @@ import type { ScheduleItem } from '../shared/schedule/types'
 import type { PETestSession, TestItem } from '../shared/peTest'
 import type { TeachingPlan } from '../shared/teachingPlan'
 import type {
+  ResourceDeleteResult,
+  ResourceFileImportInput,
+  ResourceItem,
+  ResourceLinkInput,
+  ResourceNoteInput,
+  ResourceSelectResult,
+  ResourceUpdateInput
+} from '../shared/resource'
+import type {
   ImportColumn,
   ImportCommitResult,
   ImportPickResult,
@@ -58,6 +67,17 @@ export interface ElectronAPI {
   teachingPlans: {
     get: () => Promise<TeachingPlan[]>
     save: (items: TeachingPlan[]) => Promise<TeachingPlan[]>
+  }
+  resources: {
+    get: () => Promise<ResourceItem[]>
+    selectFile: () => Promise<ResourceSelectResult>
+    cancelSelect: () => Promise<void>
+    importFile: (input: ResourceFileImportInput) => Promise<ResourceItem[]>
+    createNote: (input: ResourceNoteInput) => Promise<ResourceItem[]>
+    createLink: (input: ResourceLinkInput) => Promise<ResourceItem[]>
+    update: (id: string, input: ResourceUpdateInput) => Promise<ResourceItem[]>
+    delete: (id: string) => Promise<ResourceDeleteResult>
+    open: (id: string) => Promise<void>
   }
 }
 
