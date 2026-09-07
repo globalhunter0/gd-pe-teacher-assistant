@@ -28,6 +28,13 @@ import type {
   ExamSheetSnapshot,
   ExamWorkbookSavePayload
 } from '../shared/examBatch/types'
+import type {
+  TrainingItem,
+  TrainingResult,
+  TrainingSession,
+  TrainingTeam,
+  TrainingTeamMember
+} from '../shared/trainingTeam/types'
 
 const electronAPI = {
   schedule: {
@@ -98,6 +105,27 @@ const electronAPI = {
     export: (payload: ExamExportPayload): Promise<ExamExportResult> => ipcRenderer.invoke('examBatch:export', payload),
     saveWorkbook: (payload: ExamWorkbookSavePayload): Promise<ExamExportResult> =>
       ipcRenderer.invoke('examBatch:saveWorkbook', payload)
+  },
+  trainingTeams: {
+    get: (): Promise<TrainingTeam[]> => ipcRenderer.invoke('trainingTeams:get'),
+    save: (items: TrainingTeam[]): Promise<TrainingTeam[]> => ipcRenderer.invoke('trainingTeams:save', items),
+    deleteCheck: (teamId: string): Promise<string[]> => ipcRenderer.invoke('trainingTeams:deleteCheck', teamId)
+  },
+  trainingMembers: {
+    get: (): Promise<TrainingTeamMember[]> => ipcRenderer.invoke('trainingMembers:get'),
+    save: (items: TrainingTeamMember[]): Promise<TrainingTeamMember[]> => ipcRenderer.invoke('trainingMembers:save', items)
+  },
+  trainingSessions: {
+    get: (): Promise<TrainingSession[]> => ipcRenderer.invoke('trainingSessions:get'),
+    save: (items: TrainingSession[]): Promise<TrainingSession[]> => ipcRenderer.invoke('trainingSessions:save', items)
+  },
+  trainingItems: {
+    get: (): Promise<TrainingItem[]> => ipcRenderer.invoke('trainingItems:get'),
+    save: (items: TrainingItem[]): Promise<TrainingItem[]> => ipcRenderer.invoke('trainingItems:save', items)
+  },
+  trainingResults: {
+    get: (): Promise<TrainingResult[]> => ipcRenderer.invoke('trainingResults:get'),
+    save: (items: TrainingResult[]): Promise<TrainingResult[]> => ipcRenderer.invoke('trainingResults:save', items)
   }
 }
 

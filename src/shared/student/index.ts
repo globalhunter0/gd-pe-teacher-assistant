@@ -6,6 +6,7 @@ export {
   STUDENT_STATUSES
 } from './types'
 export { createStudentId, getStudentDeleteBlockers, parseStudentRecords } from './validate'
+export type { StudentTrainingDeleteRefs } from './validate'
 export type {
   ImportColumn,
   ImportCommitResult,

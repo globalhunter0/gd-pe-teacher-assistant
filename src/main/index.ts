@@ -17,6 +17,19 @@ import { getTeachingPlanFilePath, loadTeachingPlans } from './teachingPlanStore'
 import { registerResourceIpc } from './resourceIpc'
 import { getResourceMetaPath, loadResources } from './resourceStore'
 import { registerExamBatchIpc } from './examBatchIpc'
+import { registerTrainingIpc } from './trainingIpc'
+import {
+  getTrainingItemFilePath,
+  getTrainingMemberFilePath,
+  getTrainingResultFilePath,
+  getTrainingSessionFilePath,
+  getTrainingTeamFilePath,
+  loadTrainingItems,
+  loadTrainingMembers,
+  loadTrainingResults,
+  loadTrainingSessions,
+  loadTrainingTeams
+} from './trainingStore'
 import { assertBuiltinExamCatalog } from '@shared/examStandard'
 
 function createMainWindow(): void {
@@ -70,6 +83,7 @@ app.whenReady().then(() => {
   registerTeachingPlanIpc()
   registerResourceIpc()
   registerExamBatchIpc()
+  registerTrainingIpc()
   assertBuiltinExamCatalog()
   void loadSchedule().then((items) => {
     console.log(`[schedule] ${items.length} 节课程，文件：${getScheduleFilePath()}`)
@@ -94,6 +108,21 @@ app.whenReady().then(() => {
   })
   void loadResources().then((items) => {
     console.log(`[resources] ${items.length} 条资料，文件：${getResourceMetaPath()}`)
+  })
+  void loadTrainingTeams().then((items) => {
+    console.log(`[training-teams] ${items.length} 支训练队，文件：${getTrainingTeamFilePath()}`)
+  })
+  void loadTrainingMembers().then((items) => {
+    console.log(`[training-members] ${items.length} 条队员关系，文件：${getTrainingMemberFilePath()}`)
+  })
+  void loadTrainingSessions().then((items) => {
+    console.log(`[training-sessions] ${items.length} 次训练，文件：${getTrainingSessionFilePath()}`)
+  })
+  void loadTrainingItems().then((items) => {
+    console.log(`[training-items] ${items.length} 个训练项目，文件：${getTrainingItemFilePath()}`)
+  })
+  void loadTrainingResults().then((items) => {
+    console.log(`[training-results] ${items.length} 条训练成绩，文件：${getTrainingResultFilePath()}`)
   })
   createMainWindow()
 

@@ -64,7 +64,16 @@ export function StudentProvider({ children }: { children: React.ReactNode }): Re
     async (id: string) => {
       const sessions = await window.electronAPI.peSessions.get()
       const tests = await window.electronAPI.peTests.get()
-      const blockers = getStudentDeleteBlockers(id, sessions, tests)
+      const [members, trainingSessions, results] = await Promise.all([
+        window.electronAPI.trainingMembers.get(),
+        window.electronAPI.trainingSessions.get(),
+        window.electronAPI.trainingResults.get()
+      ])
+      const blockers = getStudentDeleteBlockers(id, sessions, tests, {
+        members,
+        sessions: trainingSessions,
+        results
+      })
       if (blockers.length > 0) {
         throw new Error(blockers.join('；'))
       }

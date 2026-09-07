@@ -53,6 +53,11 @@ backups/
 /teaching-plans.json
 /resources.json
 /resources/
+/training-teams.json
+/training-members.json
+/training-sessions.json
+/training-items.json
+/training-results.json
 
 # User Excel lists (never commit teacher spreadsheets)
 *.xlsx
