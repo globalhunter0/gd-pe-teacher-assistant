@@ -16,6 +16,7 @@ import { registerTeachingPlanIpc } from './teachingPlanIpc'
 import { getTeachingPlanFilePath, loadTeachingPlans } from './teachingPlanStore'
 import { registerResourceIpc } from './resourceIpc'
 import { getResourceMetaPath, loadResources } from './resourceStore'
+import { assertBuiltinExamCatalog } from '@shared/examStandard'
 
 function createMainWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -67,6 +68,7 @@ app.whenReady().then(() => {
   registerPeTestIpc()
   registerTeachingPlanIpc()
   registerResourceIpc()
+  assertBuiltinExamCatalog()
   void loadSchedule().then((items) => {
     console.log(`[schedule] ${items.length} 节课程，文件：${getScheduleFilePath()}`)
   })

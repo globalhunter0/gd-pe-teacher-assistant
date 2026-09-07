@@ -19,6 +19,7 @@ import SchedulePage from './pages/SchedulePage'
 import StatsPage from './pages/StatsPage'
 import StudentManagementPage from './pages/StudentManagementPage'
 import TeachingPlansPage from './pages/TeachingPlansPage'
+import ExamStandardsPage from './pages/ExamStandardsPage'
 import ResourcesPage from './pages/ResourcesPage'
 import type { PeSessionPrefill } from '@shared/peSession'
 
@@ -65,6 +66,8 @@ export default function App(): React.JSX.Element {
                             openSessionId={openTestSessionId}
                             onOpenSessionConsumed={() => setOpenTestSessionId(null)}
                           />
+                        ) : activeKey === 'exams' ? (
+                          <ExamStandardsPage />
                         ) : activeKey === 'stats' ? (
                           <StatsPage
                             onOpenTest={(sessionId) => {
