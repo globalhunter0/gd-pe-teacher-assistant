@@ -9,6 +9,7 @@ export type NavKey =
   | 'stats'
   | 'resources'
   | 'ai'
+  | 'exams'
   | 'settings'
 
 export interface NavItem {
@@ -24,6 +25,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'lessons', label: '体育课记录' },
   { key: 'plans', label: '教学计划' },
   { key: 'tests', label: '体育测试' },
+  { key: 'exams', label: '评分标准中心' },
   { key: 'stats', label: '数据统计' },
   { key: 'resources', label: '资料中心' },
   { key: 'ai', label: 'AI 助手' },
@@ -38,6 +40,7 @@ export const PAGE_TITLES: Record<NavKey, string> = {
   lessons: '体育课记录',
   plans: '教学计划',
   tests: '体育测试',
+  exams: '体育考试评分标准中心',
   stats: '数据统计',
   resources: '资料中心',
   ai: 'AI 助手',
@@ -52,6 +55,7 @@ export const PAGE_DESCRIPTIONS: Record<NavKey, string> = {
   lessons: '记录每节体育课的考勤与课堂表现。默认全员正常，只登记异常。',
   plans: '按年级编写学期教学计划与每周教学内容。计划不绑定单个班级，也不表示实际上课完成情况。',
   tests: '登记日常体育测试成绩，保存全班快照，并查看学生同项目历史。',
+  exams: '查阅各地市体育中考与体育类专业省统考官方评分标准，并用已核验评分表换算分数。',
   stats: '查看班级课堂人次、学生档案和测试统计。数字根据现有记录实时计算。',
   resources: '管理教案、练习、规则和本地教学资料。支持文件副本、网页链接和文字笔记。',
   ai: '后续版本将接入本地可用的 AI 助手能力。当前仅作为功能入口预留。',
