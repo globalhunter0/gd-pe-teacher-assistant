@@ -14,6 +14,8 @@ import { getStudentFilePath, loadStudents } from './studentStore'
 import { getTestItemFilePath, loadTestItems } from './testItemStore'
 import { registerTeachingPlanIpc } from './teachingPlanIpc'
 import { getTeachingPlanFilePath, loadTeachingPlans } from './teachingPlanStore'
+import { registerResourceIpc } from './resourceIpc'
+import { getResourceMetaPath, loadResources } from './resourceStore'
 
 function createMainWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -64,6 +66,7 @@ app.whenReady().then(() => {
   registerPeSessionIpc()
   registerPeTestIpc()
   registerTeachingPlanIpc()
+  registerResourceIpc()
   void loadSchedule().then((items) => {
     console.log(`[schedule] ${items.length} 节课程，文件：${getScheduleFilePath()}`)
   })
@@ -84,6 +87,9 @@ app.whenReady().then(() => {
   })
   void loadTeachingPlans().then((items) => {
     console.log(`[teaching-plans] ${items.length} 份教学计划，文件：${getTeachingPlanFilePath()}`)
+  })
+  void loadResources().then((items) => {
+    console.log(`[resources] ${items.length} 条资料，文件：${getResourceMetaPath()}`)
   })
   createMainWindow()
 

@@ -51,6 +51,8 @@ backups/
 /test-items.json
 /pe-tests.json
 /teaching-plans.json
+/resources.json
+/resources/
 
 # User Excel lists (never commit teacher spreadsheets)
 *.xlsx

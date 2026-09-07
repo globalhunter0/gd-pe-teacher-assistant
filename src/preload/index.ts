@@ -5,6 +5,15 @@ import type { ScheduleItem } from '../shared/schedule/types'
 import type { PETestSession, TestItem } from '../shared/peTest'
 import type { TeachingPlan } from '../shared/teachingPlan'
 import type {
+  ResourceDeleteResult,
+  ResourceFileImportInput,
+  ResourceItem,
+  ResourceLinkInput,
+  ResourceNoteInput,
+  ResourceSelectResult,
+  ResourceUpdateInput
+} from '../shared/resource'
+import type {
   ImportColumn,
   ImportCommitResult,
   ImportPickResult,
@@ -60,6 +69,19 @@ const electronAPI = {
   teachingPlans: {
     get: (): Promise<TeachingPlan[]> => ipcRenderer.invoke('teachingPlans:get'),
     save: (items: TeachingPlan[]): Promise<TeachingPlan[]> => ipcRenderer.invoke('teachingPlans:save', items)
+  },
+  resources: {
+    get: (): Promise<ResourceItem[]> => ipcRenderer.invoke('resources:get'),
+    selectFile: (): Promise<ResourceSelectResult> => ipcRenderer.invoke('resources:selectFile'),
+    cancelSelect: (): Promise<void> => ipcRenderer.invoke('resources:cancelSelect'),
+    importFile: (input: ResourceFileImportInput): Promise<ResourceItem[]> =>
+      ipcRenderer.invoke('resources:importFile', input),
+    createNote: (input: ResourceNoteInput): Promise<ResourceItem[]> => ipcRenderer.invoke('resources:createNote', input),
+    createLink: (input: ResourceLinkInput): Promise<ResourceItem[]> => ipcRenderer.invoke('resources:createLink', input),
+    update: (id: string, input: ResourceUpdateInput): Promise<ResourceItem[]> =>
+      ipcRenderer.invoke('resources:update', id, input),
+    delete: (id: string): Promise<ResourceDeleteResult> => ipcRenderer.invoke('resources:delete', id),
+    open: (id: string): Promise<void> => ipcRenderer.invoke('resources:open', id)
   }
 }
 
