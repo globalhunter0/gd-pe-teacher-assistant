@@ -20,10 +20,17 @@ export function createStudentId(): string {
   return `student-${crypto.randomUUID()}`
 }
 
+export interface StudentTrainingDeleteRefs {
+  members?: ReadonlyArray<{ studentId: string }>
+  sessions?: ReadonlyArray<{ attendance: ReadonlyArray<{ studentId: string }> }>
+  results?: ReadonlyArray<{ studentId: string }>
+}
+
 export function getStudentDeleteBlockers(
   studentId: string,
   sessions: ReadonlyArray<{ records: ReadonlyArray<{ studentId: string }> }> = [],
-  testSessions: ReadonlyArray<{ records: ReadonlyArray<{ studentId: string }> }> = []
+  testSessions: ReadonlyArray<{ records: ReadonlyArray<{ studentId: string }> }> = [],
+  training: StudentTrainingDeleteRefs = {}
 ): string[] {
   const blockers: string[] = []
   const lessonCount = sessions.filter((session) => session.records.some((record) => record.studentId === studentId)).length
@@ -34,6 +41,23 @@ export function getStudentDeleteBlockers(
   const testCount = testSessions.filter((session) => session.records.some((record) => record.studentId === studentId)).length
   if (testCount > 0) {
     blockers.push(`该学生存在 ${testCount} 次体育测试历史记录，不能直接删除。可将学生状态改为已转出。`)
+  }
+
+  const memberCount = (training.members ?? []).filter((item) => item.studentId === studentId).length
+  if (memberCount > 0) {
+    blockers.push(`该学生存在 ${memberCount} 条训练队队员记录，不能直接删除。可将学生状态改为已转出。`)
+  }
+
+  const trainingSessionCount = (training.sessions ?? []).filter((session) =>
+    session.attendance.some((row) => row.studentId === studentId)
+  ).length
+  if (trainingSessionCount > 0) {
+    blockers.push(`该学生存在 ${trainingSessionCount} 次训练出勤记录，不能直接删除。可将学生状态改为已转出。`)
+  }
+
+  const resultCount = (training.results ?? []).filter((item) => item.studentId === studentId).length
+  if (resultCount > 0) {
+    blockers.push(`该学生存在 ${resultCount} 条训练成绩，不能直接删除。可将学生状态改为已转出。`)
   }
 
   return blockers

@@ -11,6 +11,7 @@ import {
 import { loadPeSessions } from './peSessionStore'
 import { loadPeTests } from './peTestStore'
 import { loadStudents, saveStudents } from './studentStore'
+import { loadTrainingMembers, loadTrainingResults, loadTrainingSessions } from './trainingStore'
 
 export function registerStudentIpc(): void {
   ipcMain.handle('students:get', async () => {
@@ -25,13 +26,20 @@ export function registerStudentIpc(): void {
     const nextIds = new Set(next.map((item) => item.id))
     const sessions = await loadPeSessions()
     const tests = await loadPeTests()
+    const trainingMembers = await loadTrainingMembers()
+    const trainingSessions = await loadTrainingSessions()
+    const trainingResults = await loadTrainingResults()
 
     for (const item of current) {
       if (nextIds.has(item.id)) {
         continue
       }
 
-      const blockers = getStudentDeleteBlockers(item.id, sessions, tests)
+      const blockers = getStudentDeleteBlockers(item.id, sessions, tests, {
+        members: trainingMembers,
+        sessions: trainingSessions,
+        results: trainingResults
+      })
       if (blockers.length > 0) {
         throw new Error(blockers.join('；'))
       }

@@ -27,6 +27,13 @@ import type {
   ExamSheetSnapshot,
   ExamWorkbookSavePayload
 } from '../shared/examBatch/types'
+import type {
+  TrainingItem,
+  TrainingResult,
+  TrainingSession,
+  TrainingTeam,
+  TrainingTeamMember
+} from '../shared/trainingTeam'
 
 export interface ElectronAPI {
   schedule: {
@@ -92,6 +99,27 @@ export interface ElectronAPI {
     cancel: () => Promise<void>
     export: (payload: ExamExportPayload) => Promise<ExamExportResult>
     saveWorkbook: (payload: ExamWorkbookSavePayload) => Promise<ExamExportResult>
+  }
+  trainingTeams: {
+    get: () => Promise<TrainingTeam[]>
+    save: (items: TrainingTeam[]) => Promise<TrainingTeam[]>
+    deleteCheck: (teamId: string) => Promise<string[]>
+  }
+  trainingMembers: {
+    get: () => Promise<TrainingTeamMember[]>
+    save: (items: TrainingTeamMember[]) => Promise<TrainingTeamMember[]>
+  }
+  trainingSessions: {
+    get: () => Promise<TrainingSession[]>
+    save: (items: TrainingSession[]) => Promise<TrainingSession[]>
+  }
+  trainingItems: {
+    get: () => Promise<TrainingItem[]>
+    save: (items: TrainingItem[]) => Promise<TrainingItem[]>
+  }
+  trainingResults: {
+    get: () => Promise<TrainingResult[]>
+    save: (items: TrainingResult[]) => Promise<TrainingResult[]>
   }
 }
 

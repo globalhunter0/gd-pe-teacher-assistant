@@ -11,6 +11,7 @@ import { StudentProvider } from './context/StudentContext'
 import { TestItemProvider } from './context/TestItemContext'
 import { TeachingPlanProvider } from './context/TeachingPlanContext'
 import { ResourceProvider } from './context/ResourceContext'
+import { TrainingProvider } from './context/TrainingContext'
 import ClassManagementPage from './pages/ClassManagementPage'
 import DashboardPage from './pages/DashboardPage'
 import PeLessonRecordsPage from './pages/PeLessonRecordsPage'
@@ -20,6 +21,7 @@ import StatsPage from './pages/StatsPage'
 import StudentManagementPage from './pages/StudentManagementPage'
 import TeachingPlansPage from './pages/TeachingPlansPage'
 import ExamStandardsPage from './pages/ExamStandardsPage'
+import TrainingTeamsPage from './pages/TrainingTeamsPage'
 import ResourcesPage from './pages/ResourcesPage'
 import type { PeSessionPrefill } from '@shared/peSession'
 
@@ -37,6 +39,7 @@ export default function App(): React.JSX.Element {
               <PeTestProvider>
                 <TeachingPlanProvider>
                   <ResourceProvider>
+                  <TrainingProvider>
                   <div className="app-shell">
                     <Sidebar activeKey={activeKey} onNavigate={setActiveKey} />
                     <div className="app-main">
@@ -66,6 +69,8 @@ export default function App(): React.JSX.Element {
                             openSessionId={openTestSessionId}
                             onOpenSessionConsumed={() => setOpenTestSessionId(null)}
                           />
+                        ) : activeKey === 'training' ? (
+                          <TrainingTeamsPage />
                         ) : activeKey === 'exams' ? (
                           <ExamStandardsPage />
                         ) : activeKey === 'stats' ? (
@@ -81,6 +86,7 @@ export default function App(): React.JSX.Element {
                       </main>
                     </div>
                   </div>
+                  </TrainingProvider>
                   </ResourceProvider>
                 </TeachingPlanProvider>
               </PeTestProvider>

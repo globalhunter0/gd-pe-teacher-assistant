@@ -1282,6 +1282,43 @@ textarea {
   font-weight: 600;
 }
 
+.training-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.training-list {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+
+.training-child {
+  margin-left: 16px;
+  font-size: 13px;
+}
+
+.training-main {
+  min-width: 0;
+}
+
+.training-tree {
+  margin-bottom: 8px;
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+@media (max-width: 960px) {
+  .training-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 
 
 
