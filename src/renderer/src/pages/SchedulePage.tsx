@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import LessonEditorDialog from '../components/LessonEditorDialog'
+import { useClasses } from '../context/ClassContext'
 import { useSchedule, useScheduleService } from '../context/ScheduleContext'
+import { useTraining } from '../context/TrainingContext'
 import {
   COURSE_TYPE_LABELS,
   PERIODS,
@@ -19,6 +21,8 @@ interface EditingSlot {
 
 export default function SchedulePage(): React.JSX.Element {
   const { items, loading, error, saveItems, restoreDefault } = useSchedule()
+  const { classes } = useClasses()
+  const { teams } = useTraining()
   const scheduleService = useScheduleService()
   const summary = scheduleService.getWeeklySummary()
   const todayWeekday = scheduleService.getTodayOverview().weekday
@@ -119,6 +123,10 @@ export default function SchedulePage(): React.JSX.Element {
               </div>
               {WEEKDAYS.map((weekday) => {
                 const lesson = scheduleService.getLessonAt(weekday, period)
+                const boundClass = lesson?.classId ? classes.find((item) => item.id === lesson.classId) : undefined
+                const boundTeam = lesson?.trainingTeamId
+                  ? teams.find((item) => item.id === lesson.trainingTeamId)
+                  : undefined
                 return (
                   <div
                     key={`${weekday}-${period}`}
@@ -128,6 +136,12 @@ export default function SchedulePage(): React.JSX.Element {
                     <ScheduleCell
                       lesson={lesson}
                       editable={editing}
+                      classLabel={
+                        lesson?.classId ? (boundClass ? `${boundClass.grade} ${boundClass.className}` : '班级已删除') : null
+                      }
+                      teamLabel={
+                        lesson?.trainingTeamId ? (boundTeam ? boundTeam.name : '训练队已删除') : null
+                      }
                       onSelect={() => setSlot({ weekday, period })}
                     />
                   </div>
@@ -155,10 +169,14 @@ export default function SchedulePage(): React.JSX.Element {
 function ScheduleCell({
   lesson,
   editable,
+  classLabel,
+  teamLabel,
   onSelect
 }: {
   lesson: ScheduleItem | undefined
   editable: boolean
+  classLabel: string | null
+  teamLabel: string | null
   onSelect: () => void
 }): React.JSX.Element {
   if (!lesson) {
@@ -188,6 +206,8 @@ function ScheduleCell({
     >
       <span className="lesson-team">{lesson.team}</span>
       <span className="lesson-type">{COURSE_TYPE_LABELS[lesson.courseType]}</span>
+      {classLabel ? <span className="lesson-link">班：{classLabel}</span> : null}
+      {teamLabel ? <span className="lesson-link">队：{teamLabel}</span> : null}
     </button>
   )
 }

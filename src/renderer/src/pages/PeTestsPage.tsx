@@ -21,11 +21,15 @@ import {
 interface PeTestsPageProps {
   openSessionId?: string | null
   onOpenSessionConsumed?: () => void
+  prefillClassId?: string | null
+  onPrefillClassConsumed?: () => void
 }
 
 export default function PeTestsPage({
   openSessionId = null,
-  onOpenSessionConsumed
+  onOpenSessionConsumed,
+  prefillClassId = null,
+  onPrefillClassConsumed
 }: PeTestsPageProps): React.JSX.Element {
   const { classes } = useClasses()
   const { students } = useStudents()
@@ -58,6 +62,15 @@ export default function PeTestsPage({
 
     onOpenSessionConsumed?.()
   }, [openSessionId, loading, sessions, onOpenSessionConsumed])
+
+  useEffect(() => {
+    if (!prefillClassId) {
+      return
+    }
+    setClassId(prefillClassId)
+    setView('list')
+    onPrefillClassConsumed?.()
+  }, [prefillClassId, onPrefillClassConsumed])
 
   const activeItems = useMemo(() => items.filter((item) => item.isActive), [items])
 

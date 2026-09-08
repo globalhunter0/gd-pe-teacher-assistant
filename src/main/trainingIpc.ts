@@ -1,5 +1,7 @@
 import { ipcMain } from 'electron'
 import { getTrainingTeamDeleteBlockers } from '../shared/trainingTeam/validate'
+import { dropMissingScheduleTrainingTeamLinks } from '../shared/schedule/validate'
+import { loadSchedule, saveSchedule } from './scheduleStore'
 import { loadStudents } from './studentStore'
 import {
   getTrainingItemFilePath,
@@ -23,6 +25,12 @@ export function registerTrainingIpc(): void {
   ipcMain.handle('trainingTeams:get', async () => loadTrainingTeams())
   ipcMain.handle('trainingTeams:save', async (_event, items: unknown) => {
     const next = await saveTrainingTeams(items)
+    const schedule = await loadSchedule()
+    const knownTeamIds = new Set(next.map((item) => item.id))
+    const stripped = dropMissingScheduleTrainingTeamLinks(schedule, knownTeamIds)
+    if (JSON.stringify(stripped) !== JSON.stringify(schedule)) {
+      await saveSchedule(stripped)
+    }
     return next
   })
   ipcMain.handle('trainingTeams:deleteCheck', async (_event, teamId: unknown) => {

@@ -3,7 +3,9 @@ import { getClassDeleteBlockers, parseClassRecords } from '../shared/class/valid
 import { loadClasses, saveClasses } from './classStore'
 import { loadPeSessions } from './peSessionStore'
 import { loadPeTests } from './peTestStore'
+import { loadSchedule, saveSchedule } from './scheduleStore'
 import { loadStudents } from './studentStore'
+import { dropMissingScheduleClassLinks } from '../shared/schedule/validate'
 
 export function registerClassIpc(): void {
   ipcMain.handle('classes:get', async () => {
@@ -29,6 +31,14 @@ export function registerClassIpc(): void {
       }
     }
 
-    return saveClasses(next)
+    const saved = await saveClasses(next)
+    const schedule = await loadSchedule()
+    const knownClassIds = new Set(saved.map((item) => item.id))
+    const stripped = dropMissingScheduleClassLinks(schedule, knownClassIds)
+    const scheduleChanged = JSON.stringify(stripped) !== JSON.stringify(schedule)
+    if (scheduleChanged) {
+      await saveSchedule(stripped)
+    }
+    return saved
   })
 }

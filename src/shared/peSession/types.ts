@@ -82,4 +82,5 @@ export interface PeSessionPrefill {
   teamSnapshot: string
   startTimeSnapshot: string
   endTimeSnapshot: string
+  classId?: string
 }

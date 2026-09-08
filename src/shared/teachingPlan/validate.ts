@@ -197,3 +197,15 @@ export function parseTeachingPlans(input: unknown): TeachingPlan[] {
       a.name.localeCompare(b.name, 'zh-CN')
   )
 }
+
+export function plansMatchingClassContext(
+  plans: ReadonlyArray<TeachingPlan>,
+  context: { grade: Grade; academicYear: string; semester: Semester }
+): TeachingPlan[] {
+  return plans.filter(
+    (plan) =>
+      plan.grade === context.grade &&
+      plan.academicYear === context.academicYear &&
+      plan.semester === context.semester
+  )
+}

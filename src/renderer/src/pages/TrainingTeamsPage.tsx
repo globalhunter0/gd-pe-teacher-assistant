@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ClassRecord } from '@shared/class'
 import { parseScoreInput, testUnitDisplay } from '@shared/peTest'
 import { STUDENT_STATUS_LABELS, type StudentRecord } from '@shared/student'
@@ -69,7 +69,15 @@ function percent(value: number | null): string {
   return `${Math.round(value * 1000) / 10}%`
 }
 
-export default function TrainingTeamsPage(): React.JSX.Element {
+export default function TrainingTeamsPage({
+  openTeamId = null,
+  startSessionOnOpen = false,
+  onOpenTeamConsumed
+}: {
+  openTeamId?: string | null
+  startSessionOnOpen?: boolean
+  onOpenTeamConsumed?: () => void
+}): React.JSX.Element {
   const { classes } = useClasses()
   const { students } = useStudents()
   const training = useTraining()
@@ -77,6 +85,17 @@ export default function TrainingTeamsPage(): React.JSX.Element {
   const [tab, setTab] = useState<HomeTab>('home')
   const [sessionRecord, setSessionRecord] = useState<TrainingSession | null | undefined>(undefined)
   const [teamDialog, setTeamDialog] = useState<{ record: TrainingTeam | null; parent: TrainingTeam | null } | null>(null)
+
+  useEffect(() => {
+    if (!openTeamId) {
+      return
+    }
+    setSelectedId(openTeamId)
+    rememberTeam(openTeamId)
+    setTab('home')
+    setSessionRecord(startSessionOnOpen ? null : undefined)
+    onOpenTeamConsumed?.()
+  }, [openTeamId, startSessionOnOpen, onOpenTeamConsumed])
   const [memberQuery, setMemberQuery] = useState('')
   const [showLeftMembers, setShowLeftMembers] = useState(false)
   const [resultStudentId, setResultStudentId] = useState('')

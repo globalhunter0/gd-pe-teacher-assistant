@@ -1,5 +1,6 @@
 import { runBackupRestoreSelfCheckOrThrow } from '../backup/selfcheck'
 import { runExamBatchSelfCheckOrThrow } from '../examBatch/selfcheck'
+import { runScheduleLinkageSelfCheckOrThrow } from '../schedule/selfcheck'
 import { runTrainingTeamSelfCheckOrThrow } from '../trainingTeam/selfcheck'
 import { listBuiltinExamStandards } from './catalog'
 import { runExamTableIntegritySelfCheckOrThrow } from './integrity'
@@ -10,6 +11,7 @@ async function main(): Promise<void> {
   console.log(runExamTableIntegritySelfCheckOrThrow(listBuiltinExamStandards()))
   console.log(runExamBatchSelfCheckOrThrow())
   console.log(runTrainingTeamSelfCheckOrThrow())
+  console.log(await runScheduleLinkageSelfCheckOrThrow())
   console.log(await runBackupRestoreSelfCheckOrThrow())
 }
 
