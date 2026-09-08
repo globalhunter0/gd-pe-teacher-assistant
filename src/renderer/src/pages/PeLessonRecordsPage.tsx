@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import PeSessionEditor from '../components/PeSessionEditor'
 import { useClasses } from '../context/ClassContext'
 import { usePeSessions } from '../context/PeSessionContext'
@@ -42,16 +42,46 @@ export default function PeLessonRecordsPage({
   const [lessonType, setLessonType] = useState<PeLessonType>('regular')
   const [topic, setTopic] = useState('')
   const [prefillClassId, setPrefillClassId] = useState(classes[0]?.id ?? '')
+  const handledPrefillKey = useRef<string | null>(null)
 
   useEffect(() => {
     if (!prefill) {
+      handledPrefillKey.current = null
+      return
+    }
+    if (loading) {
+      return
+    }
+
+    const key = `${prefill.scheduleLessonId}|${prefill.date}|${prefill.period}|${prefill.classId ?? ''}`
+    if (handledPrefillKey.current === key) {
+      return
+    }
+    handledPrefillKey.current = key
+
+    const boundClassId =
+      prefill.classId && classes.some((item) => item.id === prefill.classId) ? prefill.classId : undefined
+
+    if (boundClassId) {
+      setPrefillOpen(false)
+      setActionError(null)
+      void createForClass(boundClassId, {
+        date: prefill.date,
+        period: prefill.period,
+        lessonType: prefill.lessonType,
+        topic: '',
+        scheduleLessonId: prefill.scheduleLessonId,
+        teamSnapshot: prefill.teamSnapshot,
+        startTimeSnapshot: prefill.startTimeSnapshot,
+        endTimeSnapshot: prefill.endTimeSnapshot
+      })
       return
     }
 
     setPrefillOpen(true)
     setPrefillClassId(classes[0]?.id ?? '')
     setActionError(null)
-  }, [prefill, classes])
+  }, [prefill, classes, loading])
 
   function activeStudentsOf(targetClassId: string) {
     return students.filter((item) => item.classId === targetClassId && item.status === 'active')

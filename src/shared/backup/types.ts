@@ -2,7 +2,7 @@ export const BACKUP_FORMAT_VERSION = 1
 
 export const BACKUP_FILE_EXTENSION = 'gdpebak'
 
-export const APP_RELEASE_VERSION = '0.12.0'
+export const APP_RELEASE_VERSION = '0.13.0'
 
 export const BUSINESS_JSON_FILES = [
   'schedule.json',

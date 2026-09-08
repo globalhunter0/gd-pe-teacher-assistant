@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import ExcelImportDialog from '../components/ExcelImportDialog'
 import StudentEditorDialog from '../components/StudentEditorDialog'
 import { useClasses } from '../context/ClassContext'
@@ -16,7 +16,13 @@ function classLabel(classes: ClassRecord[], classId: string): { grade: string; c
   return { grade: match.grade, className: match.className }
 }
 
-export default function StudentManagementPage(): React.JSX.Element {
+export default function StudentManagementPage({
+  initialClassId = null,
+  onInitialClassConsumed
+}: {
+  initialClassId?: string | null
+  onInitialClassConsumed?: () => void
+}): React.JSX.Element {
   const { classes, loading: classesLoading } = useClasses()
   const { students, loading, error, upsertStudent, deleteStudent, applyImportedStudents } = useStudents()
   const [classFilter, setClassFilter] = useState('all')
@@ -28,6 +34,14 @@ export default function StudentManagementPage(): React.JSX.Element {
   const [importOpen, setImportOpen] = useState(false)
   const [working, setWorking] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!initialClassId) {
+      return
+    }
+    setClassFilter(initialClassId)
+    onInitialClassConsumed?.()
+  }, [initialClassId, onInitialClassConsumed])
 
   const activeCount = countActiveStudents(students)
   const visible = useMemo(

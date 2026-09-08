@@ -145,6 +145,22 @@ export function runTrainingTeamSelfCheck(): void {
   const roster = currentRosterStudents(groupA, members, students)
   assert(roster.length === 1 && roster[0].id === studentZhang, '新训练只加载当前有效且在读队员')
   assert(!roster.some((item) => item.id === studentLi), '已退出队员不进入新训练花名册')
+  assert(students[0].classId !== students[1].classId, '张三与李四必须来自不同行政班')
+  assert(
+    !('classId' in (parseTrainingTeams([{
+      id: teamA,
+      parentTeamId: null,
+      name: '校田径队',
+      sport: 'track',
+      coach: '',
+      notes: '',
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+      classId: 'class-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+    }])[0] as TrainingTeam & { classId?: string })),
+    'TrainingTeam 不得拥有 classId'
+  )
 
   const sessionPayload: TrainingSession = {
     id: sessionId,

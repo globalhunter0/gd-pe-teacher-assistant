@@ -1,13 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { GRADES, SEMESTERS, type Grade, type Semester } from '@shared/class'
 import {
   MAX_PLAN_WEEKS,
   createTeachingPlanWeekId,
   parseTeachingPlans,
+  plansMatchingClassContext,
   renumberWeeks,
   type TeachingPlan,
   type TeachingPlanWeek
 } from '@shared/teachingPlan'
+import type { PlanNavContext } from './DashboardPage'
 import TeachingPlanCreateDialog from '../components/TeachingPlanCreateDialog'
 import TeachingPlanWeekDialog from '../components/TeachingPlanWeekDialog'
 import { useTeachingPlans } from '../context/TeachingPlanContext'
@@ -27,7 +29,7 @@ function weekPreview(week: TeachingPlanWeek): string {
   return text.length > 36 ? `${text.slice(0, 36)}…` : text
 }
 
-export default function TeachingPlansPage(): React.JSX.Element {
+export default function TeachingPlansPage({ context = null }: { context?: PlanNavContext | null }): React.JSX.Element {
   const { plans, loading, error, upsertPlan, deletePlan, duplicatePlan } = useTeachingPlans()
   const [createOpen, setCreateOpen] = useState(false)
   const [openedId, setOpenedId] = useState<string | null>(null)
@@ -37,12 +39,33 @@ export default function TeachingPlansPage(): React.JSX.Element {
   const [pendingWeekDeleteId, setPendingWeekDeleteId] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const autoOpenedKey = useRef<string | null>(null)
 
   const opened = useMemo(() => plans.find((item) => item.id === openedId) ?? null, [plans, openedId])
   const editingWeek = draft?.weeks.find((week) => week.id === editingWeekId) ?? null
   const pendingWeekDelete = draft?.weeks.find((week) => week.id === pendingWeekDeleteId) ?? null
 
   const dirty = Boolean(draft && opened && JSON.stringify(draft) !== JSON.stringify(clonePlan(opened)))
+  const matchedPlans = useMemo(
+    () => (context ? plansMatchingClassContext(plans, context) : []),
+    [plans, context]
+  )
+
+  useEffect(() => {
+    if (!context || loading) {
+      return
+    }
+    const key = `${context.grade}|${context.academicYear}|${context.semester}`
+    if (autoOpenedKey.current === key) {
+      return
+    }
+    if (matchedPlans.length === 1) {
+      autoOpenedKey.current = key
+      const plan = matchedPlans[0]
+      setOpenedId(plan.id)
+      setDraft(clonePlan(plan))
+    }
+  }, [context, loading, matchedPlans])
 
   function openPlan(plan: TeachingPlan): void {
     setActionError(null)
@@ -401,6 +424,16 @@ export default function TeachingPlansPage(): React.JSX.Element {
 
       {error ? <p className="page-error">{error}</p> : null}
       {actionError ? <p className="page-error">{actionError}</p> : null}
+      {context ? (
+        <p className="page-ok">
+          来自工作台：{context.grade} {context.className}（{context.academicYear} {context.semester}）。
+          {matchedPlans.length === 1
+            ? '已打开唯一匹配的年级计划，未按名称猜测。'
+            : matchedPlans.length === 0
+              ? '没有学年/学期/年级都相同的计划，请选择或新建。未自动选中。'
+              : `有 ${matchedPlans.length} 份同年级同学期计划，请手动选择。未自动选中。`}
+        </p>
+      ) : null}
 
       {plans.length === 0 ? (
         <div className="empty-panel">

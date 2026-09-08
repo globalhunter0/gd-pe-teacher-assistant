@@ -1,6 +1,19 @@
 import type { CourseType, Period, ScheduleItem, Weekday } from './types'
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
+const CLASS_ID_PATTERN = /^class-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const TRAINING_TEAM_ID_PATTERN =
+  /^training-team-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function optionalId(value: unknown, pattern: RegExp, message: string): string | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined
+  }
+  if (typeof value !== 'string' || !pattern.test(value)) {
+    throw new Error(message)
+  }
+  return value
+}
 
 function normalizeTime(value: unknown): string {
   if (typeof value !== 'string') {
@@ -83,6 +96,15 @@ export function parseScheduleItems(input: unknown): ScheduleItem[] {
       courseType
     }
 
+    const classId = optionalId(record.classId, CLASS_ID_PATTERN, '关联行政班编号不正确')
+    const trainingTeamId = optionalId(record.trainingTeamId, TRAINING_TEAM_ID_PATTERN, '关联训练队编号不正确')
+    if (classId) {
+      item.classId = classId
+    }
+    if (trainingTeamId) {
+      item.trainingTeamId = trainingTeamId
+    }
+
     return item
   })
 
@@ -95,4 +117,63 @@ export function parseScheduleItems(input: unknown): ScheduleItem[] {
   }
 
   return items.sort((a, b) => a.weekday - b.weekday || a.period - b.period)
+}
+
+export function scheduleLinkSignature(item: Pick<ScheduleItem, 'classId' | 'trainingTeamId'>): string {
+  return `${item.classId ?? ''}|${item.trainingTeamId ?? ''}`
+}
+
+export function assertScheduleLinksRoundTrip(
+  submitted: ReadonlyArray<ScheduleItem>,
+  persisted: ReadonlyArray<ScheduleItem>
+): void {
+  const persistedById = new Map(persisted.map((item) => [item.id, item]))
+  for (const item of submitted) {
+    const saved = persistedById.get(item.id)
+    if (!saved) {
+      throw new Error('课表保存后缺少原来的课程')
+    }
+    if (scheduleLinkSignature(item) !== scheduleLinkSignature(saved)) {
+      throw new Error('课表班级或训练队关联没有保存成功')
+    }
+  }
+}
+
+export function clearScheduleClassId(item: ScheduleItem): ScheduleItem {
+  const next = { ...item }
+  delete next.classId
+  return next
+}
+
+export function clearScheduleTrainingTeamId(item: ScheduleItem): ScheduleItem {
+  const next = { ...item }
+  delete next.trainingTeamId
+  return next
+}
+
+export function dropMissingScheduleClassLinks(
+  items: ScheduleItem[],
+  knownClassIds: ReadonlySet<string>
+): ScheduleItem[] {
+  return items.map((item) => (item.classId && !knownClassIds.has(item.classId) ? clearScheduleClassId(item) : item))
+}
+
+export function dropMissingScheduleTrainingTeamLinks(
+  items: ScheduleItem[],
+  knownTrainingTeamIds: ReadonlySet<string>
+): ScheduleItem[] {
+  return items.map((item) =>
+    item.trainingTeamId && !knownTrainingTeamIds.has(item.trainingTeamId) ? clearScheduleTrainingTeamId(item) : item
+  )
+}
+
+export function dropMissingScheduleLinks(
+  items: ScheduleItem[],
+  knownClassIds: ReadonlySet<string>,
+  knownTrainingTeamIds: ReadonlySet<string>
+): ScheduleItem[] {
+  return dropMissingScheduleTrainingTeamLinks(
+    dropMissingScheduleClassLinks(items, knownClassIds),
+    knownTrainingTeamIds
+  )
 }

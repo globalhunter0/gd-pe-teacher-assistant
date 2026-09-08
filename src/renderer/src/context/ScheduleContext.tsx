@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { createScheduleService } from '../data/schedule/scheduleService'
 import { WEEKLY_SCHEDULE, parseScheduleItems, type ScheduleItem } from '../data/schedule'
+import { assertScheduleLinksRoundTrip } from '@shared/schedule/validate'
 
 interface ScheduleContextValue {
   items: ScheduleItem[]
@@ -46,7 +47,9 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }): R
   }, [])
 
   const saveItems = useCallback(async (nextItems: ScheduleItem[]) => {
-    const saved = await window.electronAPI.schedule.save(parseScheduleItems(nextItems))
+    parseScheduleItems(nextItems)
+    const saved = await window.electronAPI.schedule.save(nextItems)
+    assertScheduleLinksRoundTrip(nextItems, saved)
     setItems(saved)
     setError(null)
   }, [])

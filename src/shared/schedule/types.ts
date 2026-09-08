@@ -12,6 +12,8 @@ export interface ScheduleItem {
   endTime: string
   team: string
   courseType: CourseType
+  classId?: string
+  trainingTeamId?: string
 }
 
 export const WEEKDAY_LABELS: Record<Weekday, string> = {

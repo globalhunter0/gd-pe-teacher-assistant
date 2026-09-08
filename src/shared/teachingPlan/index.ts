@@ -7,5 +7,6 @@ export {
   createTeachingPlanId,
   createTeachingPlanWeekId,
   parseTeachingPlans,
+  plansMatchingClassContext,
   renumberWeeks
 } from './validate'
