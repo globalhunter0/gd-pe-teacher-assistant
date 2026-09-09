@@ -61,6 +61,7 @@ export default function StatsClassPanel({ onOpenTest }: StatsClassPanelProps): R
             {classes.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.grade} {item.className}
+                {item.status === 'deleted' ? '（已删除）' : ''}
               </option>
             ))}
           </select>

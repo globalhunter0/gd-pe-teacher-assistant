@@ -17,7 +17,6 @@ import type {
   ImportColumn,
   ImportCommitResult,
   ImportPickResult,
-  ImportPreviewResult,
   StudentImportMapping,
   StudentRecord
 } from '../shared/student'
@@ -39,7 +38,23 @@ import type {
 const electronAPI = {
   schedule: {
     get: (): Promise<ScheduleItem[]> => ipcRenderer.invoke('schedule:get'),
-    save: (items: ScheduleItem[]): Promise<ScheduleItem[]> => ipcRenderer.invoke('schedule:save', items)
+    save: (items: ScheduleItem[]): Promise<ScheduleItem[]> => ipcRenderer.invoke('schedule:save', items),
+    importPick: (): Promise<ImportPickResult> => ipcRenderer.invoke('schedule:importPick'),
+    importAnalyze: (sessionId: string): Promise<import('../shared/schedule/detectTypes').DetectedScheduleWorkbook> =>
+      ipcRenderer.invoke('schedule:importAnalyze', sessionId),
+    importPreview: (
+      sessionId: string,
+      mapping: import('../shared/schedule/importTypes').ScheduleImportMapping | null,
+      resolutions: import('../shared/schedule/importTypes').ScheduleSyncResolutions
+    ): Promise<import('../shared/schedule/importTypes').SchedulePreviewResult> =>
+      ipcRenderer.invoke('schedule:importPreview', sessionId, mapping, resolutions),
+    importCommit: (
+      sessionId: string,
+      mapping: import('../shared/schedule/importTypes').ScheduleImportMapping | null,
+      resolutions: import('../shared/schedule/importTypes').ScheduleSyncResolutions
+    ): Promise<import('../shared/schedule/importTypes').ScheduleImportCommitResult> =>
+      ipcRenderer.invoke('schedule:importCommit', sessionId, mapping, resolutions),
+    importCancel: (): Promise<void> => ipcRenderer.invoke('schedule:importCancel')
   },
   classes: {
     get: (): Promise<ClassRecord[]> => ipcRenderer.invoke('classes:get'),
@@ -49,23 +64,38 @@ const electronAPI = {
     get: (): Promise<StudentRecord[]> => ipcRenderer.invoke('students:get'),
     save: (items: StudentRecord[]): Promise<StudentRecord[]> => ipcRenderer.invoke('students:save', items),
     importPick: (): Promise<ImportPickResult> => ipcRenderer.invoke('students:importPick'),
+    importAnalyze: (sessionId: string): Promise<import('../shared/student/detectTypes').DetectedWorkbook> =>
+      ipcRenderer.invoke('students:importAnalyze', sessionId),
     importHeaders: (
       sessionId: string,
       sheetName: string
-    ): Promise<{ columns: ImportColumn[]; suggestedMapping: StudentImportMapping; headerRowNumber: number }> =>
-      ipcRenderer.invoke('students:importHeaders', sessionId, sheetName),
+    ): Promise<{
+      columns: ImportColumn[]
+      suggestedMapping: StudentImportMapping
+      headerRowNumber: number
+      detection: import('../shared/student/detectTypes').DetectedWorkbook
+    }> => ipcRenderer.invoke('students:importHeaders', sessionId, sheetName),
     importPreview: (
       sessionId: string,
       sheetName: string,
-      mapping: StudentImportMapping,
-      classId: string
-    ): Promise<ImportPreviewResult> => ipcRenderer.invoke('students:importPreview', sessionId, sheetName, mapping, classId),
+      mapping: StudentImportMapping | null,
+      context?: {
+        academicYear?: string
+        semester?: string
+        resolutions?: import('../shared/student/rosterTypes').RosterResolutions
+      }
+    ): Promise<import('../shared/student/rosterTypes').RosterPreviewResult> =>
+      ipcRenderer.invoke('students:importPreview', sessionId, sheetName, mapping, context),
     importCommit: (
       sessionId: string,
       sheetName: string,
-      mapping: StudentImportMapping,
-      classId: string
-    ): Promise<ImportCommitResult> => ipcRenderer.invoke('students:importCommit', sessionId, sheetName, mapping, classId),
+      mapping: StudentImportMapping | null,
+      context?: {
+        academicYear?: string
+        semester?: string
+        resolutions?: import('../shared/student/rosterTypes').RosterResolutions
+      }
+    ): Promise<ImportCommitResult> => ipcRenderer.invoke('students:importCommit', sessionId, sheetName, mapping, context),
     importCancel: (): Promise<void> => ipcRenderer.invoke('students:importCancel')
   },
   peSessions: {

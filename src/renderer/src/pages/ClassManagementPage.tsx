@@ -1,14 +1,14 @@
 import { useState } from 'react'
-import { getClassDeleteBlockers, type ClassRecord } from '@shared/class'
+import { listedClassRecords, type ClassRecord } from '@shared/class'
 import ClassEditorDialog from '../components/ClassEditorDialog'
 import { useClasses } from '../context/ClassContext'
 
 export default function ClassManagementPage(): React.JSX.Element {
   const { classes, loading, error, upsertClass, deleteClass } = useClasses()
+  const listedClasses = listedClassRecords(classes)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editing, setEditing] = useState<ClassRecord | null>(null)
   const [pendingDelete, setPendingDelete] = useState<ClassRecord | null>(null)
-  const [blockedDelete, setBlockedDelete] = useState<{ className: string; message: string } | null>(null)
   const [working, setWorking] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
@@ -28,22 +28,9 @@ export default function ClassManagementPage(): React.JSX.Element {
     setEditing(null)
   }
 
-  async function requestDelete(record: ClassRecord): Promise<void> {
+  function requestDelete(record: ClassRecord): void {
     setActionError(null)
-    try {
-      const students = await window.electronAPI.students.get()
-      const sessions = await window.electronAPI.peSessions.get()
-      const tests = await window.electronAPI.peTests.get()
-      const blockers = getClassDeleteBlockers(record.id, students, sessions, tests)
-      if (blockers.length > 0) {
-        setBlockedDelete({ className: record.className, message: blockers.join('；') })
-        return
-      }
-
-      setPendingDelete(record)
-    } catch (loadError) {
-      setActionError(loadError instanceof Error ? loadError.message : '无法检查班级是否仍可删除')
-    }
+    setPendingDelete(record)
   }
 
   async function handleConfirmDelete(): Promise<void> {
@@ -91,7 +78,7 @@ export default function ClassManagementPage(): React.JSX.Element {
       {error ? <p className="page-error">{error}</p> : null}
       {actionError ? <p className="page-error">{actionError}</p> : null}
 
-      {classes.length === 0 ? (
+      {listedClasses.length === 0 ? (
         <div className="empty-panel">
           <p className="empty-title">还没有班级</p>
           <p className="empty-text">创建你的第一个任教班级，之后可以继续添加学生和教学数据。</p>
@@ -114,7 +101,7 @@ export default function ClassManagementPage(): React.JSX.Element {
               </tr>
             </thead>
             <tbody>
-              {classes.map((item) => (
+              {listedClasses.map((item) => (
                 <tr key={item.id}>
                   <td>{item.className}</td>
                   <td>{item.grade}</td>
@@ -154,29 +141,6 @@ export default function ClassManagementPage(): React.JSX.Element {
         />
       ) : null}
 
-      {blockedDelete ? (
-        <div className="dialog-backdrop" onMouseDown={() => setBlockedDelete(null)}>
-          <div
-            className="dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="class-delete-blocked-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <h3 id="class-delete-blocked-title">无法删除“{blockedDelete.className}”</h3>
-            <p className="dialog-slot">{blockedDelete.message}</p>
-            <div className="dialog-actions">
-              <span />
-              <div className="dialog-actions-right">
-                <button type="button" className="btn btn-primary" onClick={() => setBlockedDelete(null)}>
-                  知道了
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {pendingDelete ? (
         <div className="dialog-backdrop" onMouseDown={() => setPendingDelete(null)}>
           <div
@@ -187,7 +151,9 @@ export default function ClassManagementPage(): React.JSX.Element {
             onMouseDown={(event) => event.stopPropagation()}
           >
             <h3 id="class-delete-title">确定删除“{pendingDelete.className}”吗？</h3>
-            <p className="dialog-slot">删除后该班级将从班级管理中移除。</p>
+            <p className="dialog-slot">
+              删除后该班级将从当前管理列表移除。学生不会被删除，历史课堂、测试和训练记录仍会保留。
+            </p>
             <div className="dialog-actions">
               <span />
               <div className="dialog-actions-right">

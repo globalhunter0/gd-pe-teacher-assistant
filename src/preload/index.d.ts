@@ -16,7 +16,6 @@ import type {
   ImportColumn,
   ImportCommitResult,
   ImportPickResult,
-  ImportPreviewResult,
   StudentImportMapping,
   StudentRecord
 } from '../shared/student'
@@ -39,6 +38,19 @@ export interface ElectronAPI {
   schedule: {
     get: () => Promise<ScheduleItem[]>
     save: (items: ScheduleItem[]) => Promise<ScheduleItem[]>
+    importPick: () => Promise<ImportPickResult>
+    importAnalyze: (sessionId: string) => Promise<import('../shared/schedule/detectTypes').DetectedScheduleWorkbook>
+    importPreview: (
+      sessionId: string,
+      mapping: import('../shared/schedule/importTypes').ScheduleImportMapping | null,
+      resolutions: import('../shared/schedule/importTypes').ScheduleSyncResolutions
+    ) => Promise<import('../shared/schedule/importTypes').SchedulePreviewResult>
+    importCommit: (
+      sessionId: string,
+      mapping: import('../shared/schedule/importTypes').ScheduleImportMapping | null,
+      resolutions: import('../shared/schedule/importTypes').ScheduleSyncResolutions
+    ) => Promise<import('../shared/schedule/importTypes').ScheduleImportCommitResult>
+    importCancel: () => Promise<void>
   }
   classes: {
     get: () => Promise<ClassRecord[]>
@@ -48,21 +60,35 @@ export interface ElectronAPI {
     get: () => Promise<StudentRecord[]>
     save: (items: StudentRecord[]) => Promise<StudentRecord[]>
     importPick: () => Promise<ImportPickResult>
+    importAnalyze: (sessionId: string) => Promise<import('../shared/student/detectTypes').DetectedWorkbook>
     importHeaders: (
       sessionId: string,
       sheetName: string
-    ) => Promise<{ columns: ImportColumn[]; suggestedMapping: StudentImportMapping; headerRowNumber: number }>
+    ) => Promise<{
+      columns: ImportColumn[]
+      suggestedMapping: StudentImportMapping
+      headerRowNumber: number
+      detection: import('../shared/student/detectTypes').DetectedWorkbook
+    }>
     importPreview: (
       sessionId: string,
       sheetName: string,
-      mapping: StudentImportMapping,
-      classId: string
-    ) => Promise<ImportPreviewResult>
+      mapping: StudentImportMapping | null,
+      context?: {
+        academicYear?: string
+        semester?: string
+        resolutions?: import('../shared/student/rosterTypes').RosterResolutions
+      }
+    ) => Promise<import('../shared/student/rosterTypes').RosterPreviewResult>
     importCommit: (
       sessionId: string,
       sheetName: string,
-      mapping: StudentImportMapping,
-      classId: string
+      mapping: StudentImportMapping | null,
+      context?: {
+        academicYear?: string
+        semester?: string
+        resolutions?: import('../shared/student/rosterTypes').RosterResolutions
+      }
     ) => Promise<ImportCommitResult>
     importCancel: () => Promise<void>
   }

@@ -1,8 +1,10 @@
+import type { ClassRecord } from '../class/types'
 import type { StudentGender, StudentRecord } from './types'
 
 export type ImportRowStatus = 'importable' | 'warning' | 'error' | 'duplicate'
 
 export interface StudentImportMapping {
+  className: number | null
   studentNo: number | null
   name: number | null
   gender: number | null
@@ -40,10 +42,15 @@ export interface ImportPreviewResult {
 
 export interface ImportCommitResult {
   students: StudentRecord[]
+  classes?: ClassRecord[]
   imported: number
   warningImported: number
   skippedDuplicate: number
   skippedError: number
+  createdClassCount?: number
+  createdStudentCount?: number
+  updatedStudentCount?: number
+  removedFromRosterCount?: number
 }
 
 export type ImportPickResult =

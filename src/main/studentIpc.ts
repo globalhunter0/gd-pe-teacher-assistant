@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { getStudentDeleteBlockers, parseStudentRecords } from '../shared/student/validate'
 import { loadClasses } from './classStore'
 import {
+  analyzeStudentExcel,
   clearImportSession,
   commitStudentExcel,
   inspectSheetHeaders,
@@ -41,7 +42,7 @@ export function registerStudentIpc(): void {
         results: trainingResults
       })
       if (blockers.length > 0) {
-        throw new Error(blockers.join('；'))
+        throw new Error('该学生仍有历史引用，不能从存储中移除。请使用删除档案（保留历史）。')
       }
     }
 
@@ -52,21 +53,25 @@ export function registerStudentIpc(): void {
     return pickStudentExcel()
   })
 
+  ipcMain.handle('students:importAnalyze', async (_event, sessionId: unknown) => {
+    return analyzeStudentExcel(sessionId)
+  })
+
   ipcMain.handle('students:importHeaders', async (_event, sessionId: unknown, sheetName: unknown) => {
     return inspectSheetHeaders(sessionId, sheetName)
   })
 
   ipcMain.handle(
     'students:importPreview',
-    async (_event, sessionId: unknown, sheetName: unknown, mapping: unknown, classId: unknown) => {
-      return previewStudentExcel(sessionId, sheetName, mapping, classId)
+    async (_event, sessionId: unknown, sheetName: unknown, mapping: unknown, context: unknown) => {
+      return previewStudentExcel(sessionId, sheetName, mapping, context)
     }
   )
 
   ipcMain.handle(
     'students:importCommit',
-    async (_event, sessionId: unknown, sheetName: unknown, mapping: unknown, classId: unknown) => {
-      return commitStudentExcel(sessionId, sheetName, mapping, classId)
+    async (_event, sessionId: unknown, sheetName: unknown, mapping: unknown, context: unknown) => {
+      return commitStudentExcel(sessionId, sheetName, mapping, context)
     }
   )
 

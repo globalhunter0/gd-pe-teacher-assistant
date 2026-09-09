@@ -14,6 +14,32 @@ export function classNameOf(classes: ReadonlyArray<ClassRecord>, classId: string
   return classes.find((item) => item.id === classId)?.className ?? ''
 }
 
+export function classLabelOf(classes: ReadonlyArray<ClassRecord>, classId: string): string {
+  const match = classes.find((item) => item.id === classId)
+  return match ? `${match.grade} ${match.className}` : ''
+}
+
+export function schoolWideActiveStudents(students: ReadonlyArray<StudentRecord>): StudentRecord[] {
+  return students.filter((student) => student.status === 'active')
+}
+
+export function filterSchoolWideStudents(
+  students: ReadonlyArray<StudentRecord>,
+  options: { classId?: string; query?: string } = {}
+): StudentRecord[] {
+  const classId = options.classId && options.classId !== 'all' ? options.classId : ''
+  const query = (options.query ?? '').trim()
+  return schoolWideActiveStudents(students).filter((student) => {
+    if (classId && student.classId !== classId) {
+      return false
+    }
+    if (query === '') {
+      return true
+    }
+    return student.name.includes(query) || (student.studentNo !== '' && student.studentNo.includes(query))
+  })
+}
+
 export function activeMembersOfTeam(members: ReadonlyArray<TrainingTeamMember>, teamId: string): TrainingTeamMember[] {
   return members.filter((item) => item.teamId === teamId && isActiveMembership(item))
 }
@@ -36,7 +62,15 @@ export function currentMemberCount(
 }
 
 export function childTeams(teams: ReadonlyArray<TrainingTeam>, parentId: string): TrainingTeam[] {
-  return teams.filter((item) => item.parentTeamId === parentId)
+  return teams.filter((item) => item.parentTeamId === parentId && item.status !== 'deleted')
+}
+
+export function isListedTrainingTeam(team: Pick<TrainingTeam, 'status'>): boolean {
+  return team.status !== 'deleted'
+}
+
+export function canMutateTrainingTeam(team: Pick<TrainingTeam, 'status'>): boolean {
+  return team.status !== 'deleted'
 }
 
 export function teamDisplayPath(teams: ReadonlyArray<TrainingTeam>, team: TrainingTeam): string {

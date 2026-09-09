@@ -3,22 +3,25 @@ import { randomUUID } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { basename, extname } from 'node:path'
 import * as XLSX from 'xlsx'
-import {
-  buildImportPreviewRows,
-  cellToDisplayString,
-  mappingFromPayload,
-  suggestImportMapping,
-  summarizeImportRows
-} from '../shared/student/importMapping'
+import { cellToDisplayString, mappingFromPayload } from '../shared/student/importMapping'
 import type {
   ImportColumn,
   ImportCommitResult,
   ImportPickResult,
-  ImportPreviewResult,
   StudentImportMapping
 } from '../shared/student/importTypes'
-import { createStudentId } from '../shared/student/validate'
-import { loadClasses } from './classStore'
+import type { DetectedWorkbook } from '../shared/student/detectTypes'
+import {
+  buildIncomingFromDetectedWorkbook,
+  detectStudentRosterWorkbook,
+  detectionColumns
+} from '../shared/student/detectRoster'
+import type { RosterPreviewResult, RosterResolutions } from '../shared/student/rosterTypes'
+import { applyRosterSync, buildRosterPreview } from '../shared/student/roster'
+import { parseStudentRecords } from '../shared/student/validate'
+import { DEFAULT_ACADEMIC_YEAR, SEMESTERS, type Semester } from '../shared/class/types'
+import { parseClassRecords } from '../shared/class/validate'
+import { loadClasses, saveClasses } from './classStore'
 import { getMainWindow } from './mainWindow'
 import { loadStudents, saveStudents } from './studentStore'
 
@@ -31,19 +34,10 @@ interface ImportSession {
   filePath: string
   fileName: string
   sheets: string[]
-}
-
-interface ParsedSheet {
-  headerRowNumber: number
-  columns: ImportColumn[]
-  rows: Array<{ excelRow: number; cells: string[] }>
+  detection: DetectedWorkbook
 }
 
 let session: ImportSession | null = null
-
-function isRowEmpty(cells: string[]): boolean {
-  return cells.every((cell) => cell === '')
-}
 
 function listVisibleSheets(workbook: XLSX.WorkBook): string[] {
   const meta = workbook.Workbook?.Sheets
@@ -65,108 +59,100 @@ async function readWorkbook(filePath: string): Promise<XLSX.WorkBook> {
   })
 }
 
-function parseSheet(workbook: XLSX.WorkBook, sheetName: string): ParsedSheet {
-  if (!workbook.SheetNames.includes(sheetName)) {
-    throw new Error('工作表不存在')
-  }
-
-  const sheet = workbook.Sheets[sheetName]
-  if (!sheet) {
-    throw new Error('工作表不存在')
-  }
-
-  const table = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
-    header: 1,
-    raw: false,
-    defval: '',
-    blankrows: true
-  })
-
-  const normalized = table.map((row) => {
-    const source = Array.isArray(row) ? row : []
-    return source.map((cell) => cellToDisplayString(cell))
-  })
-
-  const headerIndex = normalized.findIndex((row) => !isRowEmpty(row))
-  if (headerIndex < 0) {
-    throw new Error('未找到表头，请确认工作表中有内容')
-  }
-
-  const headerCells = normalized[headerIndex]
-  const columnCount = Math.max(headerCells.length, ...normalized.slice(headerIndex + 1).map((row) => row.length), 1)
-  const columns: ImportColumn[] = Array.from({ length: columnCount }, (_item, index) => {
-    const title = headerCells[index] ?? ''
-    return {
-      index,
-      title: title === '' ? `列${index + 1}` : title
-    }
-  })
-
-  const rows: ParsedSheet['rows'] = []
-  for (let index = headerIndex + 1; index < normalized.length; index += 1) {
-    const cells = Array.from({ length: columnCount }, (_item, columnIndex) => normalized[index][columnIndex] ?? '')
-    if (isRowEmpty(cells)) {
-      continue
-    }
-
-    rows.push({
-      excelRow: index + 1,
-      cells
+function workbookToSheets(
+  workbook: XLSX.WorkBook,
+  sheetNames: string[]
+): Array<{ name: string; rows: string[][]; merges: Array<{ s: { r: number; c: number }; e: { r: number; c: number } }> }> {
+  return sheetNames.map((name) => {
+    const sheet = workbook.Sheets[name]
+    const table = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      raw: false,
+      defval: '',
+      blankrows: true
     })
-  }
-
-  if (rows.length > MAX_DATA_ROWS) {
-    throw new Error(`数据行超过 ${MAX_DATA_ROWS} 行，请拆分后再导入`)
-  }
-
-  return {
-    headerRowNumber: headerIndex + 1,
-    columns,
-    rows
-  }
+    const rows = table.map((row) => {
+      const source = Array.isArray(row) ? row : []
+      return source.map((cell) => cellToDisplayString(cell))
+    })
+    return {
+      name,
+      rows,
+      merges: sheet?.['!merges'] ? [...sheet['!merges']] : []
+    }
+  })
 }
 
 async function requireSession(sessionId: unknown): Promise<ImportSession> {
   if (!session || typeof sessionId !== 'string' || session.sessionId !== sessionId) {
     throw new Error('请先选择 Excel 文件')
   }
-
   return session
 }
 
-async function buildPreview(
+function parseSemester(value: unknown): Semester {
+  if (typeof value === 'string' && (SEMESTERS as readonly string[]).includes(value)) {
+    return value as Semester
+  }
+  return '第一学期'
+}
+
+function parseResolutions(input: unknown): RosterResolutions {
+  if (input === undefined || input === null) {
+    return { classChoices: {}, rowChoices: {} }
+  }
+  if (typeof input !== 'object') {
+    throw new Error('名单确认项格式不正确')
+  }
+  const record = input as Record<string, unknown>
+  const classChoices =
+    record.classChoices && typeof record.classChoices === 'object'
+      ? (record.classChoices as RosterResolutions['classChoices'])
+      : {}
+  const rowChoices =
+    record.rowChoices && typeof record.rowChoices === 'object'
+      ? (record.rowChoices as RosterResolutions['rowChoices'])
+      : {}
+  return { classChoices, rowChoices }
+}
+
+function optionalMapping(input: unknown): StudentImportMapping | null {
+  if (input === undefined || input === null || input === '' || input === 'auto') {
+    return null
+  }
+  return mappingFromPayload(input)
+}
+
+async function buildRosterFromSession(
   current: ImportSession,
   sheetName: string,
-  mapping: StudentImportMapping,
-  classId: string
-): Promise<ImportPreviewResult> {
-  const classes = await loadClasses()
-  if (!classes.some((item) => item.id === classId)) {
-    throw new Error('所属班级不存在，请先在班级管理中创建班级')
+  mappingOverride: StudentImportMapping | null,
+  context: { academicYear: string; semester: Semester; resolutions: RosterResolutions }
+): Promise<{ preview: RosterPreviewResult; incoming: ReturnType<typeof buildIncomingFromDetectedWorkbook> }> {
+  let detection = current.detection
+  if (sheetName && sheetName !== '*' && sheetName !== 'auto') {
+    detection = {
+      ...detection,
+      tables: detection.tables.filter((item) => item.sheetName === sheetName)
+    }
   }
-
-  const workbook = await readWorkbook(current.filePath)
-  if (!current.sheets.includes(sheetName)) {
-    throw new Error('请选择有效的工作表')
+  const incoming = buildIncomingFromDetectedWorkbook(detection, mappingOverride)
+  if (incoming.length > MAX_DATA_ROWS) {
+    throw new Error(`数据行超过 ${MAX_DATA_ROWS} 行，请拆分后再导入`)
   }
-
-  const parsed = parseSheet(workbook, sheetName)
-  const students = await loadStudents()
-  const existingStudentNos = new Set(
-    students.filter((item) => item.classId === classId && item.studentNo !== '').map((item) => item.studentNo)
-  )
-  const rows = buildImportPreviewRows(parsed.rows, mapping, existingStudentNos)
-  const summary = summarizeImportRows(rows)
-
-  return {
+  if (incoming.length === 0) {
+    throw new Error('未能识别学生名单。请打开“识别有误？手动调整”后指定姓名列')
+  }
+  const [classes, students] = await Promise.all([loadClasses(), loadStudents()])
+  const preview = buildRosterPreview(incoming, classes, students, {
     fileName: current.fileName,
-    sheetName,
-    headerRowNumber: parsed.headerRowNumber,
-    columns: parsed.columns,
-    suggestedMapping: suggestImportMapping(parsed.columns),
-    ...summary,
-    rows
-  }
+    sheetName: detection.tables.map((item) => item.sheetName).join('、') || sheetName,
+    headerRowNumber: detection.tables[0]?.headerRowNumber ?? 1,
+    academicYear: context.academicYear,
+    semester: context.semester,
+    resolutions: context.resolutions
+  })
+  return { preview, incoming }
 }
 
 export function clearImportSession(): void {
@@ -203,11 +189,15 @@ export async function pickStudentExcel(): Promise<ImportPickResult> {
     throw new Error('Excel 中没有可读取的工作表')
   }
 
+  const fileName = basename(filePath)
+  const detection = detectStudentRosterWorkbook(fileName, workbookToSheets(workbook, sheets))
+
   session = {
     sessionId: randomUUID(),
     filePath,
-    fileName: basename(filePath),
-    sheets
+    fileName,
+    sheets,
+    detection
   }
 
   return {
@@ -218,87 +208,117 @@ export async function pickStudentExcel(): Promise<ImportPickResult> {
   }
 }
 
+export async function analyzeStudentExcel(sessionId: unknown): Promise<DetectedWorkbook> {
+  return (await requireSession(sessionId)).detection
+}
+
 export async function previewStudentExcel(
   sessionId: unknown,
   sheetName: unknown,
   mappingInput: unknown,
-  classId: unknown
-): Promise<ImportPreviewResult> {
-  if (typeof sheetName !== 'string' || sheetName.trim() === '') {
-    throw new Error('请选择工作表')
-  }
-
-  if (typeof classId !== 'string' || classId.trim() === '') {
-    throw new Error('请选择所属班级')
-  }
-
+  contextInput: unknown
+): Promise<RosterPreviewResult> {
   const current = await requireSession(sessionId)
-  const mapping = mappingFromPayload(mappingInput)
-  return buildPreview(current, sheetName, mapping, classId)
+  const mapping = optionalMapping(mappingInput)
+  const contextRecord = contextInput && typeof contextInput === 'object' ? (contextInput as Record<string, unknown>) : {}
+  const academicYear =
+    typeof contextRecord.academicYear === 'string' && contextRecord.academicYear.trim() !== ''
+      ? contextRecord.academicYear.trim()
+      : (current.detection.suggestedAcademicYear ?? DEFAULT_ACADEMIC_YEAR)
+  const { preview } = await buildRosterFromSession(current, typeof sheetName === 'string' ? sheetName : '', mapping, {
+    academicYear,
+    semester: parseSemester(contextRecord.semester),
+    resolutions: parseResolutions(contextRecord.resolutions)
+  })
+  return preview
 }
 
 export async function commitStudentExcel(
   sessionId: unknown,
   sheetName: unknown,
   mappingInput: unknown,
-  classId: unknown
+  contextInput: unknown
 ): Promise<ImportCommitResult> {
-  const preview = await previewStudentExcel(sessionId, sheetName, mappingInput, classId)
-  const accepted = preview.rows.filter((row) => row.status === 'importable' || row.status === 'warning')
+  const current = await requireSession(sessionId)
+  const mapping = optionalMapping(mappingInput)
+  const contextRecord = contextInput && typeof contextInput === 'object' ? (contextInput as Record<string, unknown>) : {}
+  const academicYear =
+    typeof contextRecord.academicYear === 'string' && contextRecord.academicYear.trim() !== ''
+      ? contextRecord.academicYear.trim()
+      : (current.detection.suggestedAcademicYear ?? DEFAULT_ACADEMIC_YEAR)
+  const semester = parseSemester(contextRecord.semester)
+  const resolutions = parseResolutions(contextRecord.resolutions)
 
-  if (accepted.length === 0) {
-    throw new Error('没有可以导入的学生，请先修正 Excel 或已有名单')
+  const { preview, incoming } = await buildRosterFromSession(
+    current,
+    typeof sheetName === 'string' ? sheetName : '',
+    mapping,
+    { academicYear, semester, resolutions }
+  )
+  if (!preview.canCommit) {
+    throw new Error('仍有班级匹配或学生身份冲突未确认，不能写入')
   }
 
-  const now = new Date().toISOString()
-  const existing = await loadStudents()
   const classes = await loadClasses()
-  const knownClassIds = new Set(classes.map((item) => item.id))
-  const next = [
-    ...existing,
-    ...accepted.map((row) => ({
-      id: createStudentId(),
-      classId: classId as string,
-      studentNo: row.studentNo,
-      name: row.name,
-      gender: row.gender,
-      status: 'active' as const,
-      notes: row.notes,
-      createdAt: now,
-      updatedAt: now
-    }))
-  ]
+  const students = await loadStudents()
+  const planned = applyRosterSync(incoming, classes, students, { academicYear, semester, resolutions })
+  const parsedClasses = parseClassRecords(planned.classes)
+  const knownClassIds = new Set(parsedClasses.map((item) => item.id))
+  const parsedStudents = parseStudentRecords(planned.students, { knownClassIds })
+  const previousClasses = classes
 
-  const saved = await saveStudents(next, knownClassIds)
-  clearImportSession()
-
-  return {
-    students: saved,
-    imported: accepted.length,
-    warningImported: preview.warning,
-    skippedDuplicate: preview.duplicate,
-    skippedError: preview.error
+  try {
+    const savedClasses = await saveClasses(parsedClasses)
+    const savedStudents = await saveStudents(parsedStudents, knownClassIds)
+    clearImportSession()
+    return {
+      students: savedStudents,
+      classes: savedClasses,
+      imported: planned.createdStudentCount + planned.updatedStudentCount,
+      warningImported: 0,
+      skippedDuplicate: 0,
+      skippedError: preview.totals.conflict,
+      createdClassCount: planned.createdClassCount,
+      createdStudentCount: planned.createdStudentCount,
+      updatedStudentCount: planned.updatedStudentCount,
+      removedFromRosterCount: planned.removedFromRosterCount
+    }
+  } catch (writeError) {
+    try {
+      await saveClasses(previousClasses)
+    } catch {
+      // 尽量回滚班级文件
+    }
+    throw writeError
   }
 }
 
 export async function inspectSheetHeaders(
   sessionId: unknown,
   sheetName: unknown
-): Promise<{ columns: ImportColumn[]; suggestedMapping: StudentImportMapping; headerRowNumber: number }> {
-  if (typeof sheetName !== 'string' || sheetName.trim() === '') {
-    throw new Error('请选择工作表')
-  }
-
+): Promise<{
+  columns: ImportColumn[]
+  suggestedMapping: StudentImportMapping
+  headerRowNumber: number
+  detection: DetectedWorkbook
+}> {
   const current = await requireSession(sessionId)
-  if (!current.sheets.includes(sheetName)) {
-    throw new Error('请选择有效的工作表')
+  if (typeof sheetName === 'string' && sheetName !== '' && sheetName !== '*') {
+    const table = current.detection.tables.find((item) => item.sheetName === sheetName)
+    if (table) {
+      return {
+        columns: table.columns.map((item) => ({ index: item.index, title: item.header || `列${item.index + 1}` })),
+        suggestedMapping: table.mapping,
+        headerRowNumber: table.headerRowNumber,
+        detection: current.detection
+      }
+    }
   }
-
-  const workbook = await readWorkbook(current.filePath)
-  const parsed = parseSheet(workbook, sheetName)
+  const detected = detectionColumns(current.detection)
   return {
-    columns: parsed.columns,
-    suggestedMapping: suggestImportMapping(parsed.columns),
-    headerRowNumber: parsed.headerRowNumber
+    columns: detected.columns,
+    suggestedMapping: detected.mapping,
+    headerRowNumber: current.detection.tables[0]?.headerRowNumber ?? 1,
+    detection: current.detection
   }
 }

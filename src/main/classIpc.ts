@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { getClassDeleteBlockers, parseClassRecords } from '../shared/class/validate'
+import { hasClassIdentityRefs, parseClassRecords } from '../shared/class/validate'
 import { loadClasses, saveClasses } from './classStore'
 import { loadPeSessions } from './peSessionStore'
 import { loadPeTests } from './peTestStore'
@@ -19,20 +19,19 @@ export function registerClassIpc(): void {
     const students = await loadStudents()
     const sessions = await loadPeSessions()
     const tests = await loadPeTests()
+    const schedule = await loadSchedule()
 
     for (const item of current) {
       if (nextIds.has(item.id)) {
         continue
       }
 
-      const blockers = getClassDeleteBlockers(item.id, students, sessions, tests)
-      if (blockers.length > 0) {
-        throw new Error(blockers.join('；'))
+      if (hasClassIdentityRefs(item.id, students, sessions, tests, schedule)) {
+        throw new Error('该班级仍有历史引用，不能从存储中移除。请使用删除班级（保留历史）。')
       }
     }
 
     const saved = await saveClasses(next)
-    const schedule = await loadSchedule()
     const knownClassIds = new Set(saved.map((item) => item.id))
     const stripped = dropMissingScheduleClassLinks(schedule, knownClassIds)
     const scheduleChanged = JSON.stringify(stripped) !== JSON.stringify(schedule)

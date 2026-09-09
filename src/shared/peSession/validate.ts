@@ -141,7 +141,7 @@ function parseRecord(entry: unknown, sessionId: string): PEStudentRecord {
 
 export function parsePeSessions(input: unknown, options: ParsePeSessionOptions = {}): PEClassSession[] {
   if (!Array.isArray(input)) {
-    throw new Error('体育课记录格式不正确')
+    throw new Error('课堂记录格式不正确')
   }
 
   const sessions = input.map((entry) => {

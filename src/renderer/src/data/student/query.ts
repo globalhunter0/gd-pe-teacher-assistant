@@ -7,6 +7,10 @@ export function filterStudents(
   const query = options.query.trim().toLowerCase()
 
   return students.filter((item) => {
+    if (item.status === 'deleted') {
+      return false
+    }
+
     if (options.classId !== 'all' && item.classId !== options.classId) {
       return false
     }

@@ -38,10 +38,14 @@ export {
   attentionFromLatestSession,
   childTeams,
   classNameOf,
+  classLabelOf,
   currentMemberCount,
   currentRosterStudents,
+  filterSchoolWideStudents,
   hasActiveMembership,
   isActiveMembership,
+  isListedTrainingTeam,
+  canMutateTrainingTeam,
   latestSessionForTeam,
   needsAttention,
   teamDisplayPath
@@ -59,7 +63,9 @@ export {
   validResultsForStudentItem
 } from './stats'
 export {
+  applyTrainingTeamSafeDelete,
   collectTrainingStudentDeleteBlockers,
+  collectTrainingTeamDeleteImpact,
   createTrainingAttendanceId,
   createTrainingExerciseId,
   createTrainingItemId,
@@ -70,9 +76,11 @@ export {
   formatTrainingDate,
   getTrainingItemDeleteBlockers,
   getTrainingTeamDeleteBlockers,
+  hasTrainingTeamIdentityRefs,
   parseTrainingItems,
   parseTrainingMembers,
   parseTrainingResults,
   parseTrainingSessions,
   parseTrainingTeams
 } from './validate'
+export type { TrainingTeamDeleteImpact } from './validate'

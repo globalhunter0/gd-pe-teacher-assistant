@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { ClassRecord } from '@shared/class'
+import { listedClassRecords, type ClassRecord } from '@shared/class'
 import { parseScoreInput, testUnitDisplay } from '@shared/peTest'
-import { STUDENT_STATUS_LABELS, type StudentRecord } from '@shared/student'
+import { type StudentRecord } from '@shared/student'
 import {
   TRAINING_MEMBER_STATUS_LABELS,
   TRAINING_PARTICIPATION_LABELS,
@@ -9,19 +9,24 @@ import {
   TRAINING_SPORT_LABELS,
   TRAINING_TEAM_STATUS_LABELS,
   attentionFromLatestSession,
+  canMutateTrainingTeam,
   childTeams,
+  classLabelOf,
   classNameOf,
+  collectTrainingTeamDeleteImpact,
   compareToPreviousResult,
   createTrainingItemId,
   createTrainingMemberId,
   createTrainingResultId,
   currentMemberCount,
   currentRosterStudents,
+  filterSchoolWideStudents,
   firstResult,
   formatTrainingDate,
   formatTrainingScoreWithUnit,
   hasActiveMembership,
   isActiveMembership,
+  isListedTrainingTeam,
   latestResult,
   latestSessionDateForStudent,
   latestSessionForTeam,
@@ -69,6 +74,38 @@ function percent(value: number | null): string {
   return `${Math.round(value * 1000) / 10}%`
 }
 
+function trainingTeamDeleteConfirmText(
+  name: string,
+  impact: {
+    childCount: number
+    memberCount: number
+    activeMemberCount: number
+    sessionCount: number
+    resultCount: number
+  }
+): string {
+  const history =
+    impact.memberCount > 0 || impact.sessionCount > 0 || impact.resultCount > 0 || impact.childCount > 0
+  if (!history) {
+    return `确定删除「${name}」吗？删除后该队伍将从当前训练队列表移除。`
+  }
+  const lines = [
+    `该训练队已有：`,
+    `${impact.memberCount}名历史队员`,
+    `${impact.sessionCount}次训练记录`,
+    `${impact.resultCount}条训练成绩`
+  ]
+  if (impact.childCount > 0) {
+    lines.push(`另有 ${impact.childCount} 个下属训练组将一并从列表移除，其历史同样保留。`)
+  }
+  if (impact.activeMemberCount > 0) {
+    lines.push(`当前 ${impact.activeMemberCount} 名在队队员将自动结束队籍，学生档案不会删除。`)
+  }
+  lines.push('删除后，该队伍将从当前训练队列表移除，历史训练和成绩仍会保留。')
+  lines.push('确认删除？')
+  return lines.join('\n')
+}
+
 export default function TrainingTeamsPage({
   openTeamId = null,
   startSessionOnOpen = false,
@@ -85,6 +122,7 @@ export default function TrainingTeamsPage({
   const [tab, setTab] = useState<HomeTab>('home')
   const [sessionRecord, setSessionRecord] = useState<TrainingSession | null | undefined>(undefined)
   const [teamDialog, setTeamDialog] = useState<{ record: TrainingTeam | null; parent: TrainingTeam | null } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<TrainingTeam | null>(null)
 
   useEffect(() => {
     if (!openTeamId) {
@@ -108,8 +146,9 @@ export default function TrainingTeamsPage({
   const [actionError, setActionError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
-  const selected = training.teams.find((item) => item.id === selectedId) ?? null
-  const roots = training.teams.filter((item) => item.parentTeamId === null)
+  const listedTeams = training.teams.filter(isListedTrainingTeam)
+  const selected = listedTeams.find((item) => item.id === selectedId) ?? null
+  const roots = listedTeams.filter((item) => item.parentTeamId === null)
 
   function openTeam(id: string): void {
     rememberTeam(id)
@@ -129,6 +168,14 @@ export default function TrainingTeamsPage({
     if (!selected) {
       return
     }
+    if (!canMutateTrainingTeam(selected)) {
+      setActionError('该训练队已删除，不能再添加队员')
+      return
+    }
+    if (student.status !== 'active') {
+      setActionError('只能添加当前在读学生')
+      return
+    }
     if (hasActiveMembership(training.members, selected.id, student.id)) {
       setActionError('该学生已在本队/组中')
       return
@@ -143,7 +190,7 @@ export default function TrainingTeamsPage({
       status: 'active',
       nameSnapshot: student.name,
       studentNoSnapshot: student.studentNo,
-      classNameSnapshot: classNameOf(classes, student.classId),
+      classNameSnapshot: classLabelOf(classes, student.classId),
       genderSnapshot: student.gender,
       notes: '',
       createdAt: now,
@@ -164,6 +211,10 @@ export default function TrainingTeamsPage({
   }
 
   async function handleSaveSession(session: TrainingSession): Promise<void> {
+    if (selected && !canMutateTrainingTeam(selected)) {
+      setActionError('该训练队已删除，不能再开始训练')
+      return
+    }
     await training.upsertSession(session)
     setSessionRecord(undefined)
     setTab('sessions')
@@ -172,6 +223,10 @@ export default function TrainingTeamsPage({
 
   async function handleSaveResult(): Promise<void> {
     if (!selected) {
+      return
+    }
+    if (!canMutateTrainingTeam(selected)) {
+      setActionError('该训练队已删除，不能再新增成绩')
       return
     }
     const student = students.find((item) => item.id === resultStudentId)
@@ -279,7 +334,7 @@ export default function TrainingTeamsPage({
       <div className="page-heading page-heading--split">
         <div className="page-heading-text">
           <h2>训练队</h2>
-          <p>管理校队/训练组、出勤和训练成绩。与行政班、体育课记录、体育测试相互独立，不改班级人数。</p>
+          <p>管理校队/训练组、出勤和训练成绩。与行政班、课堂记录、体育测试相互独立，不改班级人数。</p>
         </div>
         <div className="page-actions">
           <button type="button" className="btn btn-primary" onClick={() => setTeamDialog({ record: null, parent: null })}>
@@ -339,22 +394,29 @@ export default function TrainingTeamsPage({
               setMemberQuery={setMemberQuery}
               showLeftMembers={showLeftMembers}
               setShowLeftMembers={setShowLeftMembers}
-              onStartTraining={() => setSessionRecord(null)}
-              onEditSession={(session) => setSessionRecord(session)}
-              onAddGroup={() => setTeamDialog({ record: null, parent: selected.parentTeamId ? training.teams.find((item) => item.id === selected.parentTeamId) ?? null : selected })}
+              onStartTraining={() => {
+                if (!canMutateTrainingTeam(selected)) {
+                  setActionError('该训练队已删除，不能再开始训练')
+                  return
+                }
+                setSessionRecord(null)
+              }}
+              onEditSession={(session) => {
+                if (!canMutateTrainingTeam(selected)) {
+                  setActionError('该训练队已删除，不能再编辑训练')
+                  return
+                }
+                setSessionRecord(session)
+              }}
+              onAddGroup={() => setTeamDialog({ record: null, parent: selected.parentTeamId ? listedTeams.find((item) => item.id === selected.parentTeamId) ?? null : selected })}
               onEditTeam={() => setTeamDialog({ record: selected, parent: null })}
               onJoin={handleJoin}
               onLeave={(member) => void handleLeave(member)}
               onArchive={() => void training.archiveTeam(selected.id).then(() => setMessage('已停用'))}
-              onDelete={() =>
-                training
-                  .deleteTeam(selected.id)
-                  .then(() => {
-                    setSelectedId('')
-                    setMessage('已删除（无历史引用）')
-                  })
-                  .catch((error: unknown) => setActionError(error instanceof Error ? error.message : '无法删除'))
-              }
+              onDelete={() => {
+                setActionError(null)
+                setPendingDelete(selected)
+              }}
               resultStudentId={resultStudentId}
               setResultStudentId={setResultStudentId}
               resultItemId={resultItemId}
@@ -384,6 +446,52 @@ export default function TrainingTeamsPage({
           onClose={() => setTeamDialog(null)}
           onSave={handleSaveTeam}
         />
+      ) : null}
+
+      {pendingDelete ? (
+        <div className="dialog-backdrop" onMouseDown={() => setPendingDelete(null)}>
+          <div className="dialog" role="dialog" onMouseDown={(event) => event.stopPropagation()}>
+            <h3>确定删除“{pendingDelete.name}”吗？</h3>
+            <p className="dialog-slot" style={{ whiteSpace: 'pre-wrap' }}>
+              {trainingTeamDeleteConfirmText(
+                pendingDelete.name,
+                collectTrainingTeamDeleteImpact(
+                  pendingDelete.id,
+                  training.teams,
+                  training.members,
+                  training.sessions,
+                  training.results
+                )
+              )}
+            </p>
+            <div className="dialog-actions">
+              <span />
+              <div className="dialog-actions-right">
+                <button type="button" className="btn" onClick={() => setPendingDelete(null)}>
+                  取消
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => {
+                    void (async () => {
+                      try {
+                        await training.deleteTeam(pendingDelete.id)
+                        setPendingDelete(null)
+                        setSelectedId('')
+                        setMessage('已删除。历史训练和成绩仍保留。')
+                      } catch (deleteError) {
+                        setActionError(deleteError instanceof Error ? deleteError.message : '无法删除')
+                      }
+                    })()
+                  }}
+                >
+                  确认删除
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : null}
     </section>
   )
@@ -459,6 +567,7 @@ function TeamWorkspace({
   onAddCustomItem: () => void
 }): React.JSX.Element {
   const training = useTraining()
+  const [memberClassFilter, setMemberClassFilter] = useState('all')
   const teams = training.teams
   const memberCount = currentMemberCount(team.id, training.members, students)
   const latest = latestSessionForTeam(training.sessions, team.id)
@@ -473,10 +582,7 @@ function TeamWorkspace({
   )
   const teamMembers = training.members.filter((item) => item.teamId === team.id)
   const visibleMembers = teamMembers.filter((item) => showLeftMembers || isActiveMembership(item))
-  const searchable = students.filter((student) => {
-    const hay = `${student.name}${student.studentNo}${classNameOf(classes, student.classId)}`
-    return memberQuery.trim() === '' || hay.includes(memberQuery.trim())
-  })
+  const searchable = filterSchoolWideStudents(students, { classId: memberClassFilter, query: memberQuery })
   const historyByStudent = useMemo(() => {
     const map = new Map<string, TrainingResult[]>()
     for (const result of teamResults) {
@@ -562,45 +668,62 @@ function TeamWorkspace({
       {tab === 'members' ? (
         <>
           <div className="toolbar">
+            <label className="toolbar-field">
+              行政班
+              <select value={memberClassFilter} onChange={(event) => setMemberClassFilter(event.target.value)}>
+                <option value="all">全部班级</option>
+                {listedClassRecords(classes).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.grade} {item.className}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="toolbar-field toolbar-field-grow">
               搜索学生加入
-              <input value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} placeholder="姓名 / 学号 / 班级" />
+              <input value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} placeholder="姓名 / 学号" />
             </label>
             <label className="toolbar-field">
               <input type="checkbox" checked={showLeftMembers} onChange={(event) => setShowLeftMembers(event.target.checked)} />
               显示已退出
             </label>
           </div>
+          <p className="exam-notes">从全校在读学生中添加队员，可跨班级、跨年级。训练队不绑定任何行政班。</p>
           <div className="import-preview-wrap">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>姓名</th>
-                  <th>行政班</th>
                   <th>学号</th>
-                  <th>在读</th>
+                  <th>年级</th>
+                  <th>行政班</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {searchable.slice(0, 12).map((student) => (
-                  <tr key={student.id}>
-                    <td>{student.name}</td>
-                    <td>{classNameOf(classes, student.classId)}</td>
-                    <td>{student.studentNo || '—'}</td>
-                    <td>{STUDENT_STATUS_LABELS[student.status]}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn"
-                        disabled={student.status !== 'active' || hasActiveMembership(training.members, team.id, student.id)}
-                        onClick={() => onJoin(student)}
-                      >
-                        {hasActiveMembership(training.members, team.id, student.id) ? '已在队' : '加入'}
-                      </button>
-                    </td>
+                {searchable.length === 0 ? (
+                  <tr>
+                    <td colSpan={5}>没有符合条件的在读学生</td>
                   </tr>
-                ))}
+                ) : (
+                  searchable.map((student) => {
+                    const cls = classes.find((item) => item.id === student.classId)
+                    const joined = hasActiveMembership(training.members, team.id, student.id)
+                    return (
+                      <tr key={student.id}>
+                        <td>{student.name}</td>
+                        <td>{student.studentNo || '—'}</td>
+                        <td>{cls?.grade ?? '—'}</td>
+                        <td>{cls?.className ?? '—'}</td>
+                        <td>
+                          <button type="button" className="btn" disabled={joined} onClick={() => onJoin(student)}>
+                            {joined ? '已加入' : '加入'}
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -609,9 +732,9 @@ function TeamWorkspace({
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>姓名快照</th>
-                  <th>当前姓名</th>
-                  <th>班级快照</th>
+                  <th>姓名</th>
+                  <th>学号</th>
+                  <th>年级 / 行政班</th>
                   <th>状态</th>
                   <th>加入</th>
                   <th />
@@ -620,14 +743,15 @@ function TeamWorkspace({
               <tbody>
                 {visibleMembers.map((member) => {
                   const live = students.find((item) => item.id === member.studentId)
+                  const cls = live ? classes.find((item) => item.id === live.classId) : undefined
                   return (
                     <tr key={member.id}>
-                      <td>{member.nameSnapshot}</td>
-                      <td>{live?.name ?? '（学生已不在库中）'}</td>
-                      <td>{member.classNameSnapshot}</td>
+                      <td>{live?.status === 'deleted' ? member.nameSnapshot : live?.name ?? member.nameSnapshot}</td>
+                      <td>{live?.studentNo || member.studentNoSnapshot || '—'}</td>
+                      <td>{cls ? `${cls.grade} ${cls.className}` : member.classNameSnapshot || '—'}</td>
                       <td>
                         {TRAINING_MEMBER_STATUS_LABELS[member.status]}
-                        {live?.status === 'transferred' ? ' · 已转出' : ''}
+                        {live?.status === 'deleted' ? ' · 学生已删除' : live?.status === 'transferred' ? ' · 不在当前名单' : ''}
                       </td>
                       <td>{member.joinedAt.slice(0, 10)}</td>
                       <td>

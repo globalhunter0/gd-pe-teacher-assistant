@@ -5,6 +5,7 @@ import { readJsonItemsFile, writeJsonItemsAtomic } from '../persistence/jsonFile
 import { DEFAULT_SCHEDULE } from './defaultSchedule'
 import { assertScheduleLinksRoundTrip, parseScheduleItems } from './validate'
 import type { ScheduleItem } from './types'
+import { workbenchBoundClassId, workbenchUsesTrainingTeam } from './workbench'
 
 const CLASS_ID = 'class-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
 const TRAINING_TEAM_ID = 'training-team-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
@@ -94,6 +95,15 @@ export async function runScheduleLinkageSelfCheckOrThrow(): Promise<string> {
   const boundTeam = parseScheduleItems(withLinks(boundClass, { classId: CLASS_ID, trainingTeamId: TRAINING_TEAM_ID }))
   if (boundTeam[0].trainingTeamId !== TRAINING_TEAM_ID || boundTeam[0].classId !== CLASS_ID) {
     throw new Error('绑定 trainingTeamId 后内存解析丢失')
+  }
+  if (workbenchBoundClassId(teamOnly[0]) !== undefined || workbenchUsesTrainingTeam(teamOnly[0])) {
+    throw new Error('工作台不得依赖 legacy trainingTeamId')
+  }
+  if (workbenchBoundClassId(boundClass[0]) !== CLASS_ID) {
+    throw new Error('工作台应只使用 classId')
+  }
+  if (workbenchUsesTrainingTeam(boundTeam[0]) || workbenchBoundClassId(boundTeam[0]) !== CLASS_ID) {
+    throw new Error('同时存在 classId 与 trainingTeamId 时工作台仍不得使用训练队')
   }
 
   const cleared = parseScheduleItems(withLinks(boundTeam, {}))

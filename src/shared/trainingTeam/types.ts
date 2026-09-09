@@ -3,7 +3,7 @@ import type { TestDirection, TestUnit, TestValueType, TimeInputMode } from '../p
 
 export type TrainingSport = 'track' | 'basketball' | 'football' | 'other'
 
-export type TrainingTeamStatus = 'active' | 'archived'
+export type TrainingTeamStatus = 'active' | 'archived' | 'deleted'
 
 export type TrainingMemberStatus = 'active' | 'left'
 
@@ -130,7 +130,7 @@ export interface TrainingResult {
 }
 
 export const TRAINING_SPORTS: TrainingSport[] = ['track', 'basketball', 'football', 'other']
-export const TRAINING_TEAM_STATUSES: TrainingTeamStatus[] = ['active', 'archived']
+export const TRAINING_TEAM_STATUSES: TrainingTeamStatus[] = ['active', 'archived', 'deleted']
 export const TRAINING_MEMBER_STATUSES: TrainingMemberStatus[] = ['active', 'left']
 export const TRAINING_PARTICIPATIONS: TrainingParticipation[] = [
   'normal',
@@ -160,7 +160,8 @@ export const TRAINING_SPORT_LABELS: Record<TrainingSport, string> = {
 
 export const TRAINING_TEAM_STATUS_LABELS: Record<TrainingTeamStatus, string> = {
   active: '启用',
-  archived: '停用'
+  archived: '停用',
+  deleted: '已删除'
 }
 
 export const TRAINING_MEMBER_STATUS_LABELS: Record<TrainingMemberStatus, string> = {

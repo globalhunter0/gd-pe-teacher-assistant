@@ -12,13 +12,12 @@ import { TestItemProvider } from './context/TestItemContext'
 import { TeachingPlanProvider } from './context/TeachingPlanContext'
 import { ResourceProvider } from './context/ResourceContext'
 import { TrainingProvider } from './context/TrainingContext'
-import ClassManagementPage from './pages/ClassManagementPage'
+import ClassStudentsPage from './pages/ClassStudentsPage'
 import DashboardPage, { type PlanNavContext } from './pages/DashboardPage'
 import PeLessonRecordsPage from './pages/PeLessonRecordsPage'
 import PeTestsPage from './pages/PeTestsPage'
 import SchedulePage from './pages/SchedulePage'
 import StatsPage from './pages/StatsPage'
-import StudentManagementPage from './pages/StudentManagementPage'
 import TeachingPlansPage from './pages/TeachingPlansPage'
 import ExamStandardsPage from './pages/ExamStandardsPage'
 import TrainingTeamsPage from './pages/TrainingTeamsPage'
@@ -39,13 +38,13 @@ export default function App(): React.JSX.Element {
   return (
     <ScheduleProvider>
       <ClassProvider>
+        <TrainingProvider>
         <StudentProvider>
           <PeSessionProvider>
             <TestItemProvider>
               <PeTestProvider>
                 <TeachingPlanProvider>
                   <ResourceProvider>
-                  <TrainingProvider>
                   <div className="app-shell">
                     <Sidebar activeKey={activeKey} onNavigate={setActiveKey} />
                     <div className="app-main">
@@ -69,18 +68,11 @@ export default function App(): React.JSX.Element {
                               setPlanContext(context)
                               setActiveKey('plans')
                             }}
-                            onOpenTraining={(teamId, options) => {
-                              setOpenTrainingTeamId(teamId)
-                              setStartTrainingSession(Boolean(options?.startSession))
-                              setActiveKey('training')
-                            }}
                           />
                         ) : activeKey === 'schedule' ? (
                           <SchedulePage />
-                        ) : activeKey === 'classes' ? (
-                          <ClassManagementPage />
-                        ) : activeKey === 'students' ? (
-                          <StudentManagementPage
+                        ) : activeKey === 'classes' || activeKey === 'students' ? (
+                          <ClassStudentsPage
                             initialClassId={studentClassId}
                             onInitialClassConsumed={() => setStudentClassId(null)}
                           />
@@ -123,13 +115,13 @@ export default function App(): React.JSX.Element {
                       </main>
                     </div>
                   </div>
-                  </TrainingProvider>
                   </ResourceProvider>
                 </TeachingPlanProvider>
               </PeTestProvider>
             </TestItemProvider>
           </PeSessionProvider>
         </StudentProvider>
+        </TrainingProvider>
       </ClassProvider>
     </ScheduleProvider>
   )

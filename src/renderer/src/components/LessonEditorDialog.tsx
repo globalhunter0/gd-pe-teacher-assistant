@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react'
+import { listedClassRecords } from '@shared/class'
 import { useClasses } from '../context/ClassContext'
-import { useTraining } from '../context/TrainingContext'
 import {
   COURSE_TYPE_LABELS,
   WEEKDAY_LABELS,
@@ -33,13 +33,12 @@ export default function LessonEditorDialog({
   const [team, setTeam] = useState(lesson?.team ?? '')
   const [courseType, setCourseType] = useState<CourseType>(lesson?.courseType ?? 'regular')
   const [classId, setClassId] = useState(lesson?.classId ?? '')
-  const [trainingTeamId, setTrainingTeamId] = useState(lesson?.trainingTeamId ?? '')
   const [startTime, setStartTime] = useState(lesson?.startTime ?? defaultTime.startTime)
   const [endTime, setEndTime] = useState(lesson?.endTime ?? defaultTime.endTime)
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const { classes } = useClasses()
-  const { teams } = useTraining()
+  const listedClasses = listedClassRecords(classes)
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -75,8 +74,8 @@ export default function LessonEditorDialog({
       if (classId) {
         payload.classId = classId
       }
-      if (trainingTeamId) {
-        payload.trainingTeamId = trainingTeamId
+      if (lesson?.trainingTeamId) {
+        payload.trainingTeamId = lesson.trainingTeamId
       }
       await onSave(payload)
     } catch (error) {
@@ -139,28 +138,17 @@ export default function LessonEditorDialog({
             关联行政班
             <select value={classId} onChange={(event) => setClassId(event.target.value)}>
               <option value="">不绑定</option>
-              {classes.map((item) => (
+              {classId && !listedClasses.some((item) => item.id === classId) ? (
+                <option value={classId}>已删除班级（当前绑定）</option>
+              ) : null}
+              {listedClasses.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.grade} {item.className}
                 </option>
               ))}
             </select>
           </label>
-          <label>
-            关联训练队
-            <select value={trainingTeamId} onChange={(event) => setTrainingTeamId(event.target.value)}>
-              <option value="">不绑定</option>
-              {teams.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                  {item.status === 'archived' ? '（已归档）' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p className="dialog-slot dialog-span">
-            行政班与训练队相互独立，可只绑其中一个或同时绑定；训练队队员可来自不同班级、年级。
-          </p>
+          <p className="dialog-slot dialog-span">行政班用于工作台课堂记录。训练队请在「训练队」模块独立管理，不在课表中绑定。</p>
           <label>
             开始时间
             <input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} />

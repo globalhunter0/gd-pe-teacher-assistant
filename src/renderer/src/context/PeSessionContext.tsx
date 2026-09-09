@@ -29,7 +29,7 @@ export function PeSessionProvider({ children }: { children: React.ReactNode }): 
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '体育课记录读取失败')
+          setError(loadError instanceof Error ? loadError.message : '课堂记录读取失败')
         }
       } finally {
         if (!cancelled) {

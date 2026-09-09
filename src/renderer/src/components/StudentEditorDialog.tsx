@@ -1,10 +1,10 @@
 import { useEffect, useId, useState } from 'react'
-import type { ClassRecord } from '@shared/class'
+import { listedClassRecords, type ClassRecord } from '@shared/class'
 import {
+  STUDENT_EDITABLE_STATUSES,
   STUDENT_GENDER_LABELS,
   STUDENT_GENDERS,
   STUDENT_STATUS_LABELS,
-  STUDENT_STATUSES,
   createStudentId,
   type StudentGender,
   type StudentRecord,
@@ -14,6 +14,7 @@ import {
 interface StudentEditorDialogProps {
   record: StudentRecord | null
   classes: ClassRecord[]
+  defaultClassId?: string
   onClose: () => void
   onSave: (record: StudentRecord) => Promise<void>
 }
@@ -21,12 +22,18 @@ interface StudentEditorDialogProps {
 export default function StudentEditorDialog({
   record,
   classes,
+  defaultClassId,
   onClose,
   onSave
 }: StudentEditorDialogProps): React.JSX.Element {
   const titleId = useId()
   const isEdit = record !== null
-  const [classId, setClassId] = useState(record?.classId ?? classes[0]?.id ?? '')
+  const listedClasses = listedClassRecords(classes)
+  const editorClasses =
+    record && !listedClasses.some((item) => item.id === record.classId)
+      ? [...listedClasses, ...classes.filter((item) => item.id === record.classId)]
+      : listedClasses
+  const [classId, setClassId] = useState(record?.classId ?? defaultClassId ?? editorClasses[0]?.id ?? '')
   const [studentNo, setStudentNo] = useState(record?.studentNo ?? '')
   const [name, setName] = useState(record?.name ?? '')
   const [gender, setGender] = useState<StudentGender>(record?.gender ?? 'unspecified')
@@ -48,7 +55,7 @@ export default function StudentEditorDialog({
 
   async function handleSave(): Promise<void> {
     if (classes.length === 0) {
-      setFormError('请先在班级管理中创建班级')
+      setFormError('请先创建班级，或从 Excel 导入名单自动建班')
       return
     }
 
@@ -97,9 +104,10 @@ export default function StudentEditorDialog({
           <label className="dialog-span dialog-field-main">
             所属班级 *
             <select value={classId} onChange={(event) => setClassId(event.target.value)} autoFocus>
-              {classes.map((item) => (
+              {editorClasses.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.grade} {item.className}
+                  {item.status === 'deleted' ? '（已删除）' : ''}
                 </option>
               ))}
             </select>
@@ -129,7 +137,7 @@ export default function StudentEditorDialog({
           <label>
             状态
             <select value={status} onChange={(event) => setStatus(event.target.value as StudentStatus)}>
-              {STUDENT_STATUSES.map((item) => (
+              {STUDENT_EDITABLE_STATUSES.map((item) => (
                 <option key={item} value={item}>
                   {STUDENT_STATUS_LABELS[item]}
                 </option>

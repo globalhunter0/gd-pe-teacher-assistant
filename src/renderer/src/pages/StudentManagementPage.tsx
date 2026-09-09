@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import ExcelImportDialog from '../components/ExcelImportDialog'
 import StudentEditorDialog from '../components/StudentEditorDialog'
+import { listedClassRecords, type ClassRecord } from '@shared/class'
 import { useClasses } from '../context/ClassContext'
 import { useStudents } from '../context/StudentContext'
 import { countActiveStudents, filterStudents } from '../data/student/query'
-import type { ClassRecord } from '@shared/class'
-import { STUDENT_GENDER_LABELS, STUDENT_STATUS_LABELS, getStudentDeleteBlockers, type StudentRecord } from '@shared/student'
+import { STUDENT_GENDER_LABELS, STUDENT_STATUS_LABELS, type StudentRecord } from '@shared/student'
 
 function classLabel(classes: ClassRecord[], classId: string): { grade: string; className: string } {
   const match = classes.find((item) => item.id === classId)
@@ -13,7 +13,10 @@ function classLabel(classes: ClassRecord[], classId: string): { grade: string; c
     return { grade: '—', className: '未知班级' }
   }
 
-  return { grade: match.grade, className: match.className }
+  return {
+    grade: match.grade,
+    className: match.status === 'deleted' ? `${match.className}（已删除）` : match.className
+  }
 }
 
 export default function StudentManagementPage({
@@ -30,7 +33,6 @@ export default function StudentManagementPage({
   const [editorOpen, setEditorOpen] = useState(false)
   const [editing, setEditing] = useState<StudentRecord | null>(null)
   const [pendingDelete, setPendingDelete] = useState<StudentRecord | null>(null)
-  const [blockedDelete, setBlockedDelete] = useState<{ name: string; message: string } | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [working, setWorking] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -82,30 +84,9 @@ export default function StudentManagementPage({
     setEditing(null)
   }
 
-  async function requestDelete(record: StudentRecord): Promise<void> {
+  function requestDelete(record: StudentRecord): void {
     setActionError(null)
-    try {
-      const sessions = await window.electronAPI.peSessions.get()
-      const tests = await window.electronAPI.peTests.get()
-      const [members, trainingSessions, results] = await Promise.all([
-        window.electronAPI.trainingMembers.get(),
-        window.electronAPI.trainingSessions.get(),
-        window.electronAPI.trainingResults.get()
-      ])
-      const blockers = getStudentDeleteBlockers(record.id, sessions, tests, {
-        members,
-        sessions: trainingSessions,
-        results
-      })
-      if (blockers.length > 0) {
-        setBlockedDelete({ name: record.name, message: blockers.join('；') })
-        return
-      }
-
-      setPendingDelete(record)
-    } catch (loadError) {
-      setActionError(loadError instanceof Error ? loadError.message : '无法检查学生是否仍可删除')
-    }
+    setPendingDelete(record)
   }
 
   async function handleConfirmDelete(): Promise<void> {
@@ -162,7 +143,7 @@ export default function StudentManagementPage({
             班级
             <select value={classFilter} onChange={(event) => setClassFilter(event.target.value)}>
               <option value="all">全部班级</option>
-              {classes.map((item) => (
+              {listedClassRecords(classes).map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.grade} {item.className}
                 </option>
@@ -266,33 +247,9 @@ export default function StudentManagementPage({
       {importOpen ? (
         <ExcelImportDialog
           classes={classes}
-          defaultClassId={classFilter !== 'all' ? classFilter : classes[0]?.id ?? ''}
           onClose={() => setImportOpen(false)}
           onImported={(imported) => applyImportedStudents(imported.students)}
         />
-      ) : null}
-
-      {blockedDelete ? (
-        <div className="dialog-backdrop" onMouseDown={() => setBlockedDelete(null)}>
-          <div
-            className="dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="student-delete-blocked-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <h3 id="student-delete-blocked-title">无法删除“{blockedDelete.name}”</h3>
-            <p className="dialog-slot">{blockedDelete.message}</p>
-            <div className="dialog-actions">
-              <span />
-              <div className="dialog-actions-right">
-                <button type="button" className="btn btn-primary" onClick={() => setBlockedDelete(null)}>
-                  知道了
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
       ) : null}
 
       {pendingDelete ? (
@@ -305,7 +262,9 @@ export default function StudentManagementPage({
             onMouseDown={(event) => event.stopPropagation()}
           >
             <h3 id="student-delete-title">确定删除“{pendingDelete.name}”吗？</h3>
-            <p className="dialog-slot">删除后该学生将从学生名单中移除。当前版本尚未关联成绩数据。</p>
+            <p className="dialog-slot">
+              删除后该学生会从名单中消失。已有课堂记录、体育测试和训练历史会保留。这与「移出当前名单」不同。
+            </p>
             <div className="dialog-actions">
               <span />
               <div className="dialog-actions-right">

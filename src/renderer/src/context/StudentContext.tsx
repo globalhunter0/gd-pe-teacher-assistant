@@ -1,5 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { getStudentDeleteBlockers, parseStudentRecords, type StudentRecord } from '@shared/student'
+import {
+  applyStudentSafeDelete,
+  parseStudentRecords,
+  type StudentRecord
+} from '@shared/student'
+import { useTraining } from './TrainingContext'
 
 interface StudentContextValue {
   students: StudentRecord[]
@@ -14,6 +19,7 @@ interface StudentContextValue {
 const StudentContext = createContext<StudentContextValue | null>(null)
 
 export function StudentProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
+  const training = useTraining()
   const [students, setStudents] = useState<StudentRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -64,23 +70,20 @@ export function StudentProvider({ children }: { children: React.ReactNode }): Re
     async (id: string) => {
       const sessions = await window.electronAPI.peSessions.get()
       const tests = await window.electronAPI.peTests.get()
-      const [members, trainingSessions, results] = await Promise.all([
-        window.electronAPI.trainingMembers.get(),
-        window.electronAPI.trainingSessions.get(),
-        window.electronAPI.trainingResults.get()
-      ])
-      const blockers = getStudentDeleteBlockers(id, sessions, tests, {
-        members,
-        sessions: trainingSessions,
-        results
+      const now = new Date().toISOString()
+      const next = applyStudentSafeDelete(students, id, now, {
+        sessions,
+        testSessions: tests,
+        members: training.members,
+        trainingSessions: training.sessions,
+        results: training.results
       })
-      if (blockers.length > 0) {
-        throw new Error(blockers.join('；'))
+      if (next.members.some((item, index) => item !== training.members[index])) {
+        await training.saveMembers(next.members)
       }
-
-      await saveStudents(students.filter((entry) => entry.id !== id))
+      await saveStudents(next.students)
     },
-    [students, saveStudents]
+    [students, saveStudents, training]
   )
 
   const applyImportedStudents = useCallback((items: StudentRecord[]) => {
