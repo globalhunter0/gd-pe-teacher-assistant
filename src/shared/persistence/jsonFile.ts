@@ -109,3 +109,79 @@ export async function loadJsonItemsFile<T>(
 
   return readJsonItemsFile(filePath, parse)
 }
+
+export interface JsonDocumentEnvelope<T> {
+  version: 1
+  updatedAt: string
+  data: T
+}
+
+export async function writeJsonDocumentAtomic<T>(filePath: string, data: T): Promise<void> {
+  await mkdir(dirname(filePath), { recursive: true })
+  const payload: JsonDocumentEnvelope<T> = {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    data
+  }
+  const text = `${JSON.stringify(payload, null, 2)}\n`
+  const tmpPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`
+  const handle = await open(tmpPath, 'w')
+  try {
+    await handle.writeFile(text, 'utf8')
+    await handle.sync()
+  } finally {
+    await handle.close()
+  }
+
+  try {
+    await rename(tmpPath, filePath)
+  } catch {
+    const dest = await open(filePath, 'w')
+    try {
+      await dest.writeFile(text, 'utf8')
+      await dest.sync()
+    } finally {
+      await dest.close()
+    }
+    try {
+      await unlink(tmpPath)
+    } catch {
+      // leftover temp
+    }
+  }
+}
+
+export async function readJsonDocumentFile<T>(filePath: string, parse: (input: unknown) => T): Promise<T> {
+  let raw: string
+  try {
+    raw = await readFile(filePath, 'utf8')
+  } catch (error) {
+    throw new UserDataCorruptError(filePath, error)
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (parsed !== null && typeof parsed === 'object' && 'data' in parsed) {
+      return parse((parsed as { data: unknown }).data)
+    }
+    return parse(parsed)
+  } catch (error) {
+    if (error instanceof UserDataCorruptError) {
+      throw error
+    }
+    throw new UserDataCorruptError(filePath, error)
+  }
+}
+
+export async function loadJsonDocumentFile<T>(
+  filePath: string,
+  parse: (input: unknown) => T,
+  ifMissing: T
+): Promise<T> {
+  if (!(await pathExists(filePath))) {
+    await writeJsonDocumentAtomic(filePath, ifMissing)
+    return ifMissing
+  }
+
+  return readJsonDocumentFile(filePath, parse)
+}

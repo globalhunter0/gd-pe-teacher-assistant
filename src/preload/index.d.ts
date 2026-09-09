@@ -33,6 +33,7 @@ import type {
   TrainingTeam,
   TrainingTeamMember
 } from '../shared/trainingTeam'
+import type { UserPreferences } from '../shared/userPreferences'
 
 export interface ElectronAPI {
   schedule: {
@@ -154,6 +155,10 @@ export interface ElectronAPI {
     restore: () => Promise<
       { canceled: true } | { canceled: false; safetyBackupPath: string; restoredCount: number }
     >
+  }
+  userPreferences: {
+    get: () => Promise<UserPreferences>
+    save: (input: UserPreferences) => Promise<UserPreferences>
   }
 }
 

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { listedClassRecords, type ClassRecord } from '@shared/class'
 import ClassEditorDialog from '../components/ClassEditorDialog'
+import PageLayout from '../components/PageLayout'
 import { useClasses } from '../context/ClassContext'
 
 export default function ClassManagementPage(): React.JSX.Element {
@@ -52,17 +53,17 @@ export default function ClassManagementPage(): React.JSX.Element {
 
   if (loading) {
     return (
-      <section className="page">
+      <PageLayout>
         <div className="page-heading">
           <h2>班级管理</h2>
           <p>正在读取本地班级数据…</p>
         </div>
-      </section>
+      </PageLayout>
     )
   }
 
   return (
-    <section className="page page--classes">
+    <PageLayout className="page--classes">
       <div className="page-heading page-heading--split">
         <div className="page-heading-text">
           <h2>班级管理</h2>
@@ -173,6 +174,6 @@ export default function ClassManagementPage(): React.JSX.Element {
           </div>
         </div>
       ) : null}
-    </section>
+    </PageLayout>
   )
 }

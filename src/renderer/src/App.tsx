@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PAGE_TITLES, type NavKey } from './navigation'
+import { PAGE_DESCRIPTIONS, PAGE_TITLES, type NavKey } from './navigation'
 import AppHeader from './components/AppHeader'
 import PlaceholderPage from './components/PlaceholderPage'
 import Sidebar from './components/Sidebar'
@@ -11,6 +11,7 @@ import { StudentProvider } from './context/StudentContext'
 import { TestItemProvider } from './context/TestItemContext'
 import { TeachingPlanProvider } from './context/TeachingPlanContext'
 import { ResourceProvider } from './context/ResourceContext'
+import { UserPreferencesProvider } from './context/UserPreferencesContext'
 import { TrainingProvider } from './context/TrainingContext'
 import ClassStudentsPage from './pages/ClassStudentsPage'
 import DashboardPage, { type PlanNavContext } from './pages/DashboardPage'
@@ -26,7 +27,7 @@ import SettingsPage from './pages/SettingsPage'
 import type { PeSessionPrefill } from '@shared/peSession'
 
 export default function App(): React.JSX.Element {
-  const [activeKey, setActiveKey] = useState<NavKey>('dashboard')
+  const [activeKey, setActiveKey] = useState<NavKey>('students')
   const [pePrefill, setPePrefill] = useState<PeSessionPrefill | null>(null)
   const [openTestSessionId, setOpenTestSessionId] = useState<string | null>(null)
   const [studentClassId, setStudentClassId] = useState<string | null>(null)
@@ -36,6 +37,7 @@ export default function App(): React.JSX.Element {
   const [startTrainingSession, setStartTrainingSession] = useState(false)
 
   return (
+    <UserPreferencesProvider>
     <ScheduleProvider>
       <ClassProvider>
         <TrainingProvider>
@@ -48,8 +50,10 @@ export default function App(): React.JSX.Element {
                   <div className="app-shell">
                     <Sidebar activeKey={activeKey} onNavigate={setActiveKey} />
                     <div className="app-main">
-                      <AppHeader />
-                      <main className="app-content">
+                      {activeKey === 'dashboard' ? (
+                        <AppHeader title={PAGE_TITLES[activeKey]} description={PAGE_DESCRIPTIONS[activeKey]} />
+                      ) : null}
+                      <main className={activeKey === 'dashboard' ? 'app-content app-content--dashboard' : 'app-content app-content--workspace'}>
                         {activeKey === 'dashboard' ? (
                           <DashboardPage
                             onStartRecord={(prefill) => {
@@ -68,6 +72,7 @@ export default function App(): React.JSX.Element {
                               setPlanContext(context)
                               setActiveKey('plans')
                             }}
+                            onNavigate={setActiveKey}
                           />
                         ) : activeKey === 'schedule' ? (
                           <SchedulePage />
@@ -124,5 +129,6 @@ export default function App(): React.JSX.Element {
         </TrainingProvider>
       </ClassProvider>
     </ScheduleProvider>
+    </UserPreferencesProvider>
   )
 }

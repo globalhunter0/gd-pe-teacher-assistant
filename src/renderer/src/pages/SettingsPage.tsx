@@ -1,9 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import PageLayout, { PageHeader } from '../components/PageLayout'
+import { useUserPreferences } from '../context/UserPreferencesContext'
 
 export default function SettingsPage(): React.JSX.Element {
+  const { preferences, savePreferences, error: preferenceError } = useUserPreferences()
   const [working, setWorking] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [teacherDisplayName, setTeacherDisplayName] = useState(preferences.teacherDisplayName)
+
+  useEffect(() => {
+    setTeacherDisplayName(preferences.teacherDisplayName)
+  }, [preferences.teacherDisplayName])
 
   async function handleBackup(): Promise<void> {
     setWorking(true)
@@ -53,35 +61,94 @@ export default function SettingsPage(): React.JSX.Element {
     }
   }
 
-  return (
-    <section className="page page--settings">
-      <div className="page-heading">
-        <h2>设置</h2>
-        <p>备份与恢复只处理本软件管理的教学数据，不会上传网络，也不会改动课表 17 节结构或评分规则。</p>
-      </div>
+  async function handleSaveTeacher(): Promise<void> {
+    setWorking(true)
+    setError(null)
+    setMessage(null)
+    try {
+      await savePreferences({ teacherDisplayName })
+      setMessage('教师显示名称已保存。工作台问候语会立即更新，重启后仍然保留。')
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '教师信息保存失败')
+    } finally {
+      setWorking(false)
+    }
+  }
 
+  return (
+    <PageLayout className="page--settings">
+      <PageHeader
+        icon="settings"
+        title="备份与恢复"
+        description="管理教师显示名称，并备份或恢复本机教学数据。不会上传网络，也不会改动课表 17 节结构或评分规则。"
+      />
+
+      {preferenceError ? <p className="page-error">{preferenceError}</p> : null}
       {error ? <p className="page-error">{error}</p> : null}
       {message ? <p className="page-ok">{message}</p> : null}
 
-      <div className="info-panel">
-        <h3>数据备份</h3>
-        <p className="settings-copy">
-          生成单个备份包，包含全部业务 JSON、资料中心附件副本，以及带校验和的清单。写入完成后会再验证一遍，通过后才提示成功。
-        </p>
-        <button type="button" className="btn btn-primary" disabled={working} onClick={() => void handleBackup()}>
-          {working ? '处理中…' : '一键备份'}
-        </button>
+      <div className="settings-grid">
+        <div className="info-panel">
+          <h3>教师信息</h3>
+          <p className="settings-copy">用于工作台问候语及界面显示，只保存在本机偏好中，不影响历史教学数据。</p>
+          <label className="settings-field">
+            教师显示名称
+            <input
+              value={teacherDisplayName}
+              onChange={(event) => setTeacherDisplayName(event.target.value)}
+              maxLength={40}
+              placeholder="例如：郁老师"
+            />
+          </label>
+          <button type="button" className="btn btn-primary" disabled={working} onClick={() => void handleSaveTeacher()}>
+            {working ? '处理中…' : '保存显示名称'}
+          </button>
+        </div>
+
+        <div className="info-panel">
+          <h3>界面 / 应用信息</h3>
+          <p className="settings-copy">本软件为本地优先桌面应用。当前版本不提供账号系统。</p>
+          <ul>
+            <li>应用版本：0.14.0</li>
+            <li>数据保存在本机应用目录，业务 JSON 与偏好文件分开存储。</li>
+            <li>备份包格式仍为 .gdpebak。</li>
+          </ul>
+        </div>
       </div>
 
-      <div className="info-panel">
-        <h3>数据恢复</h3>
-        <p className="settings-copy">
-          先校验备份包。不支持或已损坏的备份会被拒绝。恢复前必须先自动备份当前数据；该安全备份失败则停止。恢复使用临时目录整体替换，避免新旧数据混在一起。
-        </p>
-        <button type="button" className="btn btn-danger" disabled={working} onClick={() => void handleRestore()}>
-          {working ? '处理中…' : '一键恢复'}
-        </button>
+      <div className="settings-grid settings-grid--actions">
+        <article className="info-panel settings-card--backup">
+          <h3>创建备份</h3>
+          <p className="settings-copy">
+            生成单个备份包，包含全部业务 JSON、资料中心附件副本，以及带校验和的清单。写入完成后会再验证一遍，通过后才提示成功。
+          </p>
+          <button type="button" className="btn btn-primary" disabled={working} onClick={() => void handleBackup()}>
+            {working ? '处理中…' : '创建备份'}
+          </button>
+        </article>
+
+        <article className="info-panel settings-card--restore">
+          <h3>恢复备份</h3>
+          <p className="settings-copy">
+            先校验备份包。不支持或已损坏的备份会被拒绝。恢复前必须先自动备份当前数据；该安全备份失败则停止。此操作会替换当前全部业务数据。
+          </p>
+          <button type="button" className="btn btn-warning" disabled={working} onClick={() => void handleRestore()}>
+            {working ? '处理中…' : '恢复备份'}
+          </button>
+        </article>
+
+        <article className="info-panel">
+          <h3>数据安全说明</h3>
+          <p className="settings-copy">
+            备份与恢复只处理本软件管理的教学数据。恢复会替换班级、学生、课堂、测试、训练队和资料等全部业务数据，但不会改评分规则引擎，也不会改 .gdpebak 格式。
+          </p>
+          <ul>
+            <li>请把备份包保存在你能找到的位置，不要只留在临时文件夹。</li>
+            <li>恢复前会自动再做一份安全备份；失败则不会继续恢复。</li>
+            <li>危险操作会再次确认，请仔细阅读提示后再继续。</li>
+          </ul>
+        </article>
       </div>
-    </section>
+    </PageLayout>
   )
 }

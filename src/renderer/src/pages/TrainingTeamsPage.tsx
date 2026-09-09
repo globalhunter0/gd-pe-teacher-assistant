@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { listedClassRecords, type ClassRecord } from '@shared/class'
+import PageLayout, { PageHeader } from '../components/PageLayout'
+import TechEmptyState from '../components/workspace/TechEmptyState'
+import OverviewBar from '../components/workspace/OverviewBar'
 import { parseScoreInput, testUnitDisplay } from '@shared/peTest'
 import { type StudentRecord } from '@shared/student'
 import {
@@ -149,6 +152,18 @@ export default function TrainingTeamsPage({
   const listedTeams = training.teams.filter(isListedTrainingTeam)
   const selected = listedTeams.find((item) => item.id === selectedId) ?? null
   const roots = listedTeams.filter((item) => item.parentTeamId === null)
+  const listedTeamIds = new Set(listedTeams.map((item) => item.id))
+  const overviewMemberCount = new Set(
+    training.members
+      .filter(
+        (item) =>
+          listedTeamIds.has(item.teamId) &&
+          isActiveMembership(item) &&
+          students.some((student) => item.studentId === student.id && student.status === 'active')
+      )
+      .map((item) => item.studentId)
+  ).size
+  const overviewSessionCount = training.sessions.filter((item) => listedTeamIds.has(item.teamId)).length
 
   function openTeam(id: string): void {
     rememberTeam(id)
@@ -305,18 +320,15 @@ export default function TrainingTeamsPage({
 
   if (training.loading) {
     return (
-      <section className="page">
-        <div className="page-heading">
-          <h2>训练队</h2>
-          <p>正在读取本地训练数据…</p>
-        </div>
-      </section>
+      <PageLayout>
+        <PageHeader icon="training" title="训练队" description="正在读取本地训练数据…" />
+      </PageLayout>
     )
   }
 
   if (sessionRecord !== undefined && selected) {
     return (
-      <section className="page page--training">
+      <PageLayout className="page--training">
         <TrainingSessionEditor
           team={selected}
           roster={currentRosterStudents(selected.id, training.members, students)}
@@ -325,27 +337,43 @@ export default function TrainingTeamsPage({
           onCancel={() => setSessionRecord(undefined)}
           onSave={handleSaveSession}
         />
-      </section>
+      </PageLayout>
     )
   }
 
   return (
-    <section className="page page--training">
-      <div className="page-heading page-heading--split">
-        <div className="page-heading-text">
-          <h2>训练队</h2>
-          <p>管理校队/训练组、出勤和训练成绩。与行政班、课堂记录、体育测试相互独立，不改班级人数。</p>
-        </div>
-        <div className="page-actions">
+    <PageLayout className="page--training">
+      <PageHeader
+        icon="training"
+        title="训练队"
+        description="管理校队/训练组、出勤和训练成绩。与行政班、课堂记录、体育测试相互独立，不改班级人数。"
+        actions={
           <button type="button" className="btn btn-primary" onClick={() => setTeamDialog({ record: null, parent: null })}>
             新建队伍
           </button>
-        </div>
-      </div>
+        }
+      />
       {training.error ? <p className="page-error">{training.error}</p> : null}
       {actionError ? <p className="page-error">{actionError}</p> : null}
       {message ? <p className="exam-notes">{message}</p> : null}
 
+      <OverviewBar
+        items={[
+          { label: '训练队', value: listedTeams.length, hint: '当前列表中的队伍' },
+          { label: '当前队员', value: overviewMemberCount, hint: '在队且在读' },
+          { label: '训练记录', value: overviewSessionCount, hint: '已保存训练' }
+        ]}
+      />
+
+      {roots.length === 0 ? (
+        <TechEmptyState
+          kind="training"
+          title="还没有训练队"
+          description="先新建校队或训练组，例如校田径队、校篮球队，再在队下建短跑组、中长跑组。训练队不绑定行政班。"
+          actionLabel="新建队伍"
+          onAction={() => setTeamDialog({ record: null, parent: null })}
+        />
+      ) : (
       <div className="training-layout">
         <aside className="training-list">
           {roots.length === 0 ? <p className="exam-notes">还没有训练队。</p> : null}
@@ -379,10 +407,11 @@ export default function TrainingTeamsPage({
 
         <div className="training-main">
           {!selected ? (
-            <div className="empty-panel">
-              <p className="empty-title">选择或新建一支训练队</p>
-              <p>例如校田径队、校篮球队，再在队下建短跑组、中长跑组。</p>
-            </div>
+            <TechEmptyState
+              kind="training"
+              title="选择或新建一支训练队"
+              description="例如校田径队、校篮球队，再在队下建短跑组、中长跑组。"
+            />
           ) : (
             <TeamWorkspace
               team={selected}
@@ -437,6 +466,7 @@ export default function TrainingTeamsPage({
           )}
         </div>
       </div>
+      )}
 
       {teamDialog ? (
         <TrainingTeamDialog
@@ -493,7 +523,7 @@ export default function TrainingTeamsPage({
           </div>
         </div>
       ) : null}
-    </section>
+    </PageLayout>
   )
 }
 
@@ -774,18 +804,18 @@ function TeamWorkspace({
 
       {tab === 'sessions' ? (
         training.sessions.filter((item) => item.teamId === team.id).length === 0 ? (
-          <p className="exam-notes">还没有训练记录。点右上角「开始训练」。</p>
+          <TechEmptyState title="还没有训练记录" description="点右上角「开始训练」记录出勤、内容和备注。" kind="training" />
         ) : (
-          <div className="import-preview-wrap">
+          <div className="data-table-wrap">
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>日期</th>
-                  <th>主题</th>
-                  <th>地点</th>
-                  <th>内容</th>
-                  <th>出勤人次</th>
-                  <th />
+                  <th>训练日期</th>
+                  <th>队伍</th>
+                  <th>训练内容</th>
+                  <th>参与情况</th>
+                  <th>备注</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -794,14 +824,14 @@ function TeamWorkspace({
                   .map((session) => (
                     <tr key={session.id}>
                       <td>{session.date}</td>
-                      <td>{session.title}</td>
-                      <td>{session.place || '—'}</td>
-                      <td>{session.exercises.map((item) => item.name).join('、')}</td>
+                      <td>{session.teamNameSnapshot || team.name}</td>
+                      <td>{session.exercises.map((item) => item.name).join('、') || session.title}</td>
                       <td>
                         {session.attendance.filter((row) => row.participation !== 'absent').length}/{session.attendance.length} 人次
                       </td>
+                      <td className="data-table-notes">{session.notes || '—'}</td>
                       <td>
-                        <button type="button" className="btn" onClick={() => onEditSession(session)}>
+                        <button type="button" className="btn btn-small" onClick={() => onEditSession(session)}>
                           打开
                         </button>
                       </td>

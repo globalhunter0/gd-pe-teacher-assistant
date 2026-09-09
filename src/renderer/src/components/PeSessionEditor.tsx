@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import PageLayout, { PageHeader } from './PageLayout'
 import {
   ATTENDANCE_LABELS,
   ATTENDANCE_STATUSES,
@@ -120,28 +121,22 @@ export default function PeSessionEditor({ session, onBack, onSave }: PeSessionEd
   }
 
   return (
-    <section className="page page--pe-session">
-      <div className="page-heading page-heading--split">
-        <div className="page-heading-text">
-          <h2>课堂记录</h2>
-          <p>
-            {draft.date} · 第{draft.period}节 · {draft.gradeSnapshot} {draft.classNameSnapshot} ·{' '}
-            {PE_LESSON_TYPE_LABELS[draft.lessonType]}
-            {draft.teamSnapshot ? ` · ${draft.teamSnapshot}` : ''}
-            {draft.startTimeSnapshot && draft.endTimeSnapshot
-              ? ` · ${draft.startTimeSnapshot}-${draft.endTimeSnapshot}`
-              : ''}
-          </p>
-        </div>
-        <div className="page-actions">
-          <button type="button" className="btn" onClick={onBack} disabled={saving}>
-            返回列表
-          </button>
-          <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={saving}>
-            保存
-          </button>
-        </div>
-      </div>
+    <PageLayout className="page--pe-session">
+      <PageHeader
+        icon="lessons"
+        title="课堂记录"
+        description={`${draft.date} · 第${draft.period}节 · ${draft.gradeSnapshot} ${draft.classNameSnapshot} · ${PE_LESSON_TYPE_LABELS[draft.lessonType]}${draft.teamSnapshot ? ` · ${draft.teamSnapshot}` : ''}${draft.startTimeSnapshot && draft.endTimeSnapshot ? ` · ${draft.startTimeSnapshot}-${draft.endTimeSnapshot}` : ''}`}
+        actions={
+          <>
+            <button type="button" className="btn" onClick={onBack} disabled={saving}>
+              返回列表
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={saving}>
+              保存
+            </button>
+          </>
+        }
+      />
 
       {error ? <p className="page-error">{error}</p> : null}
       {message ? <p className="page-success">{message}</p> : null}
@@ -263,6 +258,6 @@ export default function PeSessionEditor({ session, onBack, onSave }: PeSessionEd
           </tbody>
         </table>
       </div>
-    </section>
+    </PageLayout>
   )
 }

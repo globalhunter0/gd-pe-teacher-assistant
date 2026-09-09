@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import StatsDateRangeControls from './StatsDateRangeControls'
+import TechEmptyState from './workspace/TechEmptyState'
 import { useClasses } from '../context/ClassContext'
 import { usePeTests } from '../context/PeTestContext'
 import { useTestItems } from '../context/TestItemContext'
@@ -88,11 +89,11 @@ export default function StatsTestPanel({ onOpenTest }: StatsTestPanelProps): Rea
   }, [detail, statusFilter, sortByScore])
 
   if (classes.length === 0) {
-    return <p className="empty-text">请先在班级管理中创建班级。</p>
+    return <TechEmptyState kind="stats" title="还没有班级" description="请先在班级与学生中创建班级后再查看测试统计。" />
   }
 
   if (items.length === 0) {
-    return <p className="empty-text">请先在体育测试中准备测试项目。</p>
+    return <TechEmptyState kind="tests" title="还没有测试项目" description="请先在体育测试中准备测试项目。" />
   }
 
   return (
@@ -139,7 +140,7 @@ export default function StatsTestPanel({ onOpenTest }: StatsTestPanelProps): Rea
       </p>
 
       {listed.length === 0 ? (
-        <p className="empty-text">该范围没有匹配的测试。</p>
+        <TechEmptyState kind="tests" title="该范围没有匹配的测试" description="统计只使用已保存记录，没有演示数据。" />
       ) : (
         <div className="data-table-wrap">
           <table className="data-table">

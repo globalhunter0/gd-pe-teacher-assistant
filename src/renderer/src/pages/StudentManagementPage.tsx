@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import ExcelImportDialog from '../components/ExcelImportDialog'
+import PageLayout from '../components/PageLayout'
 import StudentEditorDialog from '../components/StudentEditorDialog'
 import { listedClassRecords, type ClassRecord } from '@shared/class'
 import { useClasses } from '../context/ClassContext'
@@ -108,17 +109,17 @@ export default function StudentManagementPage({
 
   if (loading || classesLoading) {
     return (
-      <section className="page">
+      <PageLayout>
         <div className="page-heading">
           <h2>学生管理</h2>
           <p>正在读取本地学生数据…</p>
         </div>
-      </section>
+      </PageLayout>
     )
   }
 
   return (
-    <section className="page page--students">
+    <PageLayout className="page--students">
       <div className="page-heading page-heading--split">
         <div className="page-heading-text">
           <h2>学生管理</h2>
@@ -284,6 +285,6 @@ export default function StudentManagementPage({
           </div>
         </div>
       ) : null}
-    </section>
+    </PageLayout>
   )
 }

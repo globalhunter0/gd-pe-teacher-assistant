@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import LessonEditorDialog from '../components/LessonEditorDialog'
+import PageLayout, { PageHeader } from '../components/PageLayout'
 import ScheduleImportDialog from '../components/ScheduleImportDialog'
 import { isListedClass } from '@shared/class'
 import { applyScheduleBulkDelete, formatScheduleBulkDeleteConfirm } from '@shared/schedule'
@@ -119,28 +120,20 @@ export default function SchedulePage(): React.JSX.Element {
 
   if (loading) {
     return (
-      <section className="page page--schedule">
-        <div className="page-heading">
-          <h2>我的课表</h2>
-          <p>正在读取本地课表…</p>
-        </div>
-      </section>
+      <PageLayout className="page--schedule">
+        <PageHeader title="我的课表" description="正在读取本地课表…" />
+      </PageLayout>
     )
   }
 
   return (
-    <section className="page page--schedule">
-      <div className="page-heading page-heading--split">
-        <div className="page-heading-text">
-          <h2>我的课表</h2>
-          <p>
-            {summary.semesterLabel} ｜ 本周 {summary.total} 节 ｜ 常规 {summary.regularCount} 节 ｜ 大体育课{' '}
-            {summary.bigCount} 节
-            {summary.otherCount > 0 ? ` ｜ 其他 ${summary.otherCount} 节` : ''}
-          </p>
-        </div>
-        <div className="page-actions">
-          {bulkMode ? (
+    <PageLayout className="page--schedule">
+      <PageHeader
+        icon="schedule"
+        title="我的课表"
+        description={`${summary.semesterLabel} ｜ 本周 ${summary.total} 节 ｜ 常规 ${summary.regularCount} 节 ｜ 大体育课 ${summary.bigCount} 节${summary.otherCount > 0 ? ` ｜ 其他 ${summary.otherCount} 节` : ''}`}
+        actions={
+          bulkMode ? (
             <>
               <button type="button" className="btn" onClick={exitBulkMode} disabled={working}>
                 取消
@@ -174,7 +167,7 @@ export default function SchedulePage(): React.JSX.Element {
               </button>
               <button
                 type="button"
-                className="btn"
+                className="btn btn-primary"
                 onClick={() => {
                   setEditing(false)
                   setImportOpen(true)
@@ -183,9 +176,9 @@ export default function SchedulePage(): React.JSX.Element {
                 导入/更新课表
               </button>
             </>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       {error ? <p className="page-error">{error}</p> : null}
       {actionError ? <p className="page-error">{actionError}</p> : null}
@@ -305,7 +298,7 @@ export default function SchedulePage(): React.JSX.Element {
           }}
         />
       ) : null}
-    </section>
+    </PageLayout>
   )
 }
 

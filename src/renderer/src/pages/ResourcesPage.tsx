@@ -8,6 +8,9 @@ import {
   type ResourceType
 } from '@shared/resource'
 import ResourceEditorDialog from '../components/ResourceEditorDialog'
+import PageLayout, { PageHeader } from '../components/PageLayout'
+import TechEmptyState from '../components/workspace/TechEmptyState'
+import StatusBadge from '../components/StatusBadge'
 import { useResources } from '../context/ResourceContext'
 
 function formatUpdatedAt(value: string): string {
@@ -15,6 +18,41 @@ function formatUpdatedAt(value: string): string {
     return value
   }
   return `${value.slice(0, 10)} ${value.slice(11, 16)}`
+}
+
+function typeTone(type: ResourceType): 'info' | 'ok' | 'warn' {
+  if (type === 'file') {
+    return 'info'
+  }
+  if (type === 'link') {
+    return 'ok'
+  }
+  return 'warn'
+}
+
+function TypeMark({ type }: { type: ResourceType }): React.JSX.Element {
+  if (type === 'file') {
+    return (
+      <svg className="resource-type-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+        <path d="M7 3h7l5 5v13H7z" />
+        <path d="M14 3v5h5" />
+      </svg>
+    )
+  }
+  if (type === 'link') {
+    return (
+      <svg className="resource-type-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+        <path d="M10 13a5 5 0 0 0 7.07 0l1.41-1.41a5 5 0 0 0-7.07-7.07L10 5.93" />
+        <path d="M14 11a5 5 0 0 0-7.07 0L5.52 12.4a5 5 0 0 0 7.07 7.07L14 18.07" />
+      </svg>
+    )
+  }
+  return (
+    <svg className="resource-type-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M6 5h12v14H6z" />
+      <path d="M9 9h6M9 13h6" />
+    </svg>
+  )
 }
 
 export default function ResourcesPage(): React.JSX.Element {
@@ -83,28 +121,24 @@ export default function ResourcesPage(): React.JSX.Element {
 
   if (loading) {
     return (
-      <section className="page">
-        <div className="page-heading">
-          <h2>资料中心</h2>
-          <p>正在读取本地资料…</p>
-        </div>
-      </section>
+      <PageLayout>
+        <PageHeader icon="resources" title="资料中心" description="正在读取本地资料…" />
+      </PageLayout>
     )
   }
 
   return (
-    <section className="page page--resources">
-      <div className="page-heading page-heading--split">
-        <div className="page-heading-text">
-          <h2>资料中心</h2>
-          <p>本地教学资料库：文件会复制到应用目录，链接和笔记只保存文字信息。</p>
-        </div>
-        <div className="page-actions">
+    <PageLayout className="page--resources">
+      <PageHeader
+        icon="resources"
+        title="资料中心"
+        description="本地教学资料库：文件会复制到应用目录，链接和笔记只保存文字信息。"
+        actions={
           <button type="button" className="btn btn-primary" onClick={openCreate}>
             + 新增资料
           </button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="toolbar">
         <label className="toolbar-field toolbar-field-grow">
@@ -144,64 +178,49 @@ export default function ResourcesPage(): React.JSX.Element {
       {actionError ? <p className="page-error">{actionError}</p> : null}
 
       {resources.length === 0 ? (
-        <div className="empty-panel">
-          <p className="empty-title">还没有资料</p>
-          <p className="empty-text">可以导入本地文件、保存网页链接，或写一条文字笔记。</p>
-          <button type="button" className="btn btn-primary empty-action" onClick={openCreate}>
-            新增资料
-          </button>
-        </div>
+        <TechEmptyState
+          kind="resources"
+          title="还没有资料"
+          description="可以导入本地文件、保存网页链接，或写一条文字笔记。"
+          actionLabel="新增资料"
+          onAction={openCreate}
+        />
       ) : visible.length === 0 ? (
-        <div className="empty-panel">
-          <p className="empty-title">没有符合条件的资料</p>
-          <p className="empty-text">试试清空搜索，或更换分类、类型筛选。</p>
-        </div>
+        <TechEmptyState kind="resources" title="没有符合条件的资料" description="试试清空搜索，或更换分类、类型筛选。" />
       ) : (
-        <div className="data-table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>标题</th>
-                <th>类型</th>
-                <th>分类</th>
-                <th>标签</th>
-                <th>更新时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.title}</td>
-                  <td>{RESOURCE_TYPE_LABELS[item.type]}</td>
-                  <td>{item.category}</td>
-                  <td>{item.tags.length > 0 ? item.tags.join('，') : '—'}</td>
-                  <td>{formatUpdatedAt(item.updatedAt)}</td>
-                  <td>
-                    <div className="table-actions">
-                      {item.type === 'note' ? (
-                        <button type="button" className="btn btn-small" onClick={() => openEdit(item)}>
-                          查看/编辑
-                        </button>
-                      ) : (
-                        <>
-                          <button type="button" className="btn btn-small" onClick={() => void handleOpen(item)}>
-                            {item.type === 'link' ? '打开链接' : '打开'}
-                          </button>
-                          <button type="button" className="btn btn-small" onClick={() => openEdit(item)}>
-                            编辑
-                          </button>
-                        </>
-                      )}
-                      <button type="button" className="btn btn-small btn-danger" onClick={() => setPendingDelete(item)}>
-                        删除
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="resource-grid">
+          {visible.map((item) => (
+            <article key={item.id} className="resource-card">
+              <div className="resource-card-top">
+                <TypeMark type={item.type} />
+                <StatusBadge tone={typeTone(item.type)}>{RESOURCE_TYPE_LABELS[item.type]}</StatusBadge>
+              </div>
+              <strong>{item.title}</strong>
+              <p className="resource-card-meta">
+                {item.category} · {formatUpdatedAt(item.updatedAt)}
+              </p>
+              <p className="resource-card-meta">{item.tags.length > 0 ? item.tags.join('，') : '无标签'}</p>
+              <div className="table-actions">
+                {item.type === 'note' ? (
+                  <button type="button" className="btn btn-small" onClick={() => openEdit(item)}>
+                    查看/编辑
+                  </button>
+                ) : (
+                  <>
+                    <button type="button" className="btn btn-small" onClick={() => void handleOpen(item)}>
+                      {item.type === 'link' ? '打开链接' : '打开'}
+                    </button>
+                    <button type="button" className="btn btn-small" onClick={() => openEdit(item)}>
+                      编辑
+                    </button>
+                  </>
+                )}
+                <button type="button" className="btn btn-small btn-danger" onClick={() => setPendingDelete(item)}>
+                  删除
+                </button>
+              </div>
+            </article>
+          ))}
         </div>
       )}
 
@@ -243,6 +262,6 @@ export default function ResourcesPage(): React.JSX.Element {
           </div>
         </div>
       ) : null}
-    </section>
+    </PageLayout>
   )
 }

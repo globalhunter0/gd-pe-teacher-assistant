@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import PageLayout, { PageHeader } from '../components/PageLayout'
 import {
   BUILTIN_EXAM_STANDARDS,
   EXAM_STATUS_LABELS,
@@ -247,16 +248,17 @@ export default function ExamBatchPage({ onBack }: { onBack: () => void }): React
   }
 
   return (
-    <section className="page page--exams">
-      <div className="page-heading">
-        <h2>批量成绩换算</h2>
-        <p>独立工作区：导入 Excel 不会创建或修改学生档案、班级或体育测试记录，也不会改写原文件。</p>
-      </div>
-      <p>
-        <button type="button" className="btn" onClick={onBack}>
-          返回评分标准
-        </button>
-      </p>
+    <PageLayout className="page--exams">
+      <PageHeader
+        icon="exams"
+        title="批量成绩换算"
+        description="独立工作区：导入 Excel 不会创建或修改学生档案、班级或体育测试记录，也不会改写原文件。"
+        actions={
+          <button type="button" className="btn" onClick={onBack}>
+            返回评分标准
+          </button>
+        }
+      />
       <ol className="exam-batch-steps">
         <li className={step === 1 ? 'is-active' : ''}>① 选择标准</li>
         <li className={step === 2 ? 'is-active' : ''}>② 导入 Excel</li>
@@ -538,6 +540,6 @@ export default function ExamBatchPage({ onBack }: { onBack: () => void }): React
           {visibleRows.length > 300 ? <p className="exam-notes">表格仅预览前 300 条，完整结果请导出 Excel。</p> : null}
         </div>
       ) : null}
-    </section>
+    </PageLayout>
   )
 }

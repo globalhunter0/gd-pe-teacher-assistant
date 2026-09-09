@@ -164,6 +164,13 @@ const electronAPI = {
     restore: (): Promise<
       { canceled: true } | { canceled: false; safetyBackupPath: string; restoredCount: number }
     > => ipcRenderer.invoke('backup:restore')
+  },
+  userPreferences: {
+    get: (): Promise<import('../shared/userPreferences').UserPreferences> =>
+      ipcRenderer.invoke('userPreferences:get'),
+    save: (input: import('../shared/userPreferences').UserPreferences): Promise<
+      import('../shared/userPreferences').UserPreferences
+    > => ipcRenderer.invoke('userPreferences:save', input)
   }
 }
 

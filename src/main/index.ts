@@ -19,6 +19,7 @@ import { getResourceMetaPath, loadResources } from './resourceStore'
 import { registerExamBatchIpc } from './examBatchIpc'
 import { registerTrainingIpc } from './trainingIpc'
 import { registerBackupIpc } from './backupIpc'
+import { registerUserPreferencesIpc } from './userPreferencesIpc'
 import {
   getTrainingItemFilePath,
   getTrainingMemberFilePath,
@@ -86,6 +87,7 @@ app.whenReady().then(() => {
   registerExamBatchIpc()
   registerTrainingIpc()
   registerBackupIpc()
+  registerUserPreferencesIpc()
   assertBuiltinExamCatalog()
   void loadSchedule().then((items) => {
     console.log(`[schedule] ${items.length} 节课程，文件：${getScheduleFilePath()}`)
