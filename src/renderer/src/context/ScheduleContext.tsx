@@ -9,6 +9,7 @@ interface ScheduleContextValue {
   error: string | null
   saveItems: (items: ScheduleItem[]) => Promise<void>
   restoreDefault: () => Promise<void>
+  applyLoadedItems: (items: ScheduleItem[]) => void
 }
 
 const ScheduleContext = createContext<ScheduleContextValue | null>(null)
@@ -58,15 +59,21 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }): R
     await saveItems(WEEKLY_SCHEDULE.map((item) => ({ ...item })))
   }, [saveItems])
 
+  const applyLoadedItems = useCallback((nextItems: ScheduleItem[]) => {
+    setItems(nextItems)
+    setError(null)
+  }, [])
+
   const value = useMemo(
     () => ({
       items,
       loading,
       error,
       saveItems,
-      restoreDefault
+      restoreDefault,
+      applyLoadedItems
     }),
-    [items, loading, error, saveItems, restoreDefault]
+    [items, loading, error, saveItems, restoreDefault, applyLoadedItems]
   )
 
   return <ScheduleContext.Provider value={value}>{children}</ScheduleContext.Provider>

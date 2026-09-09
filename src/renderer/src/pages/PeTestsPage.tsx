@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import PeTestEditor from '../components/PeTestEditor'
 import TestItemEditorDialog from '../components/TestItemEditorDialog'
+import { listedClassRecords } from '@shared/class'
 import { useClasses } from '../context/ClassContext'
 import { usePeTests } from '../context/PeTestContext'
 import { useStudents } from '../context/StudentContext'
@@ -32,6 +33,7 @@ export default function PeTestsPage({
   onPrefillClassConsumed
 }: PeTestsPageProps): React.JSX.Element {
   const { classes } = useClasses()
+  const listedClasses = listedClassRecords(classes)
   const { students } = useStudents()
   const { items, loading: itemsLoading, error: itemsError, saveItems, upsertItem } = useTestItems()
   const { sessions, loading, error, upsertSession, deleteSession } = usePeTests()
@@ -44,7 +46,7 @@ export default function PeTestsPage({
   const [working, setWorking] = useState(false)
   const [duplicateCount, setDuplicateCount] = useState(0)
 
-  const [classId, setClassId] = useState(classes[0]?.id ?? '')
+  const [classId, setClassId] = useState(listedClassRecords(classes)[0]?.id ?? '')
   const [testItemId, setTestItemId] = useState(items.find((item) => item.isActive)?.id ?? '')
   const [date, setDate] = useState(formatLocalDate(new Date()))
   const [title, setTitle] = useState('')
@@ -90,14 +92,14 @@ export default function PeTestsPage({
     }
 
     setActionError(null)
-    setClassId(classes[0]?.id ?? '')
+    setClassId(listedClasses[0]?.id ?? '')
     setTestItemId(activeItems[0]?.id ?? '')
     setDate(formatLocalDate(new Date()))
     setTitle('')
     setDuplicateCount(
       sessions.filter(
         (item) =>
-          item.classId === (classes[0]?.id ?? '') &&
+          item.classId === (listedClasses[0]?.id ?? '') &&
           item.date === formatLocalDate(new Date()) &&
           item.testItemId === (activeItems[0]?.id ?? '')
       ).length
@@ -376,7 +378,7 @@ export default function PeTestsPage({
                     )
                   }}
                 >
-                  {classes.map((item) => (
+                  {listedClasses.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.grade} {item.className}
                     </option>

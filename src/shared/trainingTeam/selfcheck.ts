@@ -1,8 +1,8 @@
 import { parseScoreInput } from '../peTest/scoreFormat'
 import { BUILTIN_TEST_ITEMS } from '../peTest/builtinItems'
 import { listBuiltinExamStandards } from '../examStandard/catalog'
-import { collectTrainingStudentDeleteBlockers, parseTrainingMembers, parseTrainingResults, parseTrainingSessions, parseTrainingTeams } from './validate'
-import { currentRosterStudents, hasActiveMembership, isActiveMembership } from './roster'
+import { collectTrainingStudentDeleteBlockers, parseTrainingMembers, parseTrainingResults, parseTrainingSessions, parseTrainingTeams, applyTrainingTeamSafeDelete } from './validate'
+import { canMutateTrainingTeam, currentRosterStudents, filterSchoolWideStudents, hasActiveMembership, isActiveMembership, isListedTrainingTeam } from './roster'
 import { personalBest, summarizeAthleteSessions, summarizeTeam } from './stats'
 import { mergeBuiltinTrainingItems, BUILTIN_TRAINING_ITEMS } from './builtinItems'
 import type { TrainingResult, TrainingSession, TrainingTeam, TrainingTeamMember } from './types'
@@ -146,6 +146,12 @@ export function runTrainingTeamSelfCheck(): void {
   assert(roster.length === 1 && roster[0].id === studentZhang, '新训练只加载当前有效且在读队员')
   assert(!roster.some((item) => item.id === studentLi), '已退出队员不进入新训练花名册')
   assert(students[0].classId !== students[1].classId, '张三与李四必须来自不同行政班')
+  const pool = filterSchoolWideStudents(students, {})
+  assert(pool.length === 2, '全校学生池默认包含全部在读学生')
+  assert(new Set(pool.map((item) => item.classId)).size === 2, '训练队可同时添加不同 classId 的学生')
+  assert(hasActiveMembership(members, teamB, studentLi), '李四已在篮球队')
+  assert(hasActiveMembership(members, teamB, studentZhang), '同队可含另一班级学生')
+  assert(hasActiveMembership(members, teamB, studentZhang) && hasActiveMembership(members, teamB, studentLi), '已入队学生不能再算作可加入')
   assert(
     !('classId' in (parseTrainingTeams([{
       id: teamA,
@@ -281,7 +287,7 @@ export function runTrainingTeamSelfCheck(): void {
     sessions: [loadedSession],
     results: timeResults
   })
-  assert(blockers.length >= 2, '有 membership / 出勤 / 成绩时不得直接删除学生')
+  assert(blockers.length >= 2, '有 membership / 出勤 / 成绩时不得从存储中物理移除学生身份')
 
   const athlete = summarizeAthleteSessions([loadedSession], studentZhang, groupA)
   assert(athlete.sessionCount === 1 && athlete.presentCount === 1 && athlete.absentCount === 0, '队员训练次数按参加过的训练次数计')
@@ -298,6 +304,65 @@ export function runTrainingTeamSelfCheck(): void {
   const exam = listBuiltinExamStandards().find((item) => item.id === 'cn-gd-guangzhou-middle-2024-2026')
   assert(exam?.status === 'verified', '原有考试评分标准未被本模块改写')
   assert(isActiveMembership(members[0]), '有效 membership 判定')
+
+  const emptyId = 'training-team-dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  const emptyTeam = {
+    id: emptyId,
+    parentTeamId: null,
+    name: '空队',
+    sport: 'other' as const,
+    coach: '',
+    notes: '',
+    status: 'active' as const,
+    createdAt: now,
+    updatedAt: now
+  }
+  const physical = applyTrainingTeamSafeDelete([emptyTeam], [], emptyId, now, [], [])
+  assert(physical.teams.length === 0, '无历史训练队可以物理删除')
+
+  const studentCopy = students.map((item) => ({ ...item }))
+  const afterSession = applyTrainingTeamSafeDelete(teams, members, groupA, now, [loadedSession], timeResults)
+  const tombstone = afterSession.teams.find((item) => item.id === groupA)
+  assert(tombstone?.status === 'deleted', '有 TrainingSession 的训练队也可以删除（软删除）')
+  assert(!isListedTrainingTeam(tombstone!), '删除后默认训练队列表不再出现')
+  assert(!canMutateTrainingTeam(tombstone!), '删除后不能开始新训练')
+  assert(!hasActiveMembership(afterSession.members, groupA, studentZhang), 'active membership 被安全结束')
+  assert(afterSession.members.some((item) => item.teamId === groupA && item.studentId === studentZhang && item.status === 'left'), '历史 membership 仍保留')
+  const rereadSession = parseTrainingSessions([loadedSession], { knownTeamIds: new Set(afterSession.teams.map((item) => item.id)) })
+  assert(rereadSession[0].title === '速度耐力', '删除后历史 TrainingSession 仍可读取')
+  assert(rereadSession[0].teamNameSnapshot === '短跑组', '历史队伍名称仍正确显示')
+  const rereadResults = parseTrainingResults(timeResults, {
+    knownTeamIds: new Set(afterSession.teams.map((item) => item.id)),
+    knownStudentIds: new Set([studentZhang, studentLi]),
+    knownItemIds: new Set([item1000, itemJump])
+  })
+  assert(rereadResults.length === timeResults.length, '删除后历史 TrainingResult 仍可读取')
+  assert(summarizeTeam(groupA, afterSession.members, [loadedSession], new Set([studentZhang])).sessionCount === 1, '训练统计不会因删除队伍报错')
+  assert(studentCopy.every((item, index) => item.id === students[index].id && item.name === students[index].name), 'Student 记录未被删除')
+  assert(loadedSession.attendance.length === 2, '不级联删除历史训练记录')
+  assert(timeResults.length >= 1, '不级联删除历史训练成绩')
+
+  const resultOnlyId = 'training-team-eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+  const resultOnlyTeam: TrainingTeam = {
+    id: resultOnlyId,
+    parentTeamId: null,
+    name: '成绩队',
+    sport: 'other',
+    coach: '',
+    notes: '',
+    status: 'active',
+    createdAt: now,
+    updatedAt: now
+  }
+  const afterResults = applyTrainingTeamSafeDelete(
+    [resultOnlyTeam],
+    [],
+    resultOnlyId,
+    now,
+    [],
+    [{ ...timeResults[0], id: result4, teamId: resultOnlyId }]
+  )
+  assert(afterResults.teams.find((item) => item.id === resultOnlyId)?.status === 'deleted', '有 TrainingResult 的训练队也可以删除')
 }
 
 export function runTrainingTeamSelfCheckOrThrow(): string {

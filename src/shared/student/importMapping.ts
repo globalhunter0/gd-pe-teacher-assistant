@@ -1,14 +1,12 @@
-import type { StudentGender } from './types'
+import {
+  FEMALE_GENDER_VALUES,
+  lookupHeaderAlias,
+  MALE_GENDER_VALUES,
+  UNSPECIFIED_GENDER_VALUES
+} from './detectAliases'
 import type { ImportColumn, ImportPreviewRow, ImportRowStatus, StudentImportMapping } from './importTypes'
-
-const STUDENT_NO_ALIASES = new Set(['学号', '编号', '学生编号', '班内编号', '序号'])
-const NAME_ALIASES = new Set(['姓名', '学生姓名', '名字'])
-const GENDER_ALIASES = new Set(['性别', '男女', '性别（男/女）'])
-const NOTES_ALIASES = new Set(['备注', '说明', '特殊情况'])
-
-const MALE_VALUES = new Set(['男', '男性', 'm', 'male', '1'])
-const FEMALE_VALUES = new Set(['女', '女性', 'f', 'female', '2'])
-const UNSPECIFIED_VALUES = new Set(['', '未填', '未知', '不详', '/', '-'])
+import type { IncomingStudentRow } from './rosterTypes'
+import type { StudentGender } from './types'
 
 export const IMPORT_UNMAPPED = -1
 
@@ -43,21 +41,34 @@ export function cellToDisplayString(value: unknown): string {
 export function suggestImportMapping(columns: ImportColumn[]): StudentImportMapping {
   const used = new Set<number>()
 
-  function findAlias(aliases: Set<string>): number | null {
-    const match = columns.find((column) => !used.has(column.index) && aliases.has(normalizeHeader(column.title)))
+  function findField(field: 'name' | 'studentNo' | 'gender' | 'className' | 'notes', allowSerial = false): number | null {
+    const match = columns.find((column) => {
+      if (used.has(column.index)) {
+        return false
+      }
+      const alias = lookupHeaderAlias(column.title)
+      if (!alias) {
+        return false
+      }
+      if (alias.field === field) {
+        return true
+      }
+      return allowSerial && alias.field === 'serial' && field === 'studentNo'
+    })
     if (!match) {
       return null
     }
-
     used.add(match.index)
     return match.index
   }
 
+  const studentNo = findField('studentNo')
   return {
-    name: findAlias(NAME_ALIASES),
-    studentNo: findAlias(STUDENT_NO_ALIASES),
-    gender: findAlias(GENDER_ALIASES),
-    notes: findAlias(NOTES_ALIASES)
+    className: findField('className'),
+    name: findField('name'),
+    studentNo: studentNo ?? findField('studentNo', true),
+    gender: findField('gender'),
+    notes: findField('notes')
   }
 }
 
@@ -65,15 +76,15 @@ export function parseImportedGender(raw: string): { gender: StudentGender; warni
   const value = raw.replace(/\u3000/g, ' ').trim()
   const lowered = value.toLowerCase()
 
-  if (UNSPECIFIED_VALUES.has(value) || UNSPECIFIED_VALUES.has(lowered)) {
+  if (UNSPECIFIED_GENDER_VALUES.has(value) || UNSPECIFIED_GENDER_VALUES.has(lowered)) {
     return { gender: 'unspecified', warning: null }
   }
 
-  if (MALE_VALUES.has(value) || MALE_VALUES.has(lowered)) {
+  if (MALE_GENDER_VALUES.has(value) || MALE_GENDER_VALUES.has(lowered)) {
     return { gender: 'male', warning: null }
   }
 
-  if (FEMALE_VALUES.has(value) || FEMALE_VALUES.has(lowered)) {
+  if (FEMALE_GENDER_VALUES.has(value) || FEMALE_GENDER_VALUES.has(lowered)) {
     return { gender: 'female', warning: null }
   }
 
@@ -89,6 +100,23 @@ function cellAt(cells: string[], index: number | null): string {
   }
 
   return cells[index] ?? ''
+}
+
+export function buildIncomingStudentRows(
+  dataRows: Array<{ excelRow: number; cells: string[] }>,
+  mapping: StudentImportMapping
+): IncomingStudentRow[] {
+  return dataRows.map((row) => {
+    const genderResult = parseImportedGender(cellAt(row.cells, mapping.gender))
+    return {
+      excelRow: row.excelRow,
+      classRaw: cellAt(row.cells, mapping.className),
+      studentNo: cellAt(row.cells, mapping.studentNo),
+      name: cellAt(row.cells, mapping.name),
+      gender: genderResult.gender,
+      notes: cellAt(row.cells, mapping.notes)
+    }
+  })
 }
 
 export function buildImportPreviewRows(
@@ -228,13 +256,14 @@ export function mappingFromPayload(input: unknown): StudentImportMapping {
   }
 
   const mapping: StudentImportMapping = {
+    className: readIndex('className'),
     studentNo: readIndex('studentNo'),
     name: readIndex('name'),
     gender: readIndex('gender'),
     notes: readIndex('notes')
   }
 
-  const chosen = [mapping.studentNo, mapping.name, mapping.gender, mapping.notes].filter(
+  const chosen = [mapping.className, mapping.studentNo, mapping.name, mapping.gender, mapping.notes].filter(
     (index): index is number => index !== null
   )
   if (new Set(chosen).size !== chosen.length) {

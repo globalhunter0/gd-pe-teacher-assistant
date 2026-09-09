@@ -583,6 +583,107 @@ export function parseTrainingResults(input: unknown, options: ParseResultOptions
   return results.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
 }
 
+export interface TrainingTeamDeleteImpact {
+  childCount: number
+  memberCount: number
+  activeMemberCount: number
+  sessionCount: number
+  resultCount: number
+}
+
+export function collectTrainingTeamDeleteImpact(
+  teamId: string,
+  teams: ReadonlyArray<TrainingTeam>,
+  members: ReadonlyArray<TrainingTeamMember>,
+  sessions: ReadonlyArray<TrainingSession>,
+  results: ReadonlyArray<TrainingResult>
+): TrainingTeamDeleteImpact {
+  return {
+    childCount: teams.filter((item) => item.parentTeamId === teamId && item.status !== 'deleted').length,
+    memberCount: members.filter((item) => item.teamId === teamId).length,
+    activeMemberCount: members.filter((item) => item.teamId === teamId && item.status === 'active' && item.leftAt === null)
+      .length,
+    sessionCount: sessions.filter((item) => item.teamId === teamId).length,
+    resultCount: results.filter((item) => item.teamId === teamId).length
+  }
+}
+
+export function hasTrainingTeamIdentityRefs(
+  teamId: string,
+  teams: ReadonlyArray<Pick<TrainingTeam, 'id' | 'parentTeamId'>>,
+  members: ReadonlyArray<Pick<TrainingTeamMember, 'teamId'>>,
+  sessions: ReadonlyArray<Pick<TrainingSession, 'teamId'>>,
+  results: ReadonlyArray<Pick<TrainingResult, 'teamId'>>
+): boolean {
+  return (
+    teams.some((item) => item.parentTeamId === teamId) ||
+    members.some((item) => item.teamId === teamId) ||
+    sessions.some((item) => item.teamId === teamId) ||
+    results.some((item) => item.teamId === teamId)
+  )
+}
+
+export function leaveActiveMembershipsForTeams<
+  T extends { teamId: string; status: string; leftAt: string | null; updatedAt: string }
+>(members: ReadonlyArray<T>, teamIds: ReadonlySet<string>, now: string): T[] {
+  return members.map((item) =>
+    teamIds.has(item.teamId) && item.status === 'active' && item.leftAt === null
+      ? { ...item, status: 'left' as T['status'], leftAt: now, updatedAt: now }
+      : item
+  )
+}
+
+export function tombstoneTrainingTeam(team: TrainingTeam, now: string): TrainingTeam {
+  return { ...team, status: 'deleted', updatedAt: now }
+}
+
+export function applyTrainingTeamSafeDelete(
+  teams: ReadonlyArray<TrainingTeam>,
+  members: ReadonlyArray<TrainingTeamMember>,
+  teamId: string,
+  now: string,
+  sessions: ReadonlyArray<TrainingSession> = [],
+  results: ReadonlyArray<TrainingResult> = []
+): { teams: TrainingTeam[]; members: TrainingTeamMember[] } {
+  let nextTeams = [...teams]
+  let nextMembers = [...members]
+
+  const children = nextTeams.filter((item) => item.parentTeamId === teamId && item.status !== 'deleted')
+  for (const child of children) {
+    const inner = applyTrainingTeamSafeDelete(nextTeams, nextMembers, child.id, now, sessions, results)
+    nextTeams = inner.teams
+    nextMembers = inner.members
+  }
+
+  nextMembers = leaveActiveMembershipsForTeams(nextMembers, new Set([teamId]), now)
+
+  const current = nextTeams.find((item) => item.id === teamId)
+  if (!current || current.status === 'deleted') {
+    return { teams: nextTeams, members: nextMembers }
+  }
+
+  if (
+    hasTrainingTeamIdentityRefs(
+      teamId,
+      nextTeams.filter((item) => item.id !== teamId),
+      nextMembers,
+      sessions,
+      results
+    )
+  ) {
+    return {
+      members: nextMembers,
+      teams: nextTeams.map((item) => (item.id === teamId ? tombstoneTrainingTeam(item, now) : item))
+    }
+  }
+
+  return {
+    members: nextMembers,
+    teams: nextTeams.filter((item) => item.id !== teamId)
+  }
+}
+
+/** 仅用于禁止从 JSON 中物理拿掉仍被引用的队伍身份，不再作为 UI 删除拦截。 */
 export function getTrainingTeamDeleteBlockers(
   teamId: string,
   teams: ReadonlyArray<TrainingTeam>,
@@ -593,19 +694,19 @@ export function getTrainingTeamDeleteBlockers(
   const blockers: string[] = []
   const childCount = teams.filter((item) => item.parentTeamId === teamId).length
   if (childCount > 0) {
-    blockers.push(`该队伍下仍有 ${childCount} 个训练组，请先处理训练组。`)
+    blockers.push(`该队伍下仍有 ${childCount} 个训练组身份，必须保留队伍记录`)
   }
   const memberCount = members.filter((item) => item.teamId === teamId).length
   if (memberCount > 0) {
-    blockers.push(`该队伍仍有 ${memberCount} 条队员关系记录，请先退出或停用队伍。`)
+    blockers.push(`该队伍存在 ${memberCount} 条队员关系记录，必须保留队伍身份`)
   }
   const sessionCount = sessions.filter((item) => item.teamId === teamId).length
   if (sessionCount > 0) {
-    blockers.push(`该队伍存在 ${sessionCount} 次训练记录，不能直接删除。可将队伍停用。`)
+    blockers.push(`该队伍存在 ${sessionCount} 次训练记录，必须保留队伍身份`)
   }
   const resultCount = results.filter((item) => item.teamId === teamId).length
   if (resultCount > 0) {
-    blockers.push(`该队伍存在 ${resultCount} 条训练成绩，不能直接删除。可将队伍停用。`)
+    blockers.push(`该队伍存在 ${resultCount} 条训练成绩，必须保留队伍身份`)
   }
   return blockers
 }

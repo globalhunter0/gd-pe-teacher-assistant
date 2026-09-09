@@ -63,6 +63,7 @@ export default function ClassEditorDialog({
         semester,
         studentCount: count,
         notes: notes.trim(),
+        status: record?.status ?? 'active',
         createdAt: record?.createdAt ?? now,
         updatedAt: now
       })

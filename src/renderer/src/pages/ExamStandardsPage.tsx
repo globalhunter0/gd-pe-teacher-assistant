@@ -27,6 +27,7 @@ import {
 } from '@shared/examBatch'
 import ExamBatchPage from './ExamBatchPage'
 import { testUnitDisplay } from '@shared/peTest'
+import { listedClassRecords } from '@shared/class'
 import { useClasses } from '../context/ClassContext'
 import { useStudents } from '../context/StudentContext'
 import type { StudentGender } from '@shared/student'
@@ -368,7 +369,7 @@ export default function ExamStandardsPage(): React.JSX.Element {
             班级
             <select value={templateClassId} onChange={(event) => setTemplateClassId(event.target.value)}>
               <option value="">选择班级</option>
-              {classes.map((item) => (
+              {listedClassRecords(classes).map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.className}
                 </option>

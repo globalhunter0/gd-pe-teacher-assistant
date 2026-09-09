@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import {
-  getClassDeleteBlockers,
+  applyClassSafeDelete,
   parseClassRecords,
   type ClassRecord
 } from '@shared/class'
@@ -12,6 +12,7 @@ interface ClassContextValue {
   saveClasses: (items: ClassRecord[]) => Promise<void>
   upsertClass: (item: ClassRecord) => Promise<void>
   deleteClass: (id: string) => Promise<void>
+  applyLoadedClasses: (items: ClassRecord[]) => void
 }
 
 const ClassContext = createContext<ClassContextValue | null>(null)
@@ -65,18 +66,29 @@ export function ClassProvider({ children }: { children: React.ReactNode }): Reac
 
   const deleteClass = useCallback(
     async (id: string) => {
-      const students = await window.electronAPI.students.get()
-      const sessions = await window.electronAPI.peSessions.get()
-      const tests = await window.electronAPI.peTests.get()
-      const blockers = getClassDeleteBlockers(id, students, sessions, tests)
-      if (blockers.length > 0) {
-        throw new Error(blockers.join('；'))
-      }
-
-      await saveClasses(classes.filter((entry) => entry.id !== id))
+      const [students, sessions, tests, schedule] = await Promise.all([
+        window.electronAPI.students.get(),
+        window.electronAPI.peSessions.get(),
+        window.electronAPI.peTests.get(),
+        window.electronAPI.schedule.get()
+      ])
+      const now = new Date().toISOString()
+      await saveClasses(
+        applyClassSafeDelete(classes, id, now, {
+          students,
+          sessions,
+          testSessions: tests,
+          scheduleItems: schedule
+        })
+      )
     },
     [classes, saveClasses]
   )
+
+  const applyLoadedClasses = useCallback((items: ClassRecord[]) => {
+    setClasses(items)
+    setError(null)
+  }, [])
 
   const value = useMemo(
     () => ({
@@ -85,9 +97,10 @@ export function ClassProvider({ children }: { children: React.ReactNode }): Reac
       error,
       saveClasses,
       upsertClass,
-      deleteClass
+      deleteClass,
+      applyLoadedClasses
     }),
-    [classes, loading, error, saveClasses, upsertClass, deleteClass]
+    [classes, loading, error, saveClasses, upsertClass, deleteClass, applyLoadedClasses]
   )
 
   return <ClassContext.Provider value={value}>{children}</ClassContext.Provider>

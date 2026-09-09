@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { getTrainingTeamDeleteBlockers } from '../shared/trainingTeam/validate'
+import { getTrainingTeamDeleteBlockers, hasTrainingTeamIdentityRefs, parseTrainingTeams } from '../shared/trainingTeam/validate'
 import { dropMissingScheduleTrainingTeamLinks } from '../shared/schedule/validate'
 import { loadSchedule, saveSchedule } from './scheduleStore'
 import { loadStudents } from './studentStore'
@@ -24,14 +24,28 @@ import {
 export function registerTrainingIpc(): void {
   ipcMain.handle('trainingTeams:get', async () => loadTrainingTeams())
   ipcMain.handle('trainingTeams:save', async (_event, items: unknown) => {
-    const next = await saveTrainingTeams(items)
+    const next = parseTrainingTeams(items)
+    const current = await loadTrainingTeams()
+    const nextIds = new Set(next.map((item) => item.id))
+    const members = await loadTrainingMembers()
+    const sessions = await loadTrainingSessions()
+    const results = await loadTrainingResults()
+    for (const team of current) {
+      if (nextIds.has(team.id)) {
+        continue
+      }
+      if (hasTrainingTeamIdentityRefs(team.id, next, members, sessions, results)) {
+        throw new Error('该训练队仍有历史引用，不能从存储中移除。请使用删除队伍（保留历史）。')
+      }
+    }
+    const saved = await saveTrainingTeams(next)
     const schedule = await loadSchedule()
-    const knownTeamIds = new Set(next.map((item) => item.id))
+    const knownTeamIds = new Set(saved.map((item) => item.id))
     const stripped = dropMissingScheduleTrainingTeamLinks(schedule, knownTeamIds)
     if (JSON.stringify(stripped) !== JSON.stringify(schedule)) {
       await saveSchedule(stripped)
     }
-    return next
+    return saved
   })
   ipcMain.handle('trainingTeams:deleteCheck', async (_event, teamId: unknown) => {
     if (typeof teamId !== 'string') {

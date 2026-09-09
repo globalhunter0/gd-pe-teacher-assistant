@@ -51,6 +51,10 @@ function isCourseType(value: unknown): value is CourseType {
   return value === 'regular' || value === 'big' || value === 'other'
 }
 
+export function scheduleSlotId(weekday: Weekday, period: Period): string {
+  return `w${weekday}-p${period}`
+}
+
 function toMinutes(time: string): number {
   const [hours, minutes] = time.split(':').map(Number)
   return hours * 60 + minutes
@@ -87,7 +91,7 @@ export function parseScheduleItems(input: unknown): ScheduleItem[] {
     }
 
     const item: ScheduleItem = {
-      id: `w${weekday}-p${period}`,
+      id: scheduleSlotId(weekday, period),
       weekday,
       period,
       startTime,
@@ -117,6 +121,32 @@ export function parseScheduleItems(input: unknown): ScheduleItem[] {
   }
 
   return items.sort((a, b) => a.weekday - b.weekday || a.period - b.period)
+}
+
+/** 按稳定格子 id 一次性算出下一份课表。空选择返回 null，调用方不得写入。 */
+export function applyScheduleBulkDelete(
+  items: ReadonlyArray<ScheduleItem>,
+  selectedIds: ReadonlyArray<string>
+): ScheduleItem[] | null {
+  const wanted = new Set(selectedIds)
+  if (wanted.size === 0) {
+    return null
+  }
+
+  const matched = items.filter((item) => wanted.has(item.id))
+  if (matched.length === 0) {
+    return null
+  }
+
+  return items.filter((item) => !wanted.has(item.id))
+}
+
+export function formatScheduleBulkDeleteConfirm(count: number): string {
+  return [
+    `确定删除已选择的 ${count} 节课表吗？`,
+    '此操作只删除课表安排，',
+    '不会删除班级、学生、课堂记录、体育测试、训练队或历史数据。'
+  ].join('\n')
 }
 
 export function scheduleLinkSignature(item: Pick<ScheduleItem, 'classId' | 'trainingTeamId'>): string {

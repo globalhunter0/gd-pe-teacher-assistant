@@ -26,6 +26,69 @@ export interface StudentTrainingDeleteRefs {
   results?: ReadonlyArray<{ studentId: string }>
 }
 
+export function isRosterVisibleStudent(student: Pick<StudentRecord, 'status'>): boolean {
+  return student.status === 'active' || student.status === 'transferred'
+}
+
+export function hasStudentIdentityRefs(
+  studentId: string,
+  sessions: ReadonlyArray<{ records: ReadonlyArray<{ studentId: string }> }> = [],
+  testSessions: ReadonlyArray<{ records: ReadonlyArray<{ studentId: string }> }> = [],
+  training: StudentTrainingDeleteRefs = {}
+): boolean {
+  return getStudentDeleteBlockers(studentId, sessions, testSessions, training).length > 0
+}
+
+export function leaveActiveTrainingMemberships<T extends { studentId: string; status: string; leftAt: string | null; updatedAt: string }>(
+  members: ReadonlyArray<T>,
+  studentId: string,
+  now: string
+): T[] {
+  return members.map((item) =>
+    item.studentId === studentId && item.status === 'active' && item.leftAt === null
+      ? { ...item, status: 'left' as T['status'], leftAt: now, updatedAt: now }
+      : item
+  )
+}
+
+export function archiveStudentRecord(student: StudentRecord, now: string): StudentRecord {
+  return { ...student, status: 'deleted', updatedAt: now }
+}
+
+export function applyStudentSafeDelete<
+  T extends { studentId: string; status: string; leftAt: string | null; updatedAt: string }
+>(
+  students: ReadonlyArray<StudentRecord>,
+  studentId: string,
+  now: string,
+  refs: {
+    sessions?: ReadonlyArray<{ records: ReadonlyArray<{ studentId: string }> }>
+    testSessions?: ReadonlyArray<{ records: ReadonlyArray<{ studentId: string }> }>
+    members?: ReadonlyArray<T>
+    trainingSessions?: ReadonlyArray<{ attendance: ReadonlyArray<{ studentId: string }> }>
+    results?: ReadonlyArray<{ studentId: string }>
+  } = {}
+): { students: StudentRecord[]; members: T[] } {
+  const members = leaveActiveTrainingMemberships(refs.members ?? [], studentId, now)
+  const current = students.find((item) => item.id === studentId)
+  if (!current || current.status === 'deleted') {
+    return { students: [...students], members }
+  }
+
+  const keepIdentity = hasStudentIdentityRefs(studentId, refs.sessions ?? [], refs.testSessions ?? [], {
+    members,
+    sessions: refs.trainingSessions,
+    results: refs.results
+  })
+
+  return {
+    members,
+    students: keepIdentity
+      ? students.map((item) => (item.id === studentId ? archiveStudentRecord(item, now) : item))
+      : students.filter((item) => item.id !== studentId)
+  }
+}
+
 export function getStudentDeleteBlockers(
   studentId: string,
   sessions: ReadonlyArray<{ records: ReadonlyArray<{ studentId: string }> }> = [],
@@ -35,29 +98,29 @@ export function getStudentDeleteBlockers(
   const blockers: string[] = []
   const lessonCount = sessions.filter((session) => session.records.some((record) => record.studentId === studentId)).length
   if (lessonCount > 0) {
-    blockers.push(`该学生存在 ${lessonCount} 节体育课历史记录，不能直接删除。可将学生状态改为已转出。`)
+    blockers.push(`该学生存在 ${lessonCount} 节课堂历史记录，必须保留学生身份`)
   }
 
   const testCount = testSessions.filter((session) => session.records.some((record) => record.studentId === studentId)).length
   if (testCount > 0) {
-    blockers.push(`该学生存在 ${testCount} 次体育测试历史记录，不能直接删除。可将学生状态改为已转出。`)
+    blockers.push(`该学生存在 ${testCount} 次体育测试历史记录，必须保留学生身份`)
   }
 
   const memberCount = (training.members ?? []).filter((item) => item.studentId === studentId).length
   if (memberCount > 0) {
-    blockers.push(`该学生存在 ${memberCount} 条训练队队员记录，不能直接删除。可将学生状态改为已转出。`)
+    blockers.push(`该学生存在 ${memberCount} 条训练队队员记录，必须保留学生身份`)
   }
 
   const trainingSessionCount = (training.sessions ?? []).filter((session) =>
     session.attendance.some((row) => row.studentId === studentId)
   ).length
   if (trainingSessionCount > 0) {
-    blockers.push(`该学生存在 ${trainingSessionCount} 次训练出勤记录，不能直接删除。可将学生状态改为已转出。`)
+    blockers.push(`该学生存在 ${trainingSessionCount} 次训练出勤记录，必须保留学生身份`)
   }
 
   const resultCount = (training.results ?? []).filter((item) => item.studentId === studentId).length
   if (resultCount > 0) {
-    blockers.push(`该学生存在 ${resultCount} 条训练成绩，不能直接删除。可将学生状态改为已转出。`)
+    blockers.push(`该学生存在 ${resultCount} 条训练成绩，必须保留学生身份`)
   }
 
   return blockers
@@ -136,7 +199,7 @@ export function parseStudentRecords(input: unknown, options: ParseStudentOptions
     }
     ids.add(item.id)
 
-    if (item.studentNo === '') {
+    if (item.studentNo === '' || item.status === 'deleted') {
       continue
     }
 

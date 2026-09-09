@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import {
+  applyTrainingTeamSafeDelete,
   getTrainingItemDeleteBlockers,
-  getTrainingTeamDeleteBlockers,
   parseTrainingItems,
   parseTrainingMembers,
   parseTrainingResults,
@@ -134,13 +134,14 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
 
   const deleteTeam = useCallback(
     async (id: string) => {
-      const blockers = getTrainingTeamDeleteBlockers(id, teams, members, sessions, results)
-      if (blockers.length > 0) {
-        throw new Error(blockers.join('；'))
+      const now = new Date().toISOString()
+      const next = applyTrainingTeamSafeDelete(teams, members, id, now, sessions, results)
+      if (next.members.some((item, index) => item !== members[index])) {
+        await saveMembers(next.members)
       }
-      await saveTeams(teams.filter((item) => item.id !== id))
+      await saveTeams(next.teams)
     },
-    [members, results, saveTeams, sessions, teams]
+    [members, results, saveMembers, saveTeams, sessions, teams]
   )
 
   const upsertSession = useCallback(

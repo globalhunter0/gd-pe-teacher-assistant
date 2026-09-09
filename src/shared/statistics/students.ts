@@ -39,6 +39,9 @@ export function collectStudentOptions(
   const byId = new Map<string, StatsStudentOption>()
 
   for (const student of students) {
+    if (student.status === 'deleted') {
+      continue
+    }
     byId.set(student.id, {
       studentId: student.id,
       name: student.name,

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import PeSessionEditor from '../components/PeSessionEditor'
+import { listedClassRecords } from '@shared/class'
 import { useClasses } from '../context/ClassContext'
 import { usePeSessions } from '../context/PeSessionContext'
 import { useStudents } from '../context/StudentContext'
@@ -26,6 +27,7 @@ export default function PeLessonRecordsPage({
   onPrefillConsumed
 }: PeLessonRecordsPageProps): React.JSX.Element {
   const { classes } = useClasses()
+  const listedClasses = listedClassRecords(classes)
   const { students } = useStudents()
   const { sessions, loading, error, upsertSession, deleteSession } = usePeSessions()
   const [editing, setEditing] = useState<PEClassSession | null>(null)
@@ -36,12 +38,12 @@ export default function PeLessonRecordsPage({
   const [working, setWorking] = useState(false)
   const [duplicateHint, setDuplicateHint] = useState<PEClassSession | null>(null)
 
-  const [classId, setClassId] = useState(classes[0]?.id ?? '')
+  const [classId, setClassId] = useState(listedClasses[0]?.id ?? '')
   const [date, setDate] = useState(formatLocalDate(new Date()))
   const [period, setPeriod] = useState(1)
   const [lessonType, setLessonType] = useState<PeLessonType>('regular')
   const [topic, setTopic] = useState('')
-  const [prefillClassId, setPrefillClassId] = useState(classes[0]?.id ?? '')
+  const [prefillClassId, setPrefillClassId] = useState(listedClasses[0]?.id ?? '')
   const handledPrefillKey = useRef<string | null>(null)
 
   useEffect(() => {
@@ -88,7 +90,7 @@ export default function PeLessonRecordsPage({
   }
 
   function openCreate(): void {
-    if (classes.length === 0) {
+    if (listedClasses.length === 0) {
       setActionError('请先在班级管理中创建班级')
       return
     }
@@ -216,7 +218,7 @@ export default function PeLessonRecordsPage({
     return (
       <section className="page">
         <div className="page-heading">
-          <h2>体育课记录</h2>
+          <h2>课堂记录</h2>
           <p>正在读取本地课堂记录…</p>
         </div>
       </section>
@@ -241,7 +243,7 @@ export default function PeLessonRecordsPage({
     <section className="page page--pe-sessions">
       <div className="page-heading page-heading--split">
         <div className="page-heading-text">
-          <h2>体育课记录</h2>
+          <h2>课堂记录</h2>
           <p>记录每节体育课的考勤与课堂表现。默认全员正常，只点异常即可。</p>
         </div>
         <div className="page-actions">
@@ -327,7 +329,7 @@ export default function PeLessonRecordsPage({
               <label className="dialog-span">
                 班级 *
                 <select value={classId} onChange={(event) => setClassId(event.target.value)}>
-                  {classes.map((item) => (
+                  {listedClasses.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.grade} {item.className}
                     </option>
@@ -407,14 +409,14 @@ export default function PeLessonRecordsPage({
               课表团队尚未绑定班级，请选择本节课对应班级。已自动带入 {prefill.date} 第{prefill.period}节
               {prefill.teamSnapshot ? `（${prefill.teamSnapshot}）` : ''}。
             </p>
-            {classes.length === 0 ? (
+            {listedClasses.length === 0 ? (
               <p className="dialog-error">请先在班级管理中创建班级</p>
             ) : (
               <div className="dialog-grid">
                 <label className="dialog-span">
                   对应班级 *
                   <select value={prefillClassId} onChange={(event) => setPrefillClassId(event.target.value)}>
-                    {classes.map((item) => (
+                    {listedClasses.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.grade} {item.className}
                       </option>
@@ -441,7 +443,7 @@ export default function PeLessonRecordsPage({
                   type="button"
                   className="btn btn-primary"
                   onClick={() => void handlePrefillCreate()}
-                  disabled={working || classes.length === 0}
+                  disabled={working || listedClasses.length === 0}
                 >
                   进入课堂
                 </button>
