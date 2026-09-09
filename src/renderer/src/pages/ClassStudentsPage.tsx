@@ -2,8 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { collectClassDeleteImpact, formatClassDeleteConfirm, listedClassRecords, type ClassRecord } from '@shared/class'
 import { STUDENT_GENDER_LABELS, STUDENT_STATUS_LABELS, type StudentRecord } from '@shared/student'
 import ClassEditorDialog from '../components/ClassEditorDialog'
+import PageLayout, { PageHeader } from '../components/PageLayout'
 import ExcelImportDialog from '../components/ExcelImportDialog'
 import StudentEditorDialog from '../components/StudentEditorDialog'
+import DataTable from '../components/ds/DataTable'
+import SearchInput from '../components/ds/SearchInput'
+import TechEmptyState from '../components/workspace/TechEmptyState'
+import StatusBadge from '../components/StatusBadge'
 import { useClasses } from '../context/ClassContext'
 import { usePeSessions } from '../context/PeSessionContext'
 import { usePeTests } from '../context/PeTestContext'
@@ -78,39 +83,37 @@ export default function ClassStudentsPage({
 
   if (loading || classesLoading) {
     return (
-      <section className="page">
-        <div className="page-heading">
-          <h2>班级与学生</h2>
-          <p>正在读取本地数据…</p>
-        </div>
-      </section>
+      <PageLayout>
+        <PageHeader icon="students" title="班级与学生" description="正在读取本地数据…" />
+      </PageLayout>
     )
   }
 
   return (
-    <section className="page page--students">
-      <div className="page-heading page-heading--split">
-        <div className="page-heading-text">
-          <h2>班级与学生</h2>
-          <p>行政班与学生档案仍分开保存。当前名单人数按在读学生实时计算，不改手工学生人数。</p>
-        </div>
-        <div className="page-actions">
-          <button type="button" className="btn" onClick={() => setImportOpen(true)}>
-            导入/更新班级名单
-          </button>
-          <button type="button" className="btn" onClick={() => setClassEditor(null)}>
-            新建班级
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => setStudentEditor(null)}
-            disabled={listedClasses.length === 0}
-          >
-            新增学生
-          </button>
-        </div>
-      </div>
+    <PageLayout className="page--students page-shell">
+      <PageHeader
+        icon="students"
+        title="班级与学生"
+        description="管理行政班、学生名单与 Excel 同步。当前名单人数按在读学生实时计算，不改手工学生人数。"
+        actions={
+          <>
+            <button type="button" className="btn btn-primary" onClick={() => setImportOpen(true)}>
+              导入学生名单
+            </button>
+            <button type="button" className="btn" onClick={() => setClassEditor(null)}>
+              新建班级
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setStudentEditor(null)}
+              disabled={listedClasses.length === 0}
+            >
+              新增学生
+            </button>
+          </>
+        }
+      />
 
       {classesError ? <p className="page-error">{classesError}</p> : null}
       {error ? <p className="page-error">{error}</p> : null}
@@ -118,36 +121,45 @@ export default function ClassStudentsPage({
 
       <div className="training-layout">
         <aside className="training-list">
-          {listedClasses.length === 0 ? <p className="exam-notes">还没有班级。可手工新建，或从 Excel 导入自动建班。</p> : null}
+          <p className="ds-section-label">班级</p>
+          {listedClasses.length === 0 ? (
+            <p className="exam-notes">还没有班级。可手工新建，或从 Excel 导入自动建班。</p>
+          ) : null}
           {listedClasses.map((item) => (
             <button
               key={item.id}
               type="button"
-              className={selectedClassId === item.id ? 'nav-item is-active' : 'nav-item'}
+              className={selectedClassId === item.id ? 'ds-list-item is-active' : 'ds-list-item'}
               onClick={() => setSelectedClassId(item.id)}
             >
-              {item.grade} {item.className}
-              <span className="text-muted"> · 当前 {countActiveStudents(students, item.id)} 人</span>
+              <span className="ds-list-item-title">
+                {item.grade} {item.className}
+              </span>
+              <span className="ds-list-item-meta">当前 {countActiveStudents(students, item.id)} 人</span>
             </button>
           ))}
         </aside>
 
         <div className="training-main">
           {!selected ? (
-            <div className="empty-panel">
-              <p className="empty-title">选择或新建一个班级</p>
-              <p>也可以直接导入 Excel 名单，系统会准备创建尚不存在的班级。</p>
-            </div>
+            <TechEmptyState
+              kind="students"
+              title="选择或新建一个班级"
+              description="也可以直接导入 Excel 名单，系统会准备创建尚不存在的班级。"
+            />
           ) : (
             <>
-              <div className="page-heading page-heading--split">
-                <div className="page-heading-text">
+              <div className="class-summary-bar">
+                <div className="class-summary-main">
                   <h3>
                     {selected.grade} {selected.className}
                   </h3>
                   <p>
-                    {selected.academicYear} {selected.semester} · 当前名单 {rosterCount} 人 · 手工学生人数{' '}
-                    {selected.studentCount}
+                    <span>当前名单 {rosterCount} 人</span>
+                    <span>手工学生人数 {selected.studentCount}</span>
+                    <span>
+                      {selected.academicYear} {selected.semester}
+                    </span>
                   </p>
                 </div>
                 <div className="page-actions">
@@ -160,11 +172,8 @@ export default function ClassStudentsPage({
                 </div>
               </div>
               <div className="toolbar">
-                <label className="toolbar-field toolbar-field-grow">
-                  搜索
-                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="按姓名或学号搜索" />
-                </label>
-                <label className="toolbar-field">
+                <SearchInput value={query} onChange={setQuery} placeholder="按姓名或学号搜索" />
+                <label className="toolbar-field ds-check">
                   <input
                     type="checkbox"
                     checked={showLeftRoster}
@@ -174,19 +183,16 @@ export default function ClassStudentsPage({
                 </label>
               </div>
               {visible.length === 0 ? (
-                <div className="empty-panel">
-                  <p className="empty-title">当前名单为空</p>
-                  <p>可新增学生，或导入 Excel 更新名单。</p>
-                </div>
+                <TechEmptyState kind="students" title="当前名单为空" description="可新增学生，或导入 Excel 更新名单。" />
               ) : (
-                <div className="data-table-wrap">
-                  <table className="data-table">
+                <DataTable className="workspace-card">
+                  <table className="data-table data-table--students">
                     <thead>
                       <tr>
-                        <th>学号</th>
                         <th>姓名</th>
+                        <th>学号</th>
                         <th>性别</th>
-                        <th>状态</th>
+                        <th>当前状态</th>
                         <th>备注</th>
                         <th>操作</th>
                       </tr>
@@ -194,10 +200,14 @@ export default function ClassStudentsPage({
                     <tbody>
                       {visible.map((item) => (
                         <tr key={item.id}>
+                          <td className="col-name">{item.name}</td>
                           <td>{item.studentNo || '—'}</td>
-                          <td>{item.name}</td>
                           <td>{STUDENT_GENDER_LABELS[item.gender]}</td>
-                          <td>{STUDENT_STATUS_LABELS[item.status]}</td>
+                          <td>
+                            <StatusBadge tone={item.status === 'active' ? 'ok' : item.status === 'transferred' ? 'warn' : 'muted'}>
+                              {STUDENT_STATUS_LABELS[item.status]}
+                            </StatusBadge>
+                          </td>
                           <td className="data-table-notes">{item.notes || '—'}</td>
                           <td>
                             <div className="table-actions">
@@ -222,7 +232,7 @@ export default function ClassStudentsPage({
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </DataTable>
               )}
             </>
           )}
@@ -354,6 +364,6 @@ export default function ClassStudentsPage({
           </div>
         </div>
       ) : null}
-    </section>
+    </PageLayout>
   )
 }

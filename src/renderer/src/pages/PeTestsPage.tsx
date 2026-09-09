@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import PeTestEditor from '../components/PeTestEditor'
+import PageLayout, { PageHeader } from '../components/PageLayout'
+import DataTable from '../components/ds/DataTable'
+import TechEmptyState from '../components/workspace/TechEmptyState'
+import OverviewBar from '../components/workspace/OverviewBar'
+import StatusBadge from '../components/StatusBadge'
 import TestItemEditorDialog from '../components/TestItemEditorDialog'
 import { listedClassRecords } from '@shared/class'
 import { useClasses } from '../context/ClassContext'
@@ -75,6 +80,10 @@ export default function PeTestsPage({
   }, [prefillClassId, onPrefillClassConsumed])
 
   const activeItems = useMemo(() => items.filter((item) => item.isActive), [items])
+  const validScoreCount = useMemo(
+    () => sessions.reduce((total, item) => total + countTestRecords(item.records).valid, 0),
+    [sessions]
+  )
 
   function activeStudentsOf(targetClassId: string) {
     return students.filter((item) => item.classId === targetClassId && item.status === 'active')
@@ -188,12 +197,9 @@ export default function PeTestsPage({
 
   if (loading || itemsLoading) {
     return (
-      <section className="page">
-        <div className="page-heading">
-          <h2>体育测试</h2>
-          <p>正在读取本地测试数据…</p>
-        </div>
-      </section>
+      <PageLayout>
+        <PageHeader icon="tests" title="体育测试" description="正在读取本地测试数据…" />
+      </PageLayout>
     )
   }
 
@@ -213,24 +219,23 @@ export default function PeTestsPage({
   }
 
   return (
-    <section className="page page--pe-tests">
-      <div className="page-heading page-heading--split">
-        <div className="page-heading-text">
-          <h2>体育测试</h2>
-          <p>
-            {view === 'items'
-              ? '管理内置与自定义测试项目。内置项目不能删除，只能停用。'
-              : '按班级创建测试，冻结当时在读学生名单，在表格中连续录入成绩。'}
-          </p>
-        </div>
-        <div className="page-actions">
-          {view === 'list' ? (
+    <PageLayout className="page--pe-tests page-shell">
+      <PageHeader
+        icon="tests"
+        title="体育测试"
+        description={
+          view === 'items'
+            ? '管理内置与自定义测试项目。内置项目不能删除，只能停用。'
+            : '按班级创建测试，冻结当时在读学生名单，在表格中连续录入成绩。'
+        }
+        actions={
+          view === 'list' ? (
             <>
               <button type="button" className="btn" onClick={() => setView('items')}>
                 测试项目
               </button>
               <button type="button" className="btn btn-primary" onClick={openCreate}>
-                + 新建测试
+                新建测试
               </button>
             </>
           ) : (
@@ -239,20 +244,30 @@ export default function PeTestsPage({
                 返回测试列表
               </button>
               <button type="button" className="btn btn-primary" onClick={() => setItemEditor(null)}>
-                + 自定义项目
+                自定义项目
               </button>
             </>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
 
       {error ? <p className="page-error">{error}</p> : null}
       {itemsError ? <p className="page-error">{itemsError}</p> : null}
       {actionError ? <p className="page-error">{actionError}</p> : null}
 
+      {view === 'list' ? (
+        <OverviewBar
+          items={[
+            { label: '测试项目', value: items.length, hint: '内置与自定义' },
+            { label: '测试记录', value: sessions.length, hint: '已保存测试' },
+            { label: '有效成绩', value: validScoreCount, hint: '有效录入人次' }
+          ]}
+        />
+      ) : null}
+
       {view === 'items' ? (
-        <div className="data-table-wrap">
-          <table className="data-table">
+          <DataTable>
+            <table className="data-table">
             <thead>
               <tr>
                 <th>项目</th>
@@ -277,7 +292,9 @@ export default function PeTestsPage({
                   <td>{testUnitDisplay(item.unit, item.customUnitLabel)}</td>
                   <td>{TEST_DIRECTION_LABELS[item.direction]}</td>
                   <td>{TEST_GENDER_RULE_LABELS[item.genderRule]}</td>
-                  <td>{item.isActive ? '启用' : '停用'}</td>
+                  <td>
+                    <StatusBadge tone={item.isActive ? 'ok' : 'muted'}>{item.isActive ? '启用' : '停用'}</StatusBadge>
+                  </td>
                   <td>
                     <div className="table-actions">
                       {item.isBuiltin ? null : (
@@ -299,15 +316,18 @@ export default function PeTestsPage({
               ))}
             </tbody>
           </table>
-        </div>
+          </DataTable>
       ) : sessions.length === 0 ? (
-        <div className="empty-panel">
-          <p className="empty-title">还没有体育测试</p>
-          <p className="empty-text">选择班级和项目后新建测试，系统会按当时在读学生生成名单快照。</p>
-        </div>
+        <TechEmptyState
+          kind="tests"
+          title="还没有体育测试"
+          description="创建测试后即可开始录入成绩。系统会按当时在读学生生成名单快照。"
+          actionLabel="新建测试"
+          onAction={openCreate}
+        />
       ) : (
-        <div className="data-table-wrap">
-          <table className="data-table">
+          <DataTable>
+            <table className="data-table">
             <thead>
               <tr>
                 <th>日期</th>
@@ -349,7 +369,7 @@ export default function PeTestsPage({
               })}
             </tbody>
           </table>
-        </div>
+          </DataTable>
       )}
 
       {createOpen ? (
@@ -485,6 +505,6 @@ export default function PeTestsPage({
           }}
         />
       ) : null}
-    </section>
+    </PageLayout>
   )
 }

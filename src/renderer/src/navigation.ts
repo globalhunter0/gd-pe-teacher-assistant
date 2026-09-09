@@ -23,14 +23,14 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'schedule', label: '我的课表' },
   { key: 'students', label: '班级与学生' },
   { key: 'lessons', label: '课堂记录' },
-  { key: 'plans', label: '教学计划' },
   { key: 'tests', label: '体育测试' },
   { key: 'training', label: '训练队' },
-  { key: 'exams', label: '评分标准中心' },
+  { key: 'plans', label: '教学计划' },
   { key: 'stats', label: '数据统计' },
+  { key: 'exams', label: '评分标准' },
   { key: 'resources', label: '资料中心' },
   { key: 'ai', label: 'AI 助手' },
-  { key: 'settings', label: '设置' }
+  { key: 'settings', label: '备份与恢复' }
 ]
 
 export const PAGE_TITLES: Record<NavKey, string> = {
@@ -42,11 +42,11 @@ export const PAGE_TITLES: Record<NavKey, string> = {
   plans: '教学计划',
   tests: '体育测试',
   training: '训练队',
-  exams: '体育考试评分标准中心',
+  exams: '评分标准',
   stats: '数据统计',
   resources: '资料中心',
   ai: 'AI 助手',
-  settings: '设置'
+  settings: '备份与恢复'
 }
 
 export const PAGE_DESCRIPTIONS: Record<NavKey, string> = {

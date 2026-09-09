@@ -1,4 +1,5 @@
 import { runBackupRestoreSelfCheckOrThrow } from '../backup/selfcheck'
+import { runUserPreferencesSelfCheckOrThrow } from '../userPreferences/selfcheck'
 import { runExamBatchSelfCheckOrThrow } from '../examBatch/selfcheck'
 import { runScheduleBulkDeleteSelfCheckOrThrow } from '../schedule/bulkDeleteSelfcheck'
 import { runScheduleImportSelfCheckOrThrow } from '../schedule/importSelfcheck'
@@ -25,6 +26,7 @@ async function main(): Promise<void> {
   console.log(runRosterAutoDetectionSelfCheckOrThrow())
   console.log(runStudentImportIpcSelfCheckOrThrow())
   console.log(runV0131RegressionSelfCheckOrThrow())
+  console.log(await runUserPreferencesSelfCheckOrThrow())
 }
 
 void main().catch((error) => {

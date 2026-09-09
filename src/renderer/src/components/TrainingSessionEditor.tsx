@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { PageHeader } from './PageLayout'
 import {
   TRAINING_COMPLETIONS,
   TRAINING_COMPLETION_LABELS,
@@ -145,22 +146,21 @@ export default function TrainingSessionEditor({
 
   return (
     <div className="exam-detail">
-      <div className="page-heading page-heading--split">
-        <div className="page-heading-text">
-          <h3>{record ? '编辑训练' : '开始训练'}</h3>
-          <p>
-            {team.name}。默认全员正常参加，只改异常人员。RPE 为 0–10 主观强度，不是体检指标。
-          </p>
-        </div>
-        <div className="page-actions">
-          <button type="button" className="btn" onClick={onCancel} disabled={saving}>
-            返回
-          </button>
-          <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={saving}>
-            保存训练
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        icon="training"
+        title={record ? '编辑训练' : '开始训练'}
+        description={`${team.name}。默认全员正常参加，只改异常人员。RPE 为 0–10 主观强度，不是体检指标。`}
+        actions={
+          <>
+            <button type="button" className="btn" onClick={onCancel} disabled={saving}>
+              返回
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={saving}>
+              保存训练
+            </button>
+          </>
+        }
+      />
       {error ? <p className="page-error">{error}</p> : null}
       <div className="toolbar">
         <label className="toolbar-field">

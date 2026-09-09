@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import PageLayout, { PageHeader } from './PageLayout'
 import { STUDENT_GENDER_LABELS } from '@shared/student'
 import {
   TEST_RECORD_STATUSES,
@@ -203,25 +204,22 @@ export default function PeTestEditor({
   const historyName = records.find((item) => item.studentId === historyStudentId)?.nameSnapshot ?? '学生'
 
   return (
-    <section className="page page--pe-test-editor">
-      <div className="page-heading page-heading--split">
-        <div className="page-heading-text">
-          <h2>{draft.title}</h2>
-          <p>
-            {draft.date} · {draft.gradeSnapshot} {draft.classNameSnapshot} · {draft.testItemNameSnapshot}
-            {unitLabel ? `（${unitLabel}）` : ''}
-            {preferMinute ? ' · 长跑可输入 3:42、3\'42、3.42 或总秒数' : draft.valueTypeSnapshot === 'time' ? ' · 时间按秒录入，如 8.32' : ''}
-          </p>
-        </div>
-        <div className="page-actions">
-          <button type="button" className="btn" onClick={onBack}>
-            返回列表
-          </button>
-          <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={saving}>
-            {saving ? '保存中…' : '保存'}
-          </button>
-        </div>
-      </div>
+    <PageLayout className="page--pe-test-editor">
+      <PageHeader
+        icon="tests"
+        title={draft.title}
+        description={`${draft.date} · ${draft.gradeSnapshot} ${draft.classNameSnapshot} · ${draft.testItemNameSnapshot}${unitLabel ? `（${unitLabel}）` : ''}${preferMinute ? ' · 长跑可输入 3:42、3\'42、3.42 或总秒数' : draft.valueTypeSnapshot === 'time' ? ' · 时间按秒录入，如 8.32' : ''}`}
+        actions={
+          <>
+            <button type="button" className="btn" onClick={onBack}>
+              返回列表
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={saving}>
+              {saving ? '保存中…' : '保存'}
+            </button>
+          </>
+        }
+      />
 
       {error ? <p className="page-error">{error}</p> : null}
       {message ? <p className="page-success">{message}</p> : null}
@@ -313,6 +311,7 @@ export default function PeTestEditor({
                   </td>
                   <td>
                     <select
+                      className={`status-select status-select--${record.status}`}
                       value={record.status}
                       onChange={(event) => updateRecord(record.id, { status: event.target.value as TestRecordStatus })}
                     >
@@ -394,7 +393,7 @@ export default function PeTestEditor({
           </div>
         </div>
       ) : null}
-    </section>
+    </PageLayout>
   )
 }
 

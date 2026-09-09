@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { GRADES, SEMESTERS, type Grade, type Semester } from '@shared/class'
+import PageLayout, { PageHeader } from '../components/PageLayout'
+import TechEmptyState from '../components/workspace/TechEmptyState'
+import OverviewBar from '../components/workspace/OverviewBar'
 import {
   MAX_PLAN_WEEKS,
   createTeachingPlanWeekId,
@@ -27,6 +30,35 @@ function weekPreview(week: TeachingPlanWeek): string {
     return '尚未填写'
   }
   return text.length > 36 ? `${text.slice(0, 36)}…` : text
+}
+
+function parseLocalDate(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) {
+    return null
+  }
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+}
+
+function currentWeekNumber(startDate: string | null, weekCount: number): number | null {
+  if (!startDate) {
+    return null
+  }
+  const start = parseLocalDate(startDate)
+  if (!start) {
+    return null
+  }
+  const today = new Date()
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+  const diff = Math.floor((todayStart - start.getTime()) / 86400000)
+  if (diff < 0) {
+    return null
+  }
+  const week = Math.floor(diff / 7) + 1
+  if (week < 1 || week > weekCount) {
+    return null
+  }
+  return week
 }
 
 export default function TeachingPlansPage({ context = null }: { context?: PlanNavContext | null }): React.JSX.Element {
@@ -240,35 +272,31 @@ export default function TeachingPlansPage({ context = null }: { context?: PlanNa
 
   if (loading) {
     return (
-      <section className="page">
-        <div className="page-heading">
-          <h2>教学计划</h2>
-          <p>正在读取本地教学计划…</p>
-        </div>
-      </section>
+      <PageLayout>
+        <PageHeader icon="plans" title="教学计划" description="正在读取本地教学计划…" />
+      </PageLayout>
     )
   }
 
   if (draft) {
+    const highlightedWeek = currentWeekNumber(draft.startDate, draft.weeks.length)
     return (
-      <section className="page page--plans">
-        <div className="page-heading page-heading--split">
-          <div className="page-heading-text">
-            <h2>教学计划详情</h2>
-            <p>
-              第 1～{draft.weeks.length} 周安排。这是计划教什么，不是实际上课完成情况。
-              {dirty ? ' 当前有未保存修改。' : ''}
-            </p>
-          </div>
-          <div className="page-actions">
-            <button type="button" className="btn" onClick={closePlan}>
-              返回列表
-            </button>
-            <button type="button" className="btn btn-primary" onClick={() => void handleSaveDraft()} disabled={working}>
-              保存本计划
-            </button>
-          </div>
-        </div>
+      <PageLayout className="page--plans">
+        <PageHeader
+          icon="plans"
+          title="教学计划详情"
+          description={`第 1～${draft.weeks.length} 周安排。这是计划教什么，不是实际上课完成情况。${dirty ? ' 当前有未保存修改。' : ''}`}
+          actions={
+            <>
+              <button type="button" className="btn" onClick={closePlan}>
+                返回列表
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => void handleSaveDraft()} disabled={working}>
+                保存本计划
+              </button>
+            </>
+          }
+        />
 
         {actionError ? <p className="page-error">{actionError}</p> : null}
 
@@ -333,47 +361,41 @@ export default function TeachingPlansPage({ context = null }: { context?: PlanNa
           </button>
         </div>
 
-        <div className="data-table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>周次</th>
-                <th>主题 / 标题</th>
-                <th>教学内容摘要</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {draft.weeks.map((week, index) => (
-                <tr key={week.id}>
-                  <td>第 {week.weekNumber} 周</td>
-                  <td>{week.title || '—'}</td>
-                  <td>{weekPreview(week)}</td>
-                  <td>
-                    <div className="table-actions">
-                      <button type="button" className="btn btn-small" onClick={() => setEditingWeekId(week.id)}>
-                        编辑
-                      </button>
-                      <button type="button" className="btn btn-small" disabled={index === 0} onClick={() => moveWeek(week.id, -1)}>
-                        上移
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-small"
-                        disabled={index === draft.weeks.length - 1}
-                        onClick={() => moveWeek(week.id, 1)}
-                      >
-                        下移
-                      </button>
-                      <button type="button" className="btn btn-small btn-danger" onClick={() => setPendingWeekDeleteId(week.id)}>
-                        删除
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="plan-week-list">
+          {draft.weeks.map((week, index) => (
+            <article
+              key={week.id}
+              className={highlightedWeek === week.weekNumber ? 'plan-week-card is-current' : 'plan-week-card'}
+            >
+              <div className="plan-week-card-head">
+                <h3>
+                  第 {week.weekNumber} 周
+                  {highlightedWeek === week.weekNumber ? <span className="status-badge status-badge--info">本周</span> : null}
+                </h3>
+                <div className="table-actions">
+                  <button type="button" className="btn btn-small" onClick={() => setEditingWeekId(week.id)}>
+                    编辑
+                  </button>
+                  <button type="button" className="btn btn-small" disabled={index === 0} onClick={() => moveWeek(week.id, -1)}>
+                    上移
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-small"
+                    disabled={index === draft.weeks.length - 1}
+                    onClick={() => moveWeek(week.id, 1)}
+                  >
+                    下移
+                  </button>
+                  <button type="button" className="btn btn-small btn-danger" onClick={() => setPendingWeekDeleteId(week.id)}>
+                    删除
+                  </button>
+                </div>
+              </div>
+              <p className="plan-week-title">{week.title || '尚未填写主题'}</p>
+              <p className="plan-week-preview">{weekPreview(week)}</p>
+            </article>
+          ))}
         </div>
 
         {editingWeek ? (
@@ -404,23 +426,22 @@ export default function TeachingPlansPage({ context = null }: { context?: PlanNa
             </div>
           </div>
         ) : null}
-      </section>
+      </PageLayout>
     )
   }
 
   return (
-    <section className="page page--plans">
-      <div className="page-heading page-heading--split">
-        <div className="page-heading-text">
-          <h2>教学计划</h2>
-          <p>按年级组织学期教学计划，不绑定单个班级。计划只说明准备教什么。</p>
-        </div>
-        <div className="page-actions">
+    <PageLayout className="page--plans">
+      <PageHeader
+        icon="plans"
+        title="教学计划"
+        description="按年级组织学期教学计划，不绑定单个班级。计划只说明准备教什么。"
+        actions={
           <button type="button" className="btn btn-primary" onClick={() => setCreateOpen(true)}>
             + 新建教学计划
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {error ? <p className="page-error">{error}</p> : null}
       {actionError ? <p className="page-error">{actionError}</p> : null}
@@ -435,14 +456,21 @@ export default function TeachingPlansPage({ context = null }: { context?: PlanNa
         </p>
       ) : null}
 
+      <OverviewBar
+        items={[
+          { label: '教学计划', value: plans.length, hint: '已保存计划' },
+          { label: '周安排合计', value: plans.reduce((total, item) => total + item.weeks.length, 0), hint: '全部周次' }
+        ]}
+      />
+
       {plans.length === 0 ? (
-        <div className="empty-panel">
-          <p className="empty-title">还没有教学计划</p>
-          <p className="empty-text">先按年级创建一份计划，再填写第 1～N 周安排。</p>
-          <button type="button" className="btn btn-primary empty-action" onClick={() => setCreateOpen(true)}>
-            新建教学计划
-          </button>
-        </div>
+        <TechEmptyState
+          kind="plans"
+          title="还没有教学计划"
+          description="先按年级创建一份计划，再填写第 1～N 周安排。"
+          actionLabel="新建教学计划"
+          onAction={() => setCreateOpen(true)}
+        />
       ) : (
         <div className="data-table-wrap">
           <table className="data-table">
@@ -514,6 +542,6 @@ export default function TeachingPlansPage({ context = null }: { context?: PlanNa
           </div>
         </div>
       ) : null}
-    </section>
+    </PageLayout>
   )
 }

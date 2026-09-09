@@ -1,5 +1,6 @@
 import { Fragment, useMemo, useState } from 'react'
 import StatCard from './StatCard'
+import TechEmptyState from './workspace/TechEmptyState'
 import StatsDateRangeControls from './StatsDateRangeControls'
 import { useClasses } from '../context/ClassContext'
 import { usePeSessions } from '../context/PeSessionContext'
@@ -85,7 +86,7 @@ export default function StatsStudentPanel(): React.JSX.Element {
       </div>
 
       {!selected || !lessonSummary ? (
-        <p className="empty-text">请选择学生后查看个人体育档案。课堂历史按 studentId 查找，不按当前班级重建。</p>
+        <TechEmptyState kind="stats" title="选择学生查看档案" description="课堂历史按 studentId 查找，不按当前班级重建。没有演示数据。" />
       ) : (
         <>
           <div className="stats-profile">

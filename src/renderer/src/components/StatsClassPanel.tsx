@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import StatCard from './StatCard'
+import TechEmptyState from './workspace/TechEmptyState'
 import StatsDateRangeControls from './StatsDateRangeControls'
 import { useClasses } from '../context/ClassContext'
 import { usePeSessions } from '../context/PeSessionContext'
@@ -49,7 +50,7 @@ export default function StatsClassPanel({ onOpenTest }: StatsClassPanelProps): R
   )
 
   if (classes.length === 0) {
-    return <p className="empty-text">请先在班级管理中创建班级。</p>
+    return <TechEmptyState kind="stats" title="还没有班级" description="请先在班级与学生中创建班级后再查看统计。" />
   }
 
   return (
@@ -96,7 +97,7 @@ export default function StatsClassPanel({ onOpenTest }: StatsClassPanelProps): R
 
       <h3 className="stats-subtitle">范围内最近体育测试</h3>
       {recentTests.length === 0 ? (
-        <p className="empty-text">该范围没有体育测试。</p>
+        <TechEmptyState kind="tests" title="该范围没有体育测试" description="数字来自已保存测试记录，没有演示数据。" />
       ) : (
         <div className="data-table-wrap">
           <table className="data-table">

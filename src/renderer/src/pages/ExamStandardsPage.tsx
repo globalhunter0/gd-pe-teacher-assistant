@@ -1,4 +1,7 @@
 import { useMemo, useState } from 'react'
+import PageLayout, { PageHeader } from '../components/PageLayout'
+import TechEmptyState from '../components/workspace/TechEmptyState'
+import StatusBadge from '../components/StatusBadge'
 import {
   BUILTIN_EXAM_STANDARDS,
   calculateExamScore,
@@ -200,11 +203,17 @@ export default function ExamStandardsPage(): React.JSX.Element {
   }
 
   return (
-    <section className="page page--exams">
-      <div className="page-heading">
-        <h2>体育考试评分标准中心</h2>
-        <p>先选城市、年份和考试类型，再查看官方评分表。正式换算只使用已核验数据，不会猜测分数。</p>
-      </div>
+    <PageLayout className="page--exams">
+      <PageHeader
+        icon="exams"
+        title="评分标准"
+        description="查阅各地市体育中考与体育类专业省统考官方评分标准。正式换算只使用已核验数据，不会猜测分数。"
+        actions={
+          <button type="button" className="btn btn-primary" onClick={() => setBatchMode(true)}>
+            批量成绩换算
+          </button>
+        }
+      />
       <div className="exam-tabs" role="tablist">
         <button
           type="button"
@@ -244,7 +253,7 @@ export default function ExamStandardsPage(): React.JSX.Element {
       )}
 
       {examType === 'middle_school_exam' ? (
-        <div className="toolbar">
+        <div className="toolbar exam-picker">
           <label className="toolbar-field">
             城市
             <select
@@ -299,7 +308,7 @@ export default function ExamStandardsPage(): React.JSX.Element {
           </label>
         </div>
       ) : (
-        <div className="toolbar">
+        <div className="toolbar exam-picker">
           <label className="toolbar-field">
             地区
             <select disabled>
@@ -354,8 +363,8 @@ export default function ExamStandardsPage(): React.JSX.Element {
           <p className="exam-notes">请先选择地区、年份和考试类型后再下载模板。</p>
         )}
         <div className="toolbar">
-          <button type="button" className="btn btn-primary" onClick={() => setBatchMode(true)}>
-            批量成绩换算
+          <button type="button" className="btn" onClick={() => setBatchMode(true)}>
+            进入批量工作区
           </button>
           <button
             type="button"
@@ -389,20 +398,21 @@ export default function ExamStandardsPage(): React.JSX.Element {
       </div>
 
       {verifiedCityStandards.length === 0 && examType === 'middle_school_exam' ? (
-        <div className="empty-panel">
-          <p className="empty-title">暂无已核验评分标准</p>
-          <p className="empty-text">
-            {GD_CITIES.find((item) => item.citySlug === citySlug)?.cityName}目前没有已核验的完整官方评分表。不会生成猜测分数。
-          </p>
-        </div>
+        <TechEmptyState
+          kind="exams"
+          title="暂无已核验评分标准"
+          description={`${GD_CITIES.find((item) => item.citySlug === citySlug)?.cityName ?? '当前城市'}目前没有已核验的完整官方评分表。不会生成猜测分数。`}
+        />
       ) : null}
 
       {selectedStandard ? (
         <div className="exam-detail">
           <h3>{selectedStandard.title}</h3>
           <p className={selectedStandard.status === 'verified' ? 'exam-status exam-status--verified' : 'exam-status exam-status--draft'}>
-            状态：{EXAM_STATUS_LABELS[selectedStandard.status]}
-            {selectedStandard.status !== 'verified' ? '（不可用于正式换算）' : '（已核验）'}
+            <StatusBadge tone={selectedStandard.status === 'verified' ? 'ok' : 'warn'}>
+              {EXAM_STATUS_LABELS[selectedStandard.status]}
+            </StatusBadge>
+            {selectedStandard.status !== 'verified' ? ' 不可用于正式换算' : ' 已核验'}
           </p>
           <dl className="exam-meta">
             <div>
@@ -568,10 +578,11 @@ export default function ExamStandardsPage(): React.JSX.Element {
           )}
         </div>
       ) : examType === 'gaokao_sports' ? (
-        <div className="empty-panel">
-          <p className="empty-title">暂无已核验评分标准</p>
-          <p className="empty-text">广东省普通高校体育类专业省统考入口已建立，完整官方评分表尚未核验录入。</p>
-        </div>
+        <TechEmptyState
+          kind="exams"
+          title="暂无已核验评分标准"
+          description="广东省普通高校体育类专业省统考入口已建立，完整官方评分表尚未核验录入。"
+        />
       ) : null}
 
       <div className="exam-converter">
@@ -654,6 +665,6 @@ export default function ExamStandardsPage(): React.JSX.Element {
           </dl>
         ) : null}
       </div>
-    </section>
+    </PageLayout>
   )
 }

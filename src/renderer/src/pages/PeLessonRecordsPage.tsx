@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import PeSessionEditor from '../components/PeSessionEditor'
+import PageLayout, { PageHeader } from '../components/PageLayout'
+import DataTable from '../components/ds/DataTable'
+import TechEmptyState from '../components/workspace/TechEmptyState'
+import OverviewBar from '../components/workspace/OverviewBar'
 import { listedClassRecords } from '@shared/class'
 import { useClasses } from '../context/ClassContext'
 import { usePeSessions } from '../context/PeSessionContext'
@@ -37,6 +41,7 @@ export default function PeLessonRecordsPage({
   const [actionError, setActionError] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
   const [duplicateHint, setDuplicateHint] = useState<PEClassSession | null>(null)
+  const [filterClassKey, setFilterClassKey] = useState('all')
 
   const [classId, setClassId] = useState(listedClasses[0]?.id ?? '')
   const [date, setDate] = useState(formatLocalDate(new Date()))
@@ -45,6 +50,32 @@ export default function PeLessonRecordsPage({
   const [topic, setTopic] = useState('')
   const [prefillClassId, setPrefillClassId] = useState(listedClasses[0]?.id ?? '')
   const handledPrefillKey = useRef<string | null>(null)
+
+  const classFilterOptions = useMemo(() => {
+    const keys = Array.from(new Set(sessions.map((item) => `${item.gradeSnapshot} ${item.classNameSnapshot}`)))
+    return keys.sort((a, b) => a.localeCompare(b, 'zh-CN'))
+  }, [sessions])
+
+  const lessonTotals = useMemo(() => {
+    return sessions.reduce(
+      (acc, item) => {
+        const counts = countAttendance(item.records)
+        acc.absent += counts.absent
+        acc.leave += counts.leave
+        acc.late += counts.late
+        acc.observer += counts.observer
+        return acc
+      },
+      { absent: 0, leave: 0, late: 0, observer: 0 }
+    )
+  }, [sessions])
+
+  const visibleSessions = useMemo(() => {
+    if (filterClassKey === 'all') {
+      return sessions
+    }
+    return sessions.filter((item) => `${item.gradeSnapshot} ${item.classNameSnapshot}` === filterClassKey)
+  }, [sessions, filterClassKey])
 
   useEffect(() => {
     if (!prefill) {
@@ -216,12 +247,9 @@ export default function PeLessonRecordsPage({
 
   if (loading) {
     return (
-      <section className="page">
-        <div className="page-heading">
-          <h2>课堂记录</h2>
-          <p>正在读取本地课堂记录…</p>
-        </div>
-      </section>
+      <PageLayout>
+        <PageHeader icon="lessons" title="课堂记录" description="正在读取本地课堂记录…" />
+      </PageLayout>
     )
   }
 
@@ -240,30 +268,58 @@ export default function PeLessonRecordsPage({
   }
 
   return (
-    <section className="page page--pe-sessions">
-      <div className="page-heading page-heading--split">
-        <div className="page-heading-text">
-          <h2>课堂记录</h2>
-          <p>记录每节体育课的考勤与课堂表现。默认全员正常，只点异常即可。</p>
-        </div>
-        <div className="page-actions">
+    <PageLayout className="page--pe-sessions page-shell">
+      <PageHeader
+        icon="lessons"
+        title="课堂记录"
+        description="记录每节体育课的考勤与课堂表现。默认全员正常，只点异常即可。"
+        actions={
           <button type="button" className="btn btn-primary" onClick={openCreate}>
-            + 新建课堂记录
+            新建课堂记录
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {error ? <p className="page-error">{error}</p> : null}
       {actionError ? <p className="page-error">{actionError}</p> : null}
 
+      <OverviewBar
+        items={[
+          { label: '课堂记录', value: sessions.length, hint: '已保存课次' },
+          { label: '缺勤人次', value: lessonTotals.absent, hint: '按记录累计' },
+          { label: '请假人次', value: lessonTotals.leave, hint: '按记录累计' },
+          { label: '迟到 / 见习', value: `${lessonTotals.late} / ${lessonTotals.observer}`, hint: '按记录累计' }
+        ]}
+      />
+
       {sessions.length === 0 ? (
-        <div className="empty-panel">
-          <p className="empty-title">还没有课堂记录</p>
-          <p className="empty-text">可从工作台今日课程点击“开始记录”，或在这里新建补课、临时课。</p>
-        </div>
+        <TechEmptyState
+          kind="lessons"
+          title="还没有课堂记录"
+          description="可从工作台今日课程点击“开始记录”，或在这里新建补课、临时课。"
+          actionLabel="新建课堂记录"
+          onAction={openCreate}
+        />
       ) : (
-        <div className="data-table-wrap">
-          <table className="data-table">
+        <>
+          <div className="toolbar">
+            <label className="toolbar-field">
+              班级筛选
+              <select value={filterClassKey} onChange={(event) => setFilterClassKey(event.target.value)}>
+                <option value="all">全部班级</option>
+                {classFilterOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {visibleSessions.length === 0 ? (
+            <TechEmptyState kind="lessons" title="没有符合筛选的记录" description="试试选择全部班级。" />
+          ) : (
+            <DataTable>
+              <table className="data-table">
             <thead>
               <tr>
                 <th>日期</th>
@@ -280,7 +336,7 @@ export default function PeLessonRecordsPage({
               </tr>
             </thead>
             <tbody>
-              {sessions.map((item) => {
+              {visibleSessions.map((item) => {
                 const counts = countAttendance(item.records)
                 return (
                   <tr key={item.id}>
@@ -311,7 +367,9 @@ export default function PeLessonRecordsPage({
               })}
             </tbody>
           </table>
-        </div>
+            </DataTable>
+          )}
+        </>
       )}
 
       {createOpen ? (
@@ -481,6 +539,6 @@ export default function PeLessonRecordsPage({
           </div>
         </div>
       ) : null}
-    </section>
+    </PageLayout>
   )
 }
