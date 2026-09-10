@@ -2,6 +2,8 @@ import { ipcMain } from 'electron'
 import { loadClasses } from './classStore'
 import { loadPeTests, savePeTests } from './peTestStore'
 import { loadTestItems, saveTestItems } from './testItemStore'
+import { loadStudents } from './studentStore'
+import { executeImportExamBatchToPeTests } from '../shared/examBatch/peTestImport/execute'
 
 export function registerPeTestIpc(): void {
   ipcMain.handle('testItems:get', async () => {
@@ -24,5 +26,23 @@ export function registerPeTestIpc(): void {
       new Set(classes.map((item) => item.id)),
       new Set(testItems.map((item) => item.id))
     )
+  })
+
+  ipcMain.handle('peTests:importExamBatch', async (_event, payload: unknown) => {
+    return executeImportExamBatchToPeTests(payload, {
+      loadClasses,
+      loadStudents,
+      loadTestItems,
+      loadPeTests,
+      savePeTests: async (items) => {
+        const classes = await loadClasses()
+        const testItems = await loadTestItems()
+        return savePeTests(
+          items,
+          new Set(classes.map((item) => item.id)),
+          new Set(testItems.map((item) => item.id))
+        )
+      }
+    })
   })
 }

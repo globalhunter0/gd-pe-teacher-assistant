@@ -5,6 +5,7 @@ interface PeTestContextValue {
   sessions: PETestSession[]
   loading: boolean
   error: string | null
+  reload: () => Promise<void>
   saveSessions: (items: PETestSession[]) => Promise<void>
   upsertSession: (item: PETestSession) => Promise<void>
   deleteSession: (id: string) => Promise<void>
@@ -17,16 +18,18 @@ export function PeTestProvider({ children }: { children: React.ReactNode }): Rea
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const reload = useCallback(async () => {
+    const loaded = await window.electronAPI.peTests.get()
+    setSessions(loaded)
+    setError(null)
+  }, [])
+
   useEffect(() => {
     let cancelled = false
 
     async function load(): Promise<void> {
       try {
-        const loaded = await window.electronAPI.peTests.get()
-        if (!cancelled) {
-          setSessions(loaded)
-          setError(null)
-        }
+        await reload()
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : '体育测试读取失败')
@@ -43,7 +46,7 @@ export function PeTestProvider({ children }: { children: React.ReactNode }): Rea
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [reload])
 
   const saveSessions = useCallback(async (nextItems: PETestSession[]) => {
     const saved = await window.electronAPI.peTests.save(parsePeTestSessions(nextItems))
@@ -71,11 +74,12 @@ export function PeTestProvider({ children }: { children: React.ReactNode }): Rea
       sessions,
       loading,
       error,
+      reload,
       saveSessions,
       upsertSession,
       deleteSession
     }),
-    [sessions, loading, error, saveSessions, upsertSession, deleteSession]
+    [sessions, loading, error, reload, saveSessions, upsertSession, deleteSession]
   )
 
   return <PeTestContext.Provider value={value}>{children}</PeTestContext.Provider>

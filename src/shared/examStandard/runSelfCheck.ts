@@ -2,6 +2,7 @@ import { runBackupRestoreSelfCheckOrThrow } from '../backup/selfcheck'
 import { runUserPreferencesSelfCheckOrThrow } from '../userPreferences/selfcheck'
 import { runExamBatchSelfCheckOrThrow } from '../examBatch/selfcheck'
 import { runV0160ExcelBatchSelfCheckOrThrow } from '../examBatch/v0160Selfcheck'
+import { runV0170PeTestImportPlanSelfCheckOrThrow } from '../examBatch/v0170ImportPlanSelfcheck'
 import { runScheduleBulkDeleteSelfCheckOrThrow } from '../schedule/bulkDeleteSelfcheck'
 import { runScheduleImportSelfCheckOrThrow } from '../schedule/importSelfcheck'
 import { runScheduleLinkageSelfCheckOrThrow } from '../schedule/selfcheck'
@@ -55,6 +56,7 @@ async function main(): Promise<void> {
   console.log(runV0150AcceptanceSelfCheckOrThrow())
   console.log(runExamBatchSelfCheckOrThrow())
   console.log(runV0160ExcelBatchSelfCheckOrThrow())
+  console.log(await runV0170PeTestImportPlanSelfCheckOrThrow())
   console.log(runTrainingTeamSelfCheckOrThrow())
   console.log(await runScheduleLinkageSelfCheckOrThrow())
   console.log(await runScheduleBulkDeleteSelfCheckOrThrow())

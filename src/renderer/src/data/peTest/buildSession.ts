@@ -55,7 +55,14 @@ export function buildPeTestSession(options: {
       status: 'pending',
       note: '',
       createdAt: now,
-      updatedAt: now
-    }))
+      updatedAt: now,
+      examScore: null,
+      rawOriginal: '',
+      examItemId: null
+    })),
+    importSource: 'manual',
+    examStandardId: null,
+    scoringCitySnapshot: '',
+    scoringVersionSnapshot: ''
   }
 }

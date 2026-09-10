@@ -27,6 +27,10 @@ import type {
   ExamWorkbookSavePayload
 } from '../shared/examBatch/types'
 import type {
+  ExamBatchPeTestImportResult,
+  ImportExamBatchToPeTestsPayload
+} from '../shared/examBatch/peTestImport/types'
+import type {
   TrainingItem,
   TrainingResult,
   TrainingSession,
@@ -104,6 +108,7 @@ export interface ElectronAPI {
   peTests: {
     get: () => Promise<PETestSession[]>
     save: (items: PETestSession[]) => Promise<PETestSession[]>
+    importExamBatch: (payload: ImportExamBatchToPeTestsPayload) => Promise<ExamBatchPeTestImportResult>
   }
   teachingPlans: {
     get: () => Promise<TeachingPlan[]>

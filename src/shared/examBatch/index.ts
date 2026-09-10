@@ -45,6 +45,22 @@ export type {
 } from './detectExamItemColumn'
 export type { WorkbookDetection, ProjectScoreGroup } from './workbook'
 export { workbookItemSummaries, workbookStudentGroups, updateProjectGroupOverride, projectGroupMappingId } from './workbook'
+export {
+  matchExcelStudent,
+  mapExamRowToPeTestStatus,
+  resolveExamItemToTestItem,
+  findDuplicatePeTests,
+  mergePeTestsAtomically,
+  planExamBatchPeTestImport,
+  executeImportExamBatchToPeTests
+} from './peTestImport'
+export type {
+  DuplicateTestAction,
+  ImportExamBatchToPeTestsPayload,
+  PlannedPeTestImport,
+  StudentMatchResult,
+  ExamBatchPeTestImportResult
+} from './peTestImport'
 export { emptyMapping, mappingFromPayload, normalizeExamColumnMapping, roleLabel, suggestColumnMapping } from './columnMapping'
 export { buildExamExportSheets, defaultExportFileName } from './exportSheets'
 export { matchExamItem, matchExamItemKey, normalizeExamLabel } from './matchExamItem'

@@ -1,6 +1,7 @@
 export type {
   PETestRecord,
   PETestSession,
+  PeTestImportSource,
   TestCategory,
   TestDirection,
   TestGenderRule,

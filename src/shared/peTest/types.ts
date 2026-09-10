@@ -15,6 +15,8 @@ export type TestCategory = 'body' | 'speed' | 'endurance' | 'strength' | 'flexib
 
 export type TestRecordStatus = 'pending' | 'valid' | 'absent' | 'exempt' | 'invalid'
 
+export type PeTestImportSource = 'manual' | 'exam-batch'
+
 export interface TestItem {
   id: string
   builtinKey: string | null
@@ -48,6 +50,11 @@ export interface PETestRecord {
   note: string
   createdAt: string
   updatedAt: string
+  /** 中考换算分快照；日常手工测试为 null。缺省字段按 null 读取。 */
+  examScore: number | null
+  /** Excel 原始单元格文本，例如 3:39 或 缺考。 */
+  rawOriginal: string
+  examItemId: string | null
 }
 
 export interface PETestSession {
@@ -68,6 +75,11 @@ export interface PETestSession {
   createdAt: string
   updatedAt: string
   records: PETestRecord[]
+  /** 缺省为手工录入，老 JSON 无此字段时按 manual。 */
+  importSource: PeTestImportSource
+  examStandardId: string | null
+  scoringCitySnapshot: string
+  scoringVersionSnapshot: string
 }
 
 export const TEST_VALUE_TYPES: TestValueType[] = ['number', 'time']

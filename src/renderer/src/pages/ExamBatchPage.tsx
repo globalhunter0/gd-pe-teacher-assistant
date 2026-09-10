@@ -10,6 +10,11 @@ import {
   type ExamStandard,
   type ExamType
 } from '@shared/examStandard'
+import { listedClassRecords } from '@shared/class'
+import { useClasses } from '../context/ClassContext'
+import { usePeTests } from '../context/PeTestContext'
+import { useStudents } from '../context/StudentContext'
+import { useTestItems } from '../context/TestItemContext'
 import {
   AUTO_SCORE_CREDIBILITY,
   EXAM_TEMPLATE_SCORE_SHEET,
@@ -19,15 +24,18 @@ import {
   convertWorkbookExamBatch,
   detectWorkbookColumns,
   displayBatchStatus,
+  planExamBatchPeTestImport,
   singleItemExportFileName,
   updateProjectGroupOverride,
   workbookItemSummaries,
   workbookStudentGroups,
   columnAutoConfirmed,
   type BatchAssessmentRow,
+  type ExamBatchPeTestImportResult,
   type ExamSheetSnapshot,
   type WorkbookDetection
 } from '@shared/examBatch'
+import { formatLocalDate } from '@shared/peTest'
 
 type Step = 'setup' | 'detect' | 'result'
 
@@ -51,15 +59,22 @@ function columnStatusText(autoScoreSupported: boolean, matchType: string, reason
 
 export default function ExamBatchPage({
   onBack,
+  onGoToTests,
   initialCitySlug = '',
   initialStandardId = '',
   initialItemId = ''
 }: {
   onBack: () => void
+  onGoToTests?: (classId: string) => void
   initialCitySlug?: string
   initialStandardId?: string
   initialItemId?: string
 }): React.JSX.Element {
+  const { classes } = useClasses()
+  const listedClasses = listedClassRecords(classes)
+  const { students: rosterStudents } = useStudents()
+  const { items: testItems } = useTestItems()
+  const { sessions: peSessions, reload: reloadPeTests } = usePeTests()
   const [step, setStep] = useState<Step>('setup')
   const [examType, setExamType] = useState<ExamType>('middle_school_exam')
   const [citySlug, setCitySlug] = useState(initialCitySlug)
@@ -76,6 +91,12 @@ export default function ExamBatchPage({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedRow, setExpandedRow] = useState<number | null>(null)
+  const [saveOpen, setSaveOpen] = useState(false)
+  const [saveClassId, setSaveClassId] = useState('')
+  const [saveDate, setSaveDate] = useState(formatLocalDate(new Date()))
+  const [saveWorking, setSaveWorking] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saveResult, setSaveResult] = useState<ExamBatchPeTestImportResult | null>(null)
 
   const typeStandards = useMemo(() => {
     if (examType === 'gaokao_sports') {
@@ -95,6 +116,56 @@ export default function ExamBatchPage({
   const cellError = rows.filter(
     (row) => row.status !== 'success' && row.status !== 'not_applicable' && row.status !== 'non_score_record'
   ).length
+  const canSaveToPeTest = step === 'result' && rows.length > 0 && cellError === 0 && cellSuccess + cellNonScore > 0 && Boolean(selectedStandard)
+
+  const saveClass = listedClasses.find((item) => item.id === saveClassId) ?? null
+  const savePreview = useMemo(() => {
+    if (!saveOpen || !selectedStandard || !saveClass) {
+      return null
+    }
+    return planExamBatchPeTestImport(
+      {
+        classId: saveClass.id,
+        testDate: saveDate,
+        examStandardId: selectedStandard.id,
+        scoringCity: selectedStandard.examType === 'gaokao_sports' ? '广东省' : selectedStandard.cityName,
+        scoringVersion: selectedStandard.schemeLabel || selectedStandard.policyLabel,
+        duplicateAction: 'cancel',
+        rows
+      },
+      {
+        classRecord: saveClass,
+        students: rosterStudents,
+        testItems,
+        existingSessions: peSessions,
+        standard: selectedStandard
+      }
+    )
+  }, [saveOpen, selectedStandard, saveClass, saveDate, rows, rosterStudents, testItems, peSessions])
+
+  const skipPreview = useMemo(() => {
+    if (!saveOpen || !selectedStandard || !saveClass) {
+      return null
+    }
+    return planExamBatchPeTestImport(
+      {
+        classId: saveClass.id,
+        testDate: saveDate,
+        examStandardId: selectedStandard.id,
+        scoringCity: selectedStandard.examType === 'gaokao_sports' ? '广东省' : selectedStandard.cityName,
+        scoringVersion: selectedStandard.schemeLabel || selectedStandard.policyLabel,
+        duplicateAction: 'skip',
+        rows
+      },
+      {
+        classRecord: saveClass,
+        students: rosterStudents,
+        testItems,
+        existingSessions: peSessions,
+        standard: selectedStandard
+      }
+    )
+  }, [saveOpen, selectedStandard, saveClass, saveDate, rows, rosterStudents, testItems, peSessions])
 
   const matrixColumns = useMemo(() => {
     if (!detection) return []
@@ -237,6 +308,40 @@ export default function ExamBatchPage({
       })
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '导出失败')
+    }
+  }
+
+  function openSaveDialog(): void {
+    setSaveError(null)
+    setSaveResult(null)
+    setSaveDate(formatLocalDate(new Date()))
+    setSaveClassId(listedClasses[0]?.id ?? '')
+    setSaveOpen(true)
+  }
+
+  async function commitSave(duplicateAction: 'skip' | 'cancel'): Promise<void> {
+    if (!selectedStandard || !saveClass) {
+      setSaveError('请选择班级')
+      return
+    }
+    setSaveWorking(true)
+    setSaveError(null)
+    try {
+      const result = await window.electronAPI.peTests.importExamBatch({
+        classId: saveClass.id,
+        testDate: saveDate,
+        examStandardId: selectedStandard.id,
+        scoringCity: selectedStandard.examType === 'gaokao_sports' ? '广东省' : selectedStandard.cityName,
+        scoringVersion: selectedStandard.schemeLabel || selectedStandard.policyLabel,
+        duplicateAction,
+        rows
+      })
+      await reloadPeTests()
+      setSaveResult(result)
+    } catch (caught) {
+      setSaveError(caught instanceof Error ? caught.message : '保存失败')
+    } finally {
+      setSaveWorking(false)
     }
   }
 
@@ -465,6 +570,9 @@ export default function ExamBatchPage({
             <button type="button" className="btn btn-primary" onClick={() => void handleExport()}>
               导出评分结果
             </button>
+            <button type="button" className="btn" onClick={openSaveDialog} disabled={!canSaveToPeTest}>
+              保存到体育测试
+            </button>
             <span className="exam-notes">默认 {singleItemExportFileName(fileName || '成绩')}</span>
           </div>
           <div className="import-preview-wrap exam-matrix-wrap">
@@ -529,6 +637,155 @@ export default function ExamBatchPage({
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      ) : null}
+
+      {saveOpen ? (
+        <div className="dialog-backdrop" onMouseDown={() => !saveWorking && setSaveOpen(false)}>
+          <div
+            className="dialog dialog--import"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="exam-save-pe-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <h3 id="exam-save-pe-title">{saveResult ? '已保存到体育测试' : '保存到体育测试'}</h3>
+            {saveResult ? (
+              <>
+                <p className="dialog-slot">
+                  班级：{saveResult.className}
+                  <br />
+                  日期：{saveResult.testDate}
+                  <br />
+                  已创建测试：{saveResult.createdCount}
+                  {saveResult.skippedCount > 0 ? `（跳过 ${saveResult.skippedCount} 个已有项目）` : ''}
+                </p>
+                <ul className="exam-notes">
+                  {saveResult.sessions.map((session) => (
+                    <li key={session.id}>
+                      {session.testItemName}：{session.studentCount} 人（有效 {session.validCount} / 缺考 {session.absentCount}）
+                    </li>
+                  ))}
+                </ul>
+                <p className="dialog-slot">
+                  正常成绩：{saveResult.validCount}　缺考：{saveResult.absentCount}
+                </p>
+                <div className="dialog-actions">
+                  <span />
+                  <div className="dialog-actions-right">
+                    <button type="button" className="btn" onClick={() => setSaveOpen(false)}>
+                      关闭
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => {
+                        setSaveOpen(false)
+                        onGoToTests?.(saveResult.classId)
+                      }}
+                    >
+                      前往体育测试
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="dialog-grid">
+                  <label>
+                    班级
+                    <select value={saveClassId} onChange={(event) => setSaveClassId(event.target.value)}>
+                      {listedClasses.length === 0 ? <option value="">请先创建班级</option> : null}
+                      {listedClasses.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.grade} {item.className}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    测试日期
+                    <input type="date" value={saveDate} onChange={(event) => setSaveDate(event.target.value)} />
+                  </label>
+                </div>
+                {selectedStandard ? (
+                  <p className="dialog-slot">
+                    评分标准：{selectedStandard.examType === 'gaokao_sports' ? '广东省' : selectedStandard.cityName} /{' '}
+                    {selectedStandard.schemeLabel || selectedStandard.policyLabel}
+                  </p>
+                ) : null}
+                <p className="dialog-slot">
+                  本次项目：{matrixColumns.map((column) => column.matchedItemName).join('、') || '—'}
+                  <br />
+                  学生：{students.length} 人　预计创建：{skipPreview?.sessions.length ?? savePreview?.sessions.length ?? 0} 个体育测试
+                  <br />
+                  有效成绩：{cellSuccess}　缺考/免考等：{cellNonScore}　真正异常：{cellError}
+                </p>
+                {savePreview ? (
+                  <p className="dialog-slot">
+                    已匹配：{savePreview.matches.filter((item) => item.student).length}　待确认：
+                    {savePreview.matches.filter((item) => item.kind === 'needs_confirm').length}　无法匹配：
+                    {savePreview.matches.filter((item) => !item.student && item.kind === 'needs_confirm').length}
+                  </p>
+                ) : (
+                  <p className="dialog-slot">请选择班级后查看学生匹配。</p>
+                )}
+                {savePreview?.matches
+                  .filter((item) => item.kind === 'needs_confirm')
+                  .map((item) => (
+                    <p key={item.excelRow} className="dialog-error">
+                      {item.studentName}　学号：{item.studentNo || '（空）'}　原因：{item.reason}
+                    </p>
+                  ))}
+                {savePreview && savePreview.duplicateKeys.length > 0 ? (
+                  <p className="dialog-error">
+                    已存在测试：{savePreview.duplicateKeys.length} 个项目与当前班级、日期、项目相同，不能静默覆盖。可跳过已有项目，仅创建尚未存在的测试。
+                  </p>
+                ) : null}
+                {savePreview?.errors
+                  .filter((item) => !item.includes('同班同日同项目'))
+                  .slice(0, 6)
+                  .map((item) => (
+                    <p key={item} className="dialog-error">
+                      {item}
+                    </p>
+                  ))}
+                {saveError ? <p className="dialog-error">{saveError}</p> : null}
+                <div className="dialog-actions">
+                  <span />
+                  <div className="dialog-actions-right">
+                    <button type="button" className="btn" onClick={() => setSaveOpen(false)} disabled={saveWorking}>
+                      取消保存
+                    </button>
+                    {savePreview && savePreview.duplicateKeys.length > 0 ? (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={
+                          saveWorking ||
+                          !saveClass ||
+                          (savePreview.matches.some((item) => item.kind === 'needs_confirm') ||
+                            !skipPreview?.ok)
+                        }
+                        onClick={() => void commitSave('skip')}
+                      >
+                        跳过已有项目
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={saveWorking || !saveClass || !savePreview?.ok}
+                        onClick={() => void commitSave('cancel')}
+                      >
+                        确认保存
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       ) : null}

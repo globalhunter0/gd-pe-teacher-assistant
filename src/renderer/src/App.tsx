@@ -104,7 +104,12 @@ export default function App(): React.JSX.Element {
                             }}
                           />
                         ) : activeKey === 'exams' ? (
-                          <ExamStandardsPage />
+                          <ExamStandardsPage
+                            onGoToTests={(classId) => {
+                              setTestClassId(classId)
+                              setActiveKey('tests')
+                            }}
+                          />
                         ) : activeKey === 'stats' ? (
                           <StatsPage
                             onOpenTest={(sessionId) => {
