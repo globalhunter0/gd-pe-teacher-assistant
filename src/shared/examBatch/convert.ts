@@ -189,6 +189,13 @@ function scoreRow(
     )
   }
 
+  if (standard.status === 'partial' || standard.scoreTableStatus !== 'verified') {
+    const message =
+      standard.ruleStatus === 'verified'
+        ? '考试方案已核验，但年度评分表尚未完整核验，暂不支持完整自动换算。'
+        : '该城市/版本评分表尚未完整核验，暂不支持完整自动换算。'
+    return fail(withItem, 'no_verified_standard', message)
+  }
   if (standard.status !== 'verified') {
     return fail(withItem, 'no_verified_standard', '当前没有可用于正式换算的已核验评分标准。')
   }

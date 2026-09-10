@@ -9,13 +9,49 @@ import { runRosterAutoDetectionSelfCheckOrThrow } from '../student/detectSelfche
 import { runStudentImportIpcSelfCheckOrThrow } from '../student/ipcSelfcheck'
 import { runRosterReconciliationSelfCheckOrThrow } from '../student/selfcheck'
 import { runV0131RegressionSelfCheckOrThrow } from '../student/v0131Selfcheck'
+import { runCityScoringStandardsSelfCheckOrThrow } from './cityScoringSelfcheck'
+import { runFoshanScoringSelfCheckOrThrow } from './foshanSelfcheck'
+import { runZhuhaiScoringSelfCheckOrThrow } from './zhuhaiSelfcheck'
+import { runShantouScoringSelfCheckOrThrow } from './shantouSelfcheck'
+import { runShaoguanScoringSelfCheckOrThrow } from './shaoguanSelfcheck'
+import { runHeyuanScoringSelfCheckOrThrow } from './heyuanSelfcheck'
+import { runMeizhouScoringSelfCheckOrThrow } from './meizhouSelfcheck'
+import { runHuizhouScoringSelfCheckOrThrow } from './huizhouSelfcheck'
+import { runShanweiScoringSelfCheckOrThrow } from './shanweiSelfcheck'
+import { runZhongshanScoringSelfCheckOrThrow } from './zhongshanSelfcheck'
+import { runYangjiangScoringSelfCheckOrThrow } from './yangjiangSelfcheck'
+import { runMaomingScoringSelfCheckOrThrow } from './maomingSelfcheck'
+import { runZhaoqingScoringSelfCheckOrThrow } from './zhaoqingSelfcheck'
+import { runQingyuanScoringSelfCheckOrThrow } from './qingyuanSelfcheck'
+import { runChaozhouScoringSelfCheckOrThrow } from './chaozhouSelfcheck'
+import { runJieyangScoringSelfCheckOrThrow } from './jieyangSelfcheck'
+import { runYunfuScoringSelfCheckOrThrow } from './yunfuSelfcheck'
 import { listBuiltinExamStandards } from './catalog'
 import { runExamTableIntegritySelfCheckOrThrow } from './integrity'
 import { runExamScoreEngineSelfCheckOrThrow } from './selfcheck'
+import { runV0150AcceptanceSelfCheckOrThrow } from './v0150AcceptanceSelfcheck'
 
 async function main(): Promise<void> {
   console.log(runExamScoreEngineSelfCheckOrThrow())
   console.log(runExamTableIntegritySelfCheckOrThrow(listBuiltinExamStandards()))
+  console.log(runCityScoringStandardsSelfCheckOrThrow())
+  console.log(runFoshanScoringSelfCheckOrThrow())
+  console.log(runZhuhaiScoringSelfCheckOrThrow())
+  console.log(runShantouScoringSelfCheckOrThrow())
+  console.log(runShaoguanScoringSelfCheckOrThrow())
+  console.log(runHeyuanScoringSelfCheckOrThrow())
+  console.log(runMeizhouScoringSelfCheckOrThrow())
+  console.log(runHuizhouScoringSelfCheckOrThrow())
+  console.log(runShanweiScoringSelfCheckOrThrow())
+  console.log(runZhongshanScoringSelfCheckOrThrow())
+  console.log(runYangjiangScoringSelfCheckOrThrow())
+  console.log(runMaomingScoringSelfCheckOrThrow())
+  console.log(runZhaoqingScoringSelfCheckOrThrow())
+  console.log(runQingyuanScoringSelfCheckOrThrow())
+  console.log(runChaozhouScoringSelfCheckOrThrow())
+  console.log(runJieyangScoringSelfCheckOrThrow())
+  console.log(runYunfuScoringSelfCheckOrThrow())
+  console.log(runV0150AcceptanceSelfCheckOrThrow())
   console.log(runExamBatchSelfCheckOrThrow())
   console.log(runTrainingTeamSelfCheckOrThrow())
   console.log(await runScheduleLinkageSelfCheckOrThrow())

@@ -328,7 +328,7 @@ export default function ExamBatchPage({ onBack }: { onBack: () => void }): React
         </div>
         {selectedStandard ? (
           <p className="exam-notes">
-            {selectedStandard.title}。仅使用已核验且支持自动换算的项目；draft / unsupported 不会静默给分。
+            {selectedStandard.title}。仅使用已核验且支持自动换算的项目；partial / draft / unsupported 不会静默给分。
           </p>
         ) : (
           <p className="exam-notes">当前地区没有已核验标准，不能批量换算。</p>

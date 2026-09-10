@@ -3,6 +3,12 @@ import type { ExamGender, ExamItemDefinition, ExamStandard, ExamStandardStatus }
 
 export const OFFICIAL_SCORE_UNAVAILABLE = '当前没有可用于正式换算的已核验评分标准。'
 export const OFFICIAL_SCORE_UNSUPPORTED = '官方标准已核验，当前版本暂不支持自动换算。'
+export const OFFICIAL_SCORE_PARTIAL = '该城市/版本评分表尚未完整核验，暂不支持完整自动换算。'
+export const OFFICIAL_SCORE_SCHEME_ONLY = '考试方案已核验，但年度评分表尚未完整核验，暂不支持完整自动换算。'
+
+export function standardAllowsOfficialConvert(standard: ExamStandard): boolean {
+  return standard.status === 'verified' && standard.scoreTableStatus === 'verified'
+}
 
 export type ExamScoreErrorCode =
   | 'NOT_VERIFIED'
@@ -51,8 +57,14 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
-function truncateDown2(value: number): number {
-  return Math.floor(value * 100 + 1e-8) / 100
+function truncateDownDigits(value: number, digits: number): number {
+  const factor = 10 ** digits
+  return Math.floor(value * factor + 1e-8) / factor
+}
+
+function interpolatedScore(value: number, item: ExamItemDefinition): number {
+  const digits = item.scoreRule.kind === 'thresholdTable' ? (item.scoreRule.scorePrecision ?? 2) : 2
+  return truncateDownDigits(value, digits)
 }
 
 function sameNumber(left: number, right: number): boolean {
@@ -122,7 +134,7 @@ function scoreFromLinearTable(rawValue: number, item: ExamItemDefinition): { sco
       if (rawValue < lower.threshold && rawValue > higher.threshold) {
         const interpolated =
           lower.score + ((higher.score - lower.score) * (lower.threshold - rawValue)) / (lower.threshold - higher.threshold)
-        return { score: capScore(truncateDown2(interpolated), item), matchedThreshold: null }
+        return { score: capScore(interpolatedScore(interpolated, item), item), matchedThreshold: null }
       }
     }
   } else {
@@ -139,7 +151,7 @@ function scoreFromLinearTable(rawValue: number, item: ExamItemDefinition): { sco
       if (rawValue > lower.threshold && rawValue < higher.threshold) {
         const interpolated =
           lower.score + ((higher.score - lower.score) * (rawValue - lower.threshold)) / (higher.threshold - lower.threshold)
-        return { score: capScore(truncateDown2(interpolated), item), matchedThreshold: null }
+        return { score: capScore(interpolatedScore(interpolated, item), item), matchedThreshold: null }
       }
     }
   }
@@ -172,6 +184,11 @@ export function formatExamRawValue(rawValue: number, item: ExamItemDefinition): 
 
 export function calculateExamScore(input: CalculateExamScoreInput): CalculateExamScoreResult {
   const officialOnly = input.officialOnly !== false
+  if (officialOnly && (input.standard.status === 'partial' || input.standard.scoreTableStatus !== 'verified')) {
+    const message =
+      input.standard.ruleStatus === 'verified' ? OFFICIAL_SCORE_SCHEME_ONLY : OFFICIAL_SCORE_PARTIAL
+    return { ok: false, code: 'NOT_VERIFIED', message }
+  }
   if (officialOnly && input.standard.status !== 'verified') {
     return { ok: false, code: 'NOT_VERIFIED', message: OFFICIAL_SCORE_UNAVAILABLE }
   }
@@ -224,6 +241,8 @@ export interface FindStandardQuery {
   citySlug?: string
   year?: number
   statuses?: ExamStandardStatus[]
+  applicableGroup?: ExamStandard['applicableGroups'][number]
+  enrollmentCohort?: string
 }
 
 export function findApplicableStandard(
@@ -231,6 +250,7 @@ export function findApplicableStandard(
   query: FindStandardQuery
 ): ExamStandard | undefined {
   const statuses = query.statuses ?? ['verified']
+  const group = query.applicableGroup ?? 'regular'
   const matched = standards.filter((item) => {
     if (item.examType !== query.examType) {
       return false
@@ -242,6 +262,12 @@ export function findApplicableStandard(
       return false
     }
     if (query.year !== undefined && (query.year < item.yearFrom || query.year > item.yearTo)) {
+      return false
+    }
+    if (!item.applicableGroups.includes(group)) {
+      return false
+    }
+    if (query.enrollmentCohort && item.enrollmentCohort !== query.enrollmentCohort) {
       return false
     }
     return true
