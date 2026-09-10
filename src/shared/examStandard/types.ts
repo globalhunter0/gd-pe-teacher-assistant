@@ -2,7 +2,13 @@ import type { TestUnit, TestValueType, TimeInputMode } from '../peTest/types'
 
 export type ExamType = 'middle_school_exam' | 'gaokao_sports'
 
-export type ExamStandardStatus = 'verified' | 'draft' | 'deprecated'
+export type ExamStandardStatus = 'verified' | 'partial' | 'draft' | 'deprecated'
+
+export type ExamRuleStatus = 'verified' | 'partial' | 'draft'
+
+export type ExamScoreTableStatus = 'verified' | 'partial' | 'missing'
+
+export type ExamCandidateGroup = 'regular' | 'returning' | 'repeat'
 
 export type ExamGender = 'male' | 'female' | 'all'
 
@@ -46,6 +52,8 @@ export interface ThresholdScoreRule {
   maxScore: number
   minScore: number
   entries: ScoreTableEntry[]
+  /** 官方插值精度：汕头为十分之一；缺省百分之一（广州/佛山/珠海）。 */
+  scorePrecision?: 1 | 2
 }
 
 export interface UnsupportedScoreRule {
@@ -128,6 +136,15 @@ export interface ExamStandard {
   effectiveFrom: string | null
   effectiveTo: string | null
   status: ExamStandardStatus
+  /** 长期考试方案是否已核验；与年度评分表分开。 */
+  ruleStatus: ExamRuleStatus
+  /** 当年项目评分表是否完整可换算。 */
+  scoreTableStatus: ExamScoreTableStatus
+  schemeLabel: string
+  scoreYear: number | null
+  applicableGroups: ExamCandidateGroup[]
+  enrollmentCohort: string | null
+  calculationNotes: string
   notes: string
   totalMaxScore: number
   scoring: ExamScoringModel
@@ -153,8 +170,27 @@ export const EXAM_TYPE_LABELS: Record<ExamType, string> = {
 
 export const EXAM_STATUS_LABELS: Record<ExamStandardStatus, string> = {
   verified: '已核验',
-  draft: '未核验',
+  partial: '部分核验',
+  draft: '资料核验中',
   deprecated: '已过期'
+}
+
+export const EXAM_RULE_STATUS_LABELS: Record<ExamRuleStatus, string> = {
+  verified: '考试方案已核验',
+  partial: '考试方案部分核验',
+  draft: '考试方案待核验'
+}
+
+export const EXAM_SCORE_TABLE_STATUS_LABELS: Record<ExamScoreTableStatus, string> = {
+  verified: '年度评分表已核验',
+  partial: '年度评分表部分核验',
+  missing: '年度评分表待完整核验'
+}
+
+export const EXAM_CANDIDATE_GROUP_LABELS: Record<ExamCandidateGroup, string> = {
+  regular: '普通应届生',
+  returning: '外地返中山生',
+  repeat: '往届生'
 }
 
 export const EXAM_ITEM_VERIFICATION_LABELS: Record<ExamItemVerification, string> = {

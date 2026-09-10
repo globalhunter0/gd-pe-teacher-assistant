@@ -73,12 +73,21 @@ export function assertExamStandardIntegrity(standard: ExamStandard): void {
   finiteNumber(standard.yearFrom, `${standard.id}起始年份`)
   finiteNumber(standard.yearTo, `${standard.id}结束年份`)
 
-  if (standard.status === 'verified') {
+  if (standard.status === 'verified' || standard.status === 'partial') {
     if (!standard.sourceUrl) {
-      throw new Error(`${standard.id} 已核验标准必须有官方来源链接`)
+      throw new Error(`${standard.id} ${standard.status === 'partial' ? '部分核验' : '已核验'}标准必须有官方来源链接`)
     }
     if (looksLikePlaceholder(standard.id) || looksLikePlaceholder(standard.sourceUrl) || looksLikePlaceholder(standard.title)) {
-      throw new Error(`${standard.id} 已核验标准不能依赖占位数据`)
+      throw new Error(`${standard.id} 不能依赖占位数据`)
+    }
+  }
+  if (standard.status === 'partial') {
+    const supported = standard.items.filter((item) => item.verification === 'verified_supported')
+    if (supported.length > 0) {
+      throw new Error(`${standard.id} 部分核验标准不得带可自动换算评分表`)
+    }
+    if (!standard.notes.includes('完整评分表待官方附件核验') && !standard.notes.includes('尚未完整核验')) {
+      throw new Error(`${standard.id} 部分核验标准必须标明评分表未完整核验`)
     }
   }
 
@@ -141,6 +150,175 @@ export function assertExamCatalogIntegrity(standards: readonly ExamStandard[]): 
   }
   if (gaokao.items.some((item) => item.verification === 'verified_supported' && item.scoreRule.kind === 'unsupported')) {
     throw new Error('体育高考 unsupported 项目误入可换算状态')
+  }
+
+  const jiangmen = standards.find((item) => item.id === 'cn-gd-jiangmen-middle-2026')
+  if (!jiangmen || jiangmen.status !== 'verified' || jiangmen.citySlug !== 'jiangmen') {
+    throw new Error('江门2026中考标准缺失')
+  }
+  const jiangmen1000 = jiangmen.items.find((item) => item.id === 'male-1000m')
+  if (!jiangmen1000 || jiangmen1000.scoreRule.kind !== 'thresholdTable' || jiangmen1000.scoreRule.entries.length !== 21) {
+    throw new Error('江门男1000米评分表不完整')
+  }
+  if (male1000.scoreRule.kind === 'thresholdTable' && jiangmen1000.scoreRule.kind === 'thresholdTable') {
+    const gzFull = male1000.scoreRule.entries.find((entry) => entry.score === 100)?.threshold
+    const jmFull = jiangmen1000.scoreRule.entries.find((entry) => entry.score === 100)?.threshold
+    if (gzFull === jmFull) {
+      throw new Error('江门与广州1000米满分标准被互相覆盖')
+    }
+  }
+
+  const shaoguan = standards.find((item) => item.id === 'cn-gd-shaoguan-middle-2026')
+  if (!shaoguan || shaoguan.status !== 'verified' || shaoguan.scoreTableStatus !== 'verified' || shaoguan.citySlug !== 'shaoguan') {
+    throw new Error('韶关2026中考标准缺失或状态不正确')
+  }
+  const shaoguan1000 = shaoguan.items.find((item) => item.id === 'male-1000m')
+  if (
+    !shaoguan1000 ||
+    shaoguan1000.scoreRule.kind !== 'thresholdTable' ||
+    shaoguan1000.scoreRule.scoreMode !== 'step' ||
+    shaoguan1000.scoreRule.entries.length !== 121
+  ) {
+    throw new Error('韶关男1000米评分表不完整')
+  }
+  if (male1000.scoreRule.kind === 'thresholdTable') {
+    const gzFull = male1000.scoreRule.entries.find((entry) => entry.score === 100)?.threshold
+    const sgFull = shaoguan1000.scoreRule.entries.find((entry) => entry.score === 100)?.threshold
+    if (gzFull === sgFull) {
+      throw new Error('韶关与广州1000米满分标准被互相覆盖')
+    }
+  }
+
+  for (const id of [
+    'cn-gd-shenzhen-middle-2026',
+    'cn-gd-dongguan-middle-2026-2027',
+    'cn-gd-zhanjiang-middle-2026',
+    'cn-gd-heyuan-middle-2026',
+    'cn-gd-meizhou-middle-2026',
+    'cn-gd-huizhou-middle-2026',
+    'cn-gd-shanwei-middle-2026',
+    'cn-gd-yangjiang-middle-2026',
+    'cn-gd-maoming-middle-2026',
+    'cn-gd-qingyuan-middle-2026',
+    'cn-gd-chaozhou-middle-2026',
+    'cn-gd-jieyang-middle-2026',
+    'cn-gd-yunfu-middle-2026'
+  ]) {
+    const standard = standards.find((item) => item.id === id)
+    if (!standard || standard.status !== 'partial') {
+      throw new Error(`${id} 必须保持 partial，不得假装完整`)
+    }
+  }
+  const heyuan = standards.find((item) => item.id === 'cn-gd-heyuan-middle-2026')
+  if (!heyuan || heyuan.scoreTableStatus !== 'missing' || heyuan.totalMaxScore !== 70) {
+    throw new Error('河源2026必须保持评分表未完整且体育科70分')
+  }
+  if (heyuan.items.some((item) => item.scoreRule.kind === 'thresholdTable')) {
+    throw new Error('河源不得写入未核验评分档')
+  }
+  const meizhou = standards.find((item) => item.id === 'cn-gd-meizhou-middle-2026')
+  if (!meizhou || meizhou.scoreTableStatus !== 'missing' || meizhou.totalMaxScore !== 90) {
+    throw new Error('梅州2026必须保持评分表未完整且体育科90分')
+  }
+  if (meizhou.items.some((item) => item.scoreRule.kind === 'thresholdTable')) {
+    throw new Error('梅州不得写入未核验评分档')
+  }
+  const huizhou = standards.find((item) => item.id === 'cn-gd-huizhou-middle-2026')
+  if (!huizhou || huizhou.scoreTableStatus !== 'missing' || huizhou.totalMaxScore !== 64) {
+    throw new Error('惠州2026必须保持评分表未完整且体育科按最近官方方案记载为64分')
+  }
+  if (huizhou.items.some((item) => item.scoreRule.kind === 'thresholdTable')) {
+    throw new Error('惠州不得写入未核验评分档')
+  }
+  const shanwei = standards.find((item) => item.id === 'cn-gd-shanwei-middle-2026')
+  if (!shanwei || shanwei.scoreTableStatus !== 'missing' || shanwei.status !== 'partial') {
+    throw new Error('汕尾2026必须保持评分表未完整')
+  }
+  if (shanwei.items.some((item) => item.scoreRule.kind === 'thresholdTable')) {
+    throw new Error('汕尾不得写入未核验评分档')
+  }
+
+  const zhongshan2023 = standards.find((item) => item.id === 'cn-gd-zhongshan-middle-cohort-2023')
+  const zhongshan2022 = standards.find((item) => item.id === 'cn-gd-zhongshan-middle-cohort-2022')
+  const zhongshanReturning = standards.find((item) => item.id === 'cn-gd-zhongshan-middle-returning')
+  if (!zhongshan2023 || zhongshan2023.ruleStatus !== 'verified' || zhongshan2023.scoreTableStatus !== 'missing') {
+    throw new Error('中山2023入学版本必须方案已核验且评分表未完整')
+  }
+  if (zhongshan2023.totalMaxScore !== 80) {
+    throw new Error('中山普通应届总分必须是80')
+  }
+  if (!zhongshan2022 || zhongshan2022.totalMaxScore !== 50 || zhongshan2022.id === zhongshan2023.id) {
+    throw new Error('中山2022入学过渡规则被覆盖')
+  }
+  if (!zhongshanReturning || zhongshanReturning.applicableGroups.includes('regular')) {
+    throw new Error('返中山生规则不得标成普通应届生')
+  }
+  const yangjiang = standards.find((item) => item.id === 'cn-gd-yangjiang-middle-2026')
+  if (!yangjiang || yangjiang.scoreTableStatus !== 'missing' || yangjiang.status !== 'partial' || yangjiang.totalMaxScore !== 80) {
+    throw new Error('阳江2026必须保持评分表未完整且体育科按中招通知记载为80分')
+  }
+  if (yangjiang.items.some((item) => item.scoreRule.kind === 'thresholdTable')) {
+    throw new Error('阳江不得写入未核验评分档')
+  }
+  const maoming = standards.find((item) => item.id === 'cn-gd-maoming-middle-2026')
+  if (!maoming || maoming.ruleStatus !== 'verified' || maoming.scoreTableStatus !== 'missing' || maoming.totalMaxScore !== 70) {
+    throw new Error('茂名2026必须方案已核验、评分表未完整且体育科70分')
+  }
+  if (maoming.items.some((item) => item.scoreRule.kind === 'thresholdTable')) {
+    throw new Error('茂名不得写入未核验评分档')
+  }
+  const qingyuan = standards.find((item) => item.id === 'cn-gd-qingyuan-middle-2026')
+  if (!qingyuan || qingyuan.scoreTableStatus !== 'missing' || qingyuan.status !== 'partial' || qingyuan.totalMaxScore !== 90) {
+    throw new Error('清远2026必须保持评分表未完整且体育科按12号记载为90分')
+  }
+  if (qingyuan.ruleStatus !== 'partial') {
+    throw new Error('清远2026实施方案原文未闭合，不得把ruleStatus升为verified')
+  }
+  if (qingyuan.items.some((item) => item.scoreRule.kind === 'thresholdTable')) {
+    throw new Error('清远不得写入未核验评分档')
+  }
+  const chaozhou = standards.find((item) => item.id === 'cn-gd-chaozhou-middle-2026')
+  if (!chaozhou || chaozhou.scoreTableStatus !== 'missing' || chaozhou.status !== 'partial' || chaozhou.totalMaxScore !== 70) {
+    throw new Error('潮州2026必须保持评分表未完整且体育科按官方记载为70分')
+  }
+  if (chaozhou.ruleStatus !== 'partial') {
+    throw new Error('潮州2026实施方案原文未闭合，不得把ruleStatus升为verified')
+  }
+  if (chaozhou.items.some((item) => item.scoreRule.kind === 'thresholdTable')) {
+    throw new Error('潮州不得写入未核验评分档')
+  }
+  const jieyang = standards.find((item) => item.id === 'cn-gd-jieyang-middle-2026')
+  if (!jieyang || jieyang.ruleStatus !== 'verified' || jieyang.scoreTableStatus !== 'missing' || jieyang.totalMaxScore !== 70) {
+    throw new Error('揭阳2026必须方案已核验、评分表未完整且体育科70分')
+  }
+  if (jieyang.items.some((item) => item.scoreRule.kind === 'thresholdTable')) {
+    throw new Error('揭阳不得写入未核验评分档')
+  }
+  const yunfu = standards.find((item) => item.id === 'cn-gd-yunfu-middle-2026')
+  if (!yunfu || yunfu.scoreTableStatus !== 'missing' || yunfu.status !== 'partial' || yunfu.totalMaxScore !== 70) {
+    throw new Error('云浮2026必须保持评分表未完整且体育科按70%计入为70分')
+  }
+  if (yunfu.ruleStatus !== 'partial') {
+    throw new Error('云浮2026体育考试办法原文未闭合，不得把ruleStatus升为verified')
+  }
+  if (yunfu.items.some((item) => item.scoreRule.kind === 'thresholdTable')) {
+    throw new Error('云浮不得写入未核验评分档')
+  }
+  const zhaoqing = standards.find((item) => item.id === 'cn-gd-zhaoqing-middle-2026')
+  if (!zhaoqing || zhaoqing.ruleStatus !== 'verified' || zhaoqing.scoreTableStatus !== 'verified' || zhaoqing.totalMaxScore !== 70) {
+    throw new Error('肇庆2026必须方案与评分表均已核验且体育科70分')
+  }
+  if (zhaoqing.status !== 'verified') {
+    throw new Error('肇庆2026不得降为 partial')
+  }
+  const zhaoqing1000 = zhaoqing.items.find((item) => item.id === 'male-1000m')
+  if (
+    !zhaoqing1000 ||
+    zhaoqing1000.scoreRule.kind !== 'thresholdTable' ||
+    zhaoqing1000.scoreRule.scoreMode !== 'linear' ||
+    zhaoqing1000.scoreRule.entries.length !== 21
+  ) {
+    throw new Error('肇庆男1000米评分表不完整')
   }
   for (const item of gaokao.items) {
     if (item.sourcePage == null || !Number.isInteger(item.sourcePage) || item.sourcePage < 1) {

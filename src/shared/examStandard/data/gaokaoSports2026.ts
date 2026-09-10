@@ -107,6 +107,13 @@ export const GUANGDONG_GAOKAO_SPORTS_2026: ExamStandard = {
   effectiveFrom: '2026-01-01',
   effectiveTo: '2026-12-31',
   status: 'verified',
+  ruleStatus: 'verified',
+  scoreTableStatus: 'verified',
+  schemeLabel: '2026省统考',
+  scoreYear: 2026,
+  applicableGroups: ['regular'],
+  enrollmentCohort: null,
+  calculationNotes: '',
   notes:
     '本条只覆盖广东省普通高校招生体育类专业省统考。官方评分标准以粤考院函〔2025〕147号扫描附件为准。第6页写明成绩介于两档之间取较低分值，不得线性插值。男子立定三级跳远1分档按PDF第11页为6.50米。排球、游泳、健美操、啦啦操已核验来源，但当前模型不支持自动换算。',
   totalMaxScore: 300,

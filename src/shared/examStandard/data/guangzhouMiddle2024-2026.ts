@@ -125,6 +125,13 @@ export const GUANGZHOU_MIDDLE_2024_2026: ExamStandard = {
   effectiveFrom: '2024-01-01',
   effectiveTo: '2026-12-31',
   status: 'verified',
+  ruleStatus: 'verified',
+  scoreTableStatus: 'verified',
+  schemeLabel: '2024–2026',
+  scoreYear: 2026,
+  applicableGroups: ['regular'],
+  enrollmentCohort: null,
+  calculationNotes: '',
   notes:
     '评分表逐项来自广州招考网《2026年广州市中考体育考试问答》官方页面，未补录空单元格。单项百分制按 5 分段线性插值、向下截断两位小数。引体向上、平行梯悬垂攀移仅录入页面上出现的档位。体育素质综合评价不是单一现场成绩，本版不自动换算。普通应届生现场项目：一类 20 分、二类 15 分、三类 15 分，体育素质综合评价 20 分，总分 70 分。',
   totalMaxScore: 70,

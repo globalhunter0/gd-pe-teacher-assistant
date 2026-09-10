@@ -1,5 +1,5 @@
 import { listBuiltinExamStandards } from './catalog'
-import { calculateExamScore, findApplicableStandard, findExamItemMapping, parseExamPerformanceInput } from './score'
+import { calculateExamScore, findApplicableStandard, findExamItemMapping, parseExamPerformanceInput, OFFICIAL_SCORE_PARTIAL, OFFICIAL_SCORE_SCHEME_ONLY } from './score'
 import type { ExamStandard } from './types'
 import { parseExamStandards } from './validate'
 
@@ -16,9 +16,9 @@ function fixtureStandard(id: string, yearFrom: number, yearTo: number, status: E
       yearTo,
       policyLabel: yearFrom === yearTo ? String(yearFrom) : `${yearFrom}–${yearTo}`,
       title: `测试用标准 ${id}`,
-      sourceAuthority: status === 'verified' ? '测试机关' : '',
-      sourceTitle: status === 'verified' ? '测试来源' : '',
-      sourceUrl: status === 'verified' ? 'https://example.invalid/source' : null,
+      sourceAuthority: status === 'verified' || status === 'partial' ? '测试机关' : '',
+      sourceTitle: status === 'verified' || status === 'partial' ? '测试来源' : '',
+      sourceUrl: status === 'verified' || status === 'partial' ? 'https://jyj.gz.gov.cn/selfcheck' : null,
       policySourceTitle: '',
       policySourceUrl: null,
       policyPeriod: `${yearFrom}-${yearTo}`,
@@ -26,7 +26,7 @@ function fixtureStandard(id: string, yearFrom: number, yearTo: number, status: E
       effectiveFrom: null,
       effectiveTo: null,
       status,
-      notes: '仅用于引擎自检，不是官方标准。',
+      notes: status === 'partial' ? '当前仅录入已公开核验项目，完整评分表待官方附件核验。' : '仅用于引擎自检，不是官方标准。',
       totalMaxScore: 100,
       scoring: { rounding: 'none' },
       items: [
@@ -225,6 +225,7 @@ export function runExamScoreEngineSelfCheck(): void {
     )
   })
   const draft = fixtureStandard('cn-gd-guangzhou-middle-draft', 2026, 2026, 'draft')
+  const partial = fixtureStandard('cn-gd-guangzhou-middle-partial', 2026, 2026, 'partial')
   const deprecated = fixtureStandard('cn-gd-guangzhou-middle-old', 2024, 2024, 'deprecated')
 
   const jumpMax = calculateExamScore({
@@ -306,6 +307,15 @@ export function runExamScoreEngineSelfCheck(): void {
     officialOnly: true
   })
   assert(!draftOfficial.ok && draftOfficial.code === 'NOT_VERIFIED', 'draft 被当成正式标准')
+
+  const partialOfficial = calculateExamScore({
+    standard: partial,
+    itemId: 'male-1000m',
+    rawValue: 220,
+    gender: 'male',
+    officialOnly: true
+  })
+  assert(!partialOfficial.ok && (partialOfficial.message === OFFICIAL_SCORE_PARTIAL || partialOfficial.message === OFFICIAL_SCORE_SCHEME_ONLY), 'partial 被当成完整标准')
 
   const deprecatedOfficial = calculateExamScore({
     standard: deprecated,

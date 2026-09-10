@@ -1,5 +1,17 @@
 import { TEST_UNITS, TEST_VALUE_TYPES, TIME_INPUT_MODES } from '../peTest/types'
-import type { ExamComponent, ExamGroup, ExamItemDefinition, ExamItemVerification, ExamStandard, ScoreMode, ScoreRule, ScoreTableEntry } from './types'
+import type {
+  ExamCandidateGroup,
+  ExamComponent,
+  ExamGroup,
+  ExamItemDefinition,
+  ExamItemVerification,
+  ExamRuleStatus,
+  ExamScoreTableStatus,
+  ExamStandard,
+  ScoreMode,
+  ScoreRule,
+  ScoreTableEntry
+} from './types'
 import { EXAM_TYPES } from './types'
 
 const STANDARD_ID = /^cn-gd-[a-z0-9-]+$/
@@ -94,7 +106,13 @@ function parseScoreRule(value: unknown): ScoreRule {
       threshold: parseNumber(row.threshold, '成绩阈值')
     }
   })
-  return { kind: 'thresholdTable', scoreMode, maxScore, minScore, entries }
+  let scorePrecision: 1 | 2 | undefined
+  if (record.scorePrecision === 1 || record.scorePrecision === 2) {
+    scorePrecision = record.scorePrecision
+  } else if (record.scorePrecision !== undefined && record.scorePrecision !== null && record.scorePrecision !== '') {
+    throw new Error('分数精度必须是 1 或 2')
+  }
+  return { kind: 'thresholdTable', scoreMode, maxScore, minScore, entries, ...(scorePrecision ? { scorePrecision } : {}) }
 }
 
 function parseItem(value: unknown): ExamItemDefinition {
@@ -208,6 +226,61 @@ function parseOptionalSourcePage(value: unknown): number | null {
   return page
 }
 
+function parseOptionalYear(value: unknown, label: string): number | null {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+  return parseYear(value, label)
+}
+
+function parseRuleStatus(value: unknown, status: ExamStandard['status']): ExamRuleStatus {
+  if (value === 'verified' || value === 'partial' || value === 'draft') {
+    return value
+  }
+  if (value !== undefined && value !== null && value !== '') {
+    throw new Error('考试方案状态不正确')
+  }
+  if (status === 'draft') {
+    return 'draft'
+  }
+  return 'verified'
+}
+
+function parseScoreTableStatus(value: unknown, status: ExamStandard['status']): ExamScoreTableStatus {
+  if (value === 'verified' || value === 'partial' || value === 'missing') {
+    return value
+  }
+  if (value !== undefined && value !== null && value !== '') {
+    throw new Error('评分表状态不正确')
+  }
+  if (status === 'verified') {
+    return 'verified'
+  }
+  if (status === 'partial') {
+    return 'partial'
+  }
+  return 'missing'
+}
+
+function parseApplicableGroups(value: unknown): ExamCandidateGroup[] {
+  if (value === undefined || value === null) {
+    return ['regular']
+  }
+  if (!Array.isArray(value) || value.length === 0) {
+    return ['regular']
+  }
+  const groups: ExamCandidateGroup[] = []
+  for (const item of value) {
+    if (item !== 'regular' && item !== 'returning' && item !== 'repeat') {
+      throw new Error('考生类别不正确')
+    }
+    if (!groups.includes(item)) {
+      groups.push(item)
+    }
+  }
+  return groups
+}
+
 function parseGroup(value: unknown): ExamGroup {
   const record = asRecord(value, '考试组别')
   const mode = record.selection && typeof record.selection === 'object' ? (record.selection as Record<string, unknown>).mode : null
@@ -267,23 +340,31 @@ export function parseExamStandard(input: unknown): ExamStandard {
     throw new Error('考试类型不正确')
   }
   const status = record.status
-  if (status !== 'verified' && status !== 'draft' && status !== 'deprecated') {
+  if (status !== 'verified' && status !== 'partial' && status !== 'draft' && status !== 'deprecated') {
     throw new Error('标准状态不正确')
   }
+  const requiresOfficialSource = status === 'verified' || status === 'partial'
   const sourceUrl =
     record.sourceUrl === null || record.sourceUrl === undefined || record.sourceUrl === ''
       ? null
       : trimText(record.sourceUrl, '来源链接', true, 500)
-  const sourceTitle = trimText(record.sourceTitle, '来源标题', status === 'verified', 300)
-  if (status === 'verified' && !sourceUrl) {
-    throw new Error('已核验标准必须提供官方来源链接')
+  const sourceTitle = trimText(record.sourceTitle, '来源标题', requiresOfficialSource, 300)
+  if (requiresOfficialSource && !sourceUrl) {
+    throw new Error(status === 'partial' ? '部分核验标准必须提供官方来源链接' : '已核验标准必须提供官方来源链接')
   }
 
   const yearFrom = parseYear(record.yearFrom, '起始年份')
-  const yearTo = parseYear(record.yearTo, '结束年份')
-  if (yearFrom > yearTo) {
-    throw new Error('起始年份不能晚于结束年份')
-  }
+    const yearTo = parseYear(record.yearTo, '结束年份')
+    if (yearFrom > yearTo) {
+      throw new Error('起始年份不能晚于结束年份')
+    }
+    const scoreYear = parseOptionalYear(record.scoreYear, '评分表年份')
+    if (scoreYear != null && (scoreYear < yearFrom - 2 || scoreYear > yearTo + 1)) {
+      // 年度评分表年份可与方案跨度略有错位，但不允许完全无关年份
+      if (scoreYear < 2000 || scoreYear > 2100) {
+        throw new Error('评分表年份不正确')
+      }
+    }
 
   if (!Array.isArray(record.items) || !Array.isArray(record.groups) || !Array.isArray(record.components)) {
     throw new Error('标准项目或组别格式不正确')
@@ -307,7 +388,7 @@ export function parseExamStandard(input: unknown): ExamStandard {
     policyLabel: trimText(record.policyLabel, '政策年份', true, 40),
     policyPeriod: trimText(record.policyPeriod, '适用周期', false, 40) || `${yearFrom}-${yearTo}`,
     title: trimText(record.title, '标准名称', true, 200),
-    sourceAuthority: trimText(record.sourceAuthority, '发布机关', status === 'verified', 200),
+    sourceAuthority: trimText(record.sourceAuthority, '发布机关', requiresOfficialSource, 200),
     sourceTitle,
     sourceUrl,
     policySourceTitle: trimText(record.policySourceTitle, '政策文件标题', false, 300),
@@ -319,7 +400,14 @@ export function parseExamStandard(input: unknown): ExamStandard {
     effectiveFrom: parseOptionalDate(record.effectiveFrom, '生效日期'),
     effectiveTo: parseOptionalDate(record.effectiveTo, '截止日期'),
     status,
-    notes: trimText(record.notes, '备注', false, 2000),
+    ruleStatus: parseRuleStatus(record.ruleStatus, status),
+    scoreTableStatus: parseScoreTableStatus(record.scoreTableStatus, status),
+    schemeLabel: trimText(record.schemeLabel, '方案名称', false, 80) || trimText(record.policyLabel, '政策年份', true, 40),
+    scoreYear,
+    applicableGroups: parseApplicableGroups(record.applicableGroups),
+    enrollmentCohort: trimText(record.enrollmentCohort, '入学届别', false, 40) || null,
+    calculationNotes: trimText(record.calculationNotes, '计分规则', false, 2000),
+    notes: trimText(record.notes, '备注', status === 'partial', 2000),
     totalMaxScore: parseNumber(record.totalMaxScore, '考试满分'),
     scoring: { rounding },
     items: record.items.map((item) => parseItem(item)),

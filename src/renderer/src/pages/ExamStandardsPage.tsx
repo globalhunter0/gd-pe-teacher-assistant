@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import PageLayout, { PageHeader } from '../components/PageLayout'
 import TechEmptyState from '../components/workspace/TechEmptyState'
-import StatusBadge from '../components/StatusBadge'
 import {
   BUILTIN_EXAM_STANDARDS,
   calculateExamScore,
+  CITY_COVERAGE_LABELS,
+  EXAM_CANDIDATE_GROUP_LABELS,
   EXAM_GENDER_LABELS,
   EXAM_ITEM_VERIFICATION_LABELS,
   EXAM_STATUS_LABELS,
@@ -13,11 +14,14 @@ import {
   GD_CITIES,
   itemAppliesToGender,
   itemSupportsAutoScore,
+  listGuangdongCityCoverage,
   OFFICIAL_SCORE_UNAVAILABLE,
   OFFICIAL_SCORE_UNSUPPORTED,
   parseExamPerformanceInput,
   SCORE_MODE_LABELS,
+  standardAllowsOfficialConvert,
   verifiedStandardsForCity,
+  type CityCoverageStatus,
   type ExamGender,
   type ExamItemDefinition,
   type ExamStandard,
@@ -60,6 +64,55 @@ function scoreModeDisplay(item: ExamItemDefinition, examType: ExamType): string 
   return SCORE_MODE_LABELS[item.scoreRule.scoreMode]
 }
 
+const CONVERT_TABLE_HINT = '该城市/年度评分表尚未完整核验，暂不支持自动换算。'
+const QUICK_CITY_SLUGS = ['guangzhou', 'shenzhen', 'dongguan', 'jiangmen', 'zhanjiang', 'zhongshan'] as const
+
+type CoverageGroup = 'verified' | 'partial' | 'unverified'
+
+function coverageGroup(coverage: CityCoverageStatus): CoverageGroup {
+  if (coverage === 'verified') {
+    return 'verified'
+  }
+  if (coverage === 'partial' || coverage === 'scheme_verified') {
+    return 'partial'
+  }
+  return 'unverified'
+}
+
+function coverageChipLabel(coverage: CityCoverageStatus): string {
+  return CITY_COVERAGE_LABELS[coverage]
+}
+
+function ruleStatusShort(standard: ExamStandard): string {
+  if (standard.ruleStatus === 'verified') {
+    return '已核验'
+  }
+  if (standard.ruleStatus === 'partial') {
+    return '部分核验'
+  }
+  return '草稿'
+}
+
+function scoreTableStatusShort(standard: ExamStandard): string {
+  if (standard.scoreTableStatus === 'verified') {
+    return '已核验'
+  }
+  if (standard.scoreTableStatus === 'partial') {
+    return '部分核验'
+  }
+  return '待完整核验'
+}
+
+function statusToneClass(kind: 'ok' | 'partial' | 'muted'): string {
+  if (kind === 'ok') {
+    return 'exam-status-text exam-status-text--ok'
+  }
+  if (kind === 'partial') {
+    return 'exam-status-text exam-status-text--partial'
+  }
+  return 'exam-status-text exam-status-text--muted'
+}
+
 function templateGenderLabel(gender: StudentGender): string {
   if (gender === 'male') {
     return '男'
@@ -79,7 +132,10 @@ export default function ExamStandardsPage(): React.JSX.Element {
   const [templateBusy, setTemplateBusy] = useState(false)
   const [templateMessage, setTemplateMessage] = useState<string | null>(null)
   const [examType, setExamType] = useState<ExamType>('middle_school_exam')
-  const [citySlug, setCitySlug] = useState(GD_CITIES[0].citySlug)
+  const [citySlug, setCitySlug] = useState('foshan')
+  const [coverageGroups, setCoverageGroups] = useState<CoverageGroup[]>(['verified', 'partial'])
+  const [cityQuery, setCityQuery] = useState('')
+  const [showAllCoverage, setShowAllCoverage] = useState(false)
   const [standardId, setStandardId] = useState('')
   const [gender, setGender] = useState<Exclude<ExamGender, 'all'>>('male')
   const [itemId, setItemId] = useState('')
@@ -99,7 +155,38 @@ export default function ExamStandardsPage(): React.JSX.Element {
     [examType, citySlug, cityStandards, standards]
   )
 
+  const coverageRows = useMemo(() => listGuangdongCityCoverage(standards), [standards])
+  const highlightedCoverage = useMemo(
+    () => coverageRows.filter((row) => coverageGroups.includes(coverageGroup(row.coverage))),
+    [coverageGroups, coverageRows]
+  )
+  const cityOptions = useMemo(() => {
+    const query = cityQuery.trim()
+    const filtered =
+      query === ''
+        ? GD_CITIES
+        : GD_CITIES.filter(
+            (city) => city.cityName.includes(query) || city.citySlug.includes(query.toLowerCase())
+          )
+    if (filtered.some((city) => city.citySlug === citySlug)) {
+      return filtered
+    }
+    const current = GD_CITIES.find((city) => city.citySlug === citySlug)
+    return current ? [current, ...filtered] : filtered
+  }, [cityQuery, citySlug])
+  const allCoverageSelected = coverageGroups.length === 3
+  const selectedCityName = GD_CITIES.find((city) => city.citySlug === citySlug)?.cityName ?? citySlug
+
+  function selectCity(nextSlug: string): void {
+    setCitySlug(nextSlug)
+    setStandardId('')
+    setItemId('')
+    setConvertResult(null)
+    setConvertError(null)
+  }
+
   const selectedStandard = cityStandards.find((item) => item.id === standardId) ?? cityStandards[0] ?? null
+  const officialConvertAllowed = selectedStandard ? standardAllowsOfficialConvert(selectedStandard) : false
 
   const visibleItems = selectedStandard
     ? selectedStandard.items.filter((item) => itemAppliesToGender(item, gender))
@@ -124,9 +211,17 @@ export default function ExamStandardsPage(): React.JSX.Element {
     }
   }
 
+  function officialConvertBlockMessage(standard: ExamStandard): string {
+    return standard.scoreTableStatus !== 'verified' ? CONVERT_TABLE_HINT : '当前标准未完整核验，不能生成用于正式换算的成绩模板。'
+  }
+
   function handleDownloadBlankTemplate(): void {
     if (!selectedStandard) {
       setTemplateMessage('请先选择地区、年份和考试类型')
+      return
+    }
+    if (!standardAllowsOfficialConvert(selectedStandard)) {
+      setTemplateMessage(officialConvertBlockMessage(selectedStandard))
       return
     }
     void saveTemplate(
@@ -140,6 +235,10 @@ export default function ExamStandardsPage(): React.JSX.Element {
   function handleDownloadClassTemplate(): void {
     if (!selectedStandard) {
       setTemplateMessage('请先选择地区、年份和考试类型')
+      return
+    }
+    if (!standardAllowsOfficialConvert(selectedStandard)) {
+      setTemplateMessage(officialConvertBlockMessage(selectedStandard))
       return
     }
     const selectedClass = classes.find((item) => item.id === templateClassId)
@@ -166,8 +265,12 @@ export default function ExamStandardsPage(): React.JSX.Element {
   function handleConvert(): void {
     setConvertError(null)
     setConvertResult(null)
-    if (!selectedStandard || selectedStandard.status !== 'verified' || !selectedItem) {
+    if (!selectedStandard || !selectedItem) {
       setConvertError(OFFICIAL_SCORE_UNAVAILABLE)
+      return
+    }
+    if (!standardAllowsOfficialConvert(selectedStandard)) {
+      setConvertError(CONVERT_TABLE_HINT)
       return
     }
     if (selectedItem.scoreRule.kind === 'unsupported') {
@@ -207,11 +310,21 @@ export default function ExamStandardsPage(): React.JSX.Element {
       <PageHeader
         icon="exams"
         title="评分标准"
-        description="查阅各地市体育中考与体育类专业省统考官方评分标准。正式换算只使用已核验数据，不会猜测分数。"
+        description="按城市 + 年份/适用届别 + 官方来源查阅体育中考评分标准。广东各地级市规则不同，不是省统一标准。正式换算只使用已核验且评分表完整的版本。"
         actions={
-          <button type="button" className="btn btn-primary" onClick={() => setBatchMode(true)}>
-            批量成绩换算
-          </button>
+          <div className="exam-header-actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setBatchMode(true)}
+              disabled={!officialConvertAllowed}
+            >
+              批量成绩换算
+            </button>
+            {selectedStandard && !officialConvertAllowed ? (
+              <span className="exam-convert-hint">{CONVERT_TABLE_HINT}</span>
+            ) : null}
+          </div>
         }
       />
       <div className="exam-tabs" role="tablist">
@@ -245,104 +358,304 @@ export default function ExamStandardsPage(): React.JSX.Element {
 
       {examType === 'middle_school_exam' ? (
         <p className="exam-notes">
-          路径：城市 → 年份/政策版本 → 中考体育。当前已核验中考标准{' '}
-          {standards.filter((item) => item.examType === 'middle_school_exam' && item.status === 'verified').length} 份。
+          路径：城市 → 年份/政策版本 → 中考体育。不会用较新年份自动覆盖历史版本。当前评分表已核验、可自动换算的中考标准{' '}
+          {standards.filter((item) => item.examType === 'middle_school_exam' && standardAllowsOfficialConvert(item)).length}{' '}
+          份；考试方案已核验但评分表未完整{' '}
+          {standards.filter(
+            (item) =>
+              item.examType === 'middle_school_exam' &&
+              item.ruleStatus === 'verified' &&
+              item.scoreTableStatus !== 'verified'
+          ).length}{' '}
+          份；部分核验{' '}
+          {standards.filter((item) => item.examType === 'middle_school_exam' && item.status === 'partial').length} 份。考试方案已核验不等于可以自动换算。
         </p>
       ) : (
         <p className="exam-notes">路径：体育高考 → 广东省 → 2026。基本素质①、基本素质②、专项基础按官方组合列出。</p>
       )}
 
       {examType === 'middle_school_exam' ? (
-        <div className="toolbar exam-picker">
-          <label className="toolbar-field">
-            城市
-            <select
-              value={citySlug}
-              onChange={(event) => {
-                setCitySlug(event.target.value)
-                setStandardId('')
-                setItemId('')
-                setConvertResult(null)
-                setConvertError(null)
-              }}
-            >
-              {GD_CITIES.map((city) => (
-                <option key={city.citySlug} value={city.citySlug}>
+        <div className="exam-coverage">
+          <div className="exam-coverage-head">
+            <h3>城市覆盖状态</h3>
+            <div className="exam-filter-tabs" role="group" aria-label="核验状态筛选">
+              <button
+                type="button"
+                className={allCoverageSelected ? 'exam-filter-tab is-active' : 'exam-filter-tab'}
+                onClick={() => setCoverageGroups(['verified', 'partial', 'unverified'])}
+              >
+                全部
+              </button>
+              <button
+                type="button"
+                className={coverageGroups.includes('verified') ? 'exam-filter-tab is-active' : 'exam-filter-tab'}
+                onClick={() => setCoverageGroups(['verified'])}
+              >
+                已核验
+              </button>
+              <button
+                type="button"
+                className={coverageGroups.includes('partial') ? 'exam-filter-tab is-active' : 'exam-filter-tab'}
+                onClick={() => setCoverageGroups(['partial'])}
+              >
+                部分核验
+              </button>
+              <button
+                type="button"
+                className={coverageGroups.includes('unverified') ? 'exam-filter-tab is-active' : 'exam-filter-tab'}
+                onClick={() => setCoverageGroups(['unverified'])}
+              >
+                未核验
+              </button>
+            </div>
+          </div>
+          <p className="exam-notes">默认只突出已核验与部分核验城市。21 市覆盖数据仍保留，可展开查看。</p>
+          <div className="exam-coverage-chips">
+            {highlightedCoverage.map((row) => (
+              <button
+                key={row.city.citySlug}
+                type="button"
+                className={`exam-coverage-chip exam-coverage-chip--${coverageGroup(row.coverage)}${
+                  citySlug === row.city.citySlug ? ' is-active' : ''
+                }`}
+                onClick={() => selectCity(row.city.citySlug)}
+              >
+                <span>{row.city.cityName}</span>
+                <span className="exam-coverage-chip-label">{coverageChipLabel(row.coverage)}</span>
+              </button>
+            ))}
+          </div>
+          <button type="button" className="btn exam-coverage-toggle" onClick={() => setShowAllCoverage((open) => !open)}>
+            {showAllCoverage ? '收起全部城市覆盖' : '查看全部城市覆盖'}
+          </button>
+          {showAllCoverage ? (
+            <div className="exam-coverage-all">
+              {coverageRows.map((row) => (
+                <button
+                  key={`all-${row.city.citySlug}`}
+                  type="button"
+                  className={`exam-coverage-row exam-coverage-row--${coverageGroup(row.coverage)}${
+                    citySlug === row.city.citySlug ? ' is-active' : ''
+                  }`}
+                  onClick={() => selectCity(row.city.citySlug)}
+                >
+                  <span>{row.city.cityName}</span>
+                  <span>{row.coverageLabel}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {examType === 'middle_school_exam' ? (
+        <div className="exam-summary">
+          <div className="exam-summary-controls">
+            <label className="toolbar-field">
+              搜索城市
+              <input
+                value={cityQuery}
+                onChange={(event) => {
+                  const next = event.target.value
+                  setCityQuery(next)
+                  const matched = GD_CITIES.find((city) => city.cityName === next.trim())
+                  if (matched) {
+                    selectCity(matched.citySlug)
+                  }
+                }}
+                placeholder="输入广州、深圳、东莞、江门、湛江、中山…"
+                list="exam-city-search"
+              />
+              <datalist id="exam-city-search">
+                {GD_CITIES.map((city) => (
+                  <option key={city.citySlug} value={city.cityName} />
+                ))}
+              </datalist>
+            </label>
+            <label className="toolbar-field">
+              城市
+              <select value={citySlug} onChange={(event) => selectCity(event.target.value)}>
+                {cityOptions.map((city) => (
+                  <option key={city.citySlug} value={city.citySlug}>
+                    {city.cityName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="toolbar-field">
+              规则版本
+              <select
+                value={selectedStandard?.id ?? ''}
+                onChange={(event) => {
+                  setStandardId(event.target.value)
+                  setItemId('')
+                  setConvertResult(null)
+                }}
+                disabled={cityStandards.length === 0}
+              >
+                {cityStandards.length === 0 ? <option value="">暂无版本</option> : null}
+                {cityStandards.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.schemeLabel || item.policyLabel}
+                    {item.scoreYear ? ` · ${item.scoreYear}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="toolbar-field">
+              性别
+              <select
+                value={gender}
+                onChange={(event) => {
+                  setGender(event.target.value as Exclude<ExamGender, 'all'>)
+                  setItemId('')
+                  setConvertResult(null)
+                }}
+              >
+                <option value="male">{EXAM_GENDER_LABELS.male}</option>
+                <option value="female">{EXAM_GENDER_LABELS.female}</option>
+              </select>
+            </label>
+          </div>
+          <div className="exam-quick-cities">
+            {QUICK_CITY_SLUGS.map((slug) => {
+              const city = GD_CITIES.find((item) => item.citySlug === slug)
+              if (!city) {
+                return null
+              }
+              return (
+                <button
+                  key={slug}
+                  type="button"
+                  className={citySlug === slug ? 'exam-quick-city is-active' : 'exam-quick-city'}
+                  onClick={() => selectCity(slug)}
+                >
                   {city.cityName}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="toolbar-field">
-            年份 / 政策版本
-            <select
-              value={selectedStandard?.id ?? ''}
-              onChange={(event) => {
-                setStandardId(event.target.value)
-                setItemId('')
-                setConvertResult(null)
-              }}
-              disabled={cityStandards.length === 0}
-            >
-              {cityStandards.length === 0 ? <option value="">暂无版本</option> : null}
-              {cityStandards.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.policyLabel}（{EXAM_STATUS_LABELS[item.status]}）
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="toolbar-field">
-            性别
-            <select
-              value={gender}
-              onChange={(event) => {
-                setGender(event.target.value as Exclude<ExamGender, 'all'>)
-                setItemId('')
-                setConvertResult(null)
-              }}
-            >
-              <option value="male">{EXAM_GENDER_LABELS.male}</option>
-              <option value="female">{EXAM_GENDER_LABELS.female}</option>
-            </select>
-          </label>
+                </button>
+              )
+            })}
+          </div>
+          {selectedStandard ? (
+            <dl className="exam-summary-bar">
+              <div>
+                <dt>城市</dt>
+                <dd>{selectedCityName}</dd>
+              </div>
+              <div>
+                <dt>规则版本</dt>
+                <dd>{selectedStandard.schemeLabel || selectedStandard.policyLabel}</dd>
+              </div>
+              <div>
+                <dt>适用年份</dt>
+                <dd>{selectedStandard.scoreYear ?? formatYearRange(selectedStandard)}</dd>
+              </div>
+              <div>
+                <dt>性别</dt>
+                <dd>{EXAM_GENDER_LABELS[gender]}</dd>
+              </div>
+              <div>
+                <dt>考试方案</dt>
+                <dd className={statusToneClass(selectedStandard.ruleStatus === 'verified' ? 'ok' : 'muted')}>
+                  {ruleStatusShort(selectedStandard)}
+                </dd>
+              </div>
+              <div>
+                <dt>{selectedStandard.scoreYear ? `${selectedStandard.scoreYear}评分表` : '评分表'}</dt>
+                <dd
+                  className={statusToneClass(
+                    selectedStandard.scoreTableStatus === 'verified'
+                      ? 'ok'
+                      : selectedStandard.scoreTableStatus === 'partial'
+                        ? 'partial'
+                        : 'muted'
+                  )}
+                >
+                  {scoreTableStatusShort(selectedStandard)}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="exam-notes">当前城市尚未录入已核验标准，不会生成猜测分数。</p>
+          )}
         </div>
       ) : (
-        <div className="toolbar exam-picker">
-          <label className="toolbar-field">
-            地区
-            <select disabled>
-              <option>广东省</option>
-            </select>
-          </label>
-          <label className="toolbar-field">
-            年份 / 版本
-            <select
-              value={selectedStandard?.id ?? ''}
-              onChange={(event) => setStandardId(event.target.value)}
-              disabled={cityStandards.length === 0}
-            >
-              {cityStandards.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.policyLabel}（{EXAM_STATUS_LABELS[item.status]}）
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="toolbar-field">
-            性别
-            <select
-              value={gender}
-              onChange={(event) => {
-                setGender(event.target.value as Exclude<ExamGender, 'all'>)
-                setItemId('')
-                setConvertResult(null)
-              }}
-            >
-              <option value="male">{EXAM_GENDER_LABELS.male}</option>
-              <option value="female">{EXAM_GENDER_LABELS.female}</option>
-            </select>
-          </label>
+        <div className="exam-summary">
+          <div className="exam-summary-controls">
+            <label className="toolbar-field">
+              地区
+              <select disabled>
+                <option>广东省</option>
+              </select>
+            </label>
+            <label className="toolbar-field">
+              规则版本
+              <select
+                value={selectedStandard?.id ?? ''}
+                onChange={(event) => setStandardId(event.target.value)}
+                disabled={cityStandards.length === 0}
+              >
+                {cityStandards.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.policyLabel}（{EXAM_STATUS_LABELS[item.status]}）
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="toolbar-field">
+              性别
+              <select
+                value={gender}
+                onChange={(event) => {
+                  setGender(event.target.value as Exclude<ExamGender, 'all'>)
+                  setItemId('')
+                  setConvertResult(null)
+                }}
+              >
+                <option value="male">{EXAM_GENDER_LABELS.male}</option>
+                <option value="female">{EXAM_GENDER_LABELS.female}</option>
+              </select>
+            </label>
+          </div>
+          {selectedStandard ? (
+            <dl className="exam-summary-bar">
+              <div>
+                <dt>地区</dt>
+                <dd>广东省</dd>
+              </div>
+              <div>
+                <dt>规则版本</dt>
+                <dd>{selectedStandard.schemeLabel || selectedStandard.policyLabel}</dd>
+              </div>
+              <div>
+                <dt>适用年份</dt>
+                <dd>{selectedStandard.scoreYear ?? formatYearRange(selectedStandard)}</dd>
+              </div>
+              <div>
+                <dt>性别</dt>
+                <dd>{EXAM_GENDER_LABELS[gender]}</dd>
+              </div>
+              <div>
+                <dt>考试方案</dt>
+                <dd className={statusToneClass(selectedStandard.ruleStatus === 'verified' ? 'ok' : 'muted')}>
+                  {ruleStatusShort(selectedStandard)}
+                </dd>
+              </div>
+              <div>
+                <dt>评分表</dt>
+                <dd
+                  className={statusToneClass(
+                    selectedStandard.scoreTableStatus === 'verified'
+                      ? 'ok'
+                      : selectedStandard.scoreTableStatus === 'partial'
+                        ? 'partial'
+                        : 'muted'
+                  )}
+                >
+                  {scoreTableStatusShort(selectedStandard)}
+                </dd>
+              </div>
+            </dl>
+          ) : null}
         </div>
       )}
 
@@ -362,15 +675,18 @@ export default function ExamStandardsPage(): React.JSX.Element {
         ) : (
           <p className="exam-notes">请先选择地区、年份和考试类型后再下载模板。</p>
         )}
+        {selectedStandard && !officialConvertAllowed ? (
+          <p className="page-error">{CONVERT_TABLE_HINT}</p>
+        ) : null}
         <div className="toolbar">
-          <button type="button" className="btn" onClick={() => setBatchMode(true)}>
+          <button type="button" className="btn" onClick={() => setBatchMode(true)} disabled={!officialConvertAllowed}>
             进入批量工作区
           </button>
           <button
             type="button"
             className="btn"
             onClick={handleDownloadBlankTemplate}
-            disabled={templateBusy || !selectedStandard}
+            disabled={templateBusy || !selectedStandard || !officialConvertAllowed}
           >
             下载空白模板
           </button>
@@ -389,7 +705,7 @@ export default function ExamStandardsPage(): React.JSX.Element {
             type="button"
             className="btn"
             onClick={handleDownloadClassTemplate}
-            disabled={templateBusy || !selectedStandard || templateClassId === ''}
+            disabled={templateBusy || !selectedStandard || !officialConvertAllowed || templateClassId === ''}
           >
             按班级生成模板
           </button>
@@ -408,36 +724,43 @@ export default function ExamStandardsPage(): React.JSX.Element {
       {selectedStandard ? (
         <div className="exam-detail">
           <h3>{selectedStandard.title}</h3>
-          <p className={selectedStandard.status === 'verified' ? 'exam-status exam-status--verified' : 'exam-status exam-status--draft'}>
-            <StatusBadge tone={selectedStandard.status === 'verified' ? 'ok' : 'warn'}>
-              {EXAM_STATUS_LABELS[selectedStandard.status]}
-            </StatusBadge>
-            {selectedStandard.status !== 'verified' ? ' 不可用于正式换算' : ' 已核验'}
-          </p>
           <dl className="exam-meta">
             <div>
-              <dt>适用年份</dt>
-              <dd>{formatYearRange(selectedStandard)}</dd>
+              <dt>考生类别</dt>
+              <dd>{selectedStandard.applicableGroups.map((group) => EXAM_CANDIDATE_GROUP_LABELS[group]).join('、')}</dd>
             </div>
             <div>
-              <dt>发布机关</dt>
+              <dt>入学届别</dt>
+              <dd>{selectedStandard.enrollmentCohort || '未区分'}</dd>
+            </div>
+            <div>
+              <dt>发布单位</dt>
               <dd>{selectedStandard.sourceAuthority || '尚未录入'}</dd>
+            </div>
+            <div>
+              <dt>文件名称</dt>
+              <dd>{selectedStandard.sourceTitle || '尚未录入'}</dd>
+            </div>
+            <div>
+              <dt>发布日期</dt>
+              <dd>{selectedStandard.publishedAt || '尚未录入'}</dd>
             </div>
             <div>
               <dt>官方来源</dt>
               <dd>
-                {selectedStandard.sourceTitle || '尚未录入'}
+                {selectedStandard.sourceUrl ? (
+                  <a className="btn" href={selectedStandard.sourceUrl} target="_blank" rel="noreferrer">
+                    查看官方文件
+                  </a>
+                ) : (
+                  '无来源链接，不能标记为已核验'
+                )}
                 {selectedStandard.sourceUrl ? (
                   <>
                     <br />
                     <span className="exam-source-url">{selectedStandard.sourceUrl}</span>
                   </>
-                ) : (
-                  <>
-                    <br />
-                    无来源链接，不能标记为已核验
-                  </>
-                )}
+                ) : null}
               </dd>
             </div>
             <div>
@@ -453,6 +776,7 @@ export default function ExamStandardsPage(): React.JSX.Element {
               </dd>
             </div>
           </dl>
+          {selectedStandard.calculationNotes ? <p className="exam-notes">{selectedStandard.calculationNotes}</p> : null}
           {selectedStandard.notes ? <p className="exam-notes">{selectedStandard.notes}</p> : null}
 
           {selectedStandard.components.length > 0 ? (
@@ -587,7 +911,8 @@ export default function ExamStandardsPage(): React.JSX.Element {
 
       <div className="exam-converter">
         <h3>成绩换算器</h3>
-        <p className="exam-notes">正式换算只使用已核验标准。时间成绩可输入 3:45、3'45 或总秒数。</p>
+        <p className="exam-notes">正式换算只使用已核验且评分表完整的标准。部分核验版本禁止完整自动换算。时间成绩可输入 3:45、3'45 或总秒数。</p>
+        {selectedStandard && !officialConvertAllowed ? <p className="page-error">{CONVERT_TABLE_HINT}</p> : null}
         <div className="toolbar">
           <label className="toolbar-field">
             项目
@@ -614,10 +939,10 @@ export default function ExamStandardsPage(): React.JSX.Element {
               value={scoreInput}
               onChange={(event) => setScoreInput(event.target.value)}
               placeholder="例如 3:45"
-              disabled={!canAutoScore}
+              disabled={!canAutoScore || !officialConvertAllowed}
             />
           </label>
-          <button type="button" className="btn btn-primary" onClick={handleConvert} disabled={!selectedItem}>
+          <button type="button" className="btn btn-primary" onClick={handleConvert} disabled={!selectedItem || !officialConvertAllowed}>
             换算
           </button>
         </div>

@@ -27,7 +27,7 @@ import SettingsPage from './pages/SettingsPage'
 import type { PeSessionPrefill } from '@shared/peSession'
 
 export default function App(): React.JSX.Element {
-  const [activeKey, setActiveKey] = useState<NavKey>('students')
+  const [activeKey, setActiveKey] = useState<NavKey>('exams')
   const [pePrefill, setPePrefill] = useState<PeSessionPrefill | null>(null)
   const [openTestSessionId, setOpenTestSessionId] = useState<string | null>(null)
   const [studentClassId, setStudentClassId] = useState<string | null>(null)
