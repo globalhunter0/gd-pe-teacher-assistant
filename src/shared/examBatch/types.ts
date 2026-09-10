@@ -14,6 +14,9 @@ export type ExamBatchRowStatus =
   | 'no_score_table'
   | 'ambiguous_item'
   | 'header_used_as_value'
+  | 'needs_review'
+  | 'not_applicable'
+  | 'non_score_record'
 
 export const EXAM_BATCH_STATUS_LABELS: Record<ExamBatchRowStatus, string> = {
   success: '成功',
@@ -25,7 +28,10 @@ export const EXAM_BATCH_STATUS_LABELS: Record<ExamBatchRowStatus, string> = {
   no_verified_standard: '无已核验标准',
   no_score_table: '无可用换算表',
   ambiguous_item: '项目匹配不唯一',
-  header_used_as_value: '成绩列取到了表头'
+  header_used_as_value: '成绩列取到了表头',
+  needs_review: '待检查',
+  not_applicable: '不适用',
+  non_score_record: '未参与评分'
 }
 
 export type MappingConfidence = 'high' | 'medium' | 'none'
@@ -78,6 +84,7 @@ export interface BatchAssessmentRow {
   examStandardId: string
   examItemId: string | null
   examItemName: string
+  sourceColumn?: number
   rawValueOriginal: string
   rawValueNormalized: string | null
   rawValueParsed: number | null
@@ -132,4 +139,12 @@ export interface ExamExportPayload {
   layout: ExamBatchLayout
   rows: BatchAssessmentRow[]
   standard: Pick<ExamStandard, 'id' | 'title'>
+  mode?: 'legacy' | 'singleItem' | 'workbook'
+  snapshot?: ExamSheetSnapshot
+  itemName?: string
+  itemColumns?: Array<{ index: number; header: string }>
+  cityName?: string
+  versionLabel?: string
+  credibility?: string
+  scoreColumnIndexes?: number[]
 }
