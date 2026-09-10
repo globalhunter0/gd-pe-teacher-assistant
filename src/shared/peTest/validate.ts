@@ -265,7 +265,10 @@ function parseRecord(entry: unknown, testSessionId: string): PETestRecord {
     status,
     note: typeof record.note === 'string' ? record.note.trim() : '',
     createdAt: record.createdAt,
-    updatedAt: record.updatedAt
+    updatedAt: record.updatedAt,
+    examScore: parseOptionalNumber(record.examScore, '中考换算分'),
+    rawOriginal: typeof record.rawOriginal === 'string' ? record.rawOriginal.trim() : '',
+    examItemId: typeof record.examItemId === 'string' && record.examItemId.trim() !== '' ? record.examItemId.trim() : null
   }
 }
 
@@ -354,6 +357,11 @@ export function parsePeTestSessions(input: unknown, options: ParsePeTestOptions 
       studentIds.add(item.studentId)
     }
 
+    const importSource = record.importSource
+    if (importSource !== undefined && importSource !== 'manual' && importSource !== 'exam-batch') {
+      throw new Error('测试来源不正确')
+    }
+
     const session: PETestSession = {
       id,
       classId,
@@ -372,7 +380,11 @@ export function parsePeTestSessions(input: unknown, options: ParsePeTestOptions 
       timeInputModeSnapshot,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
-      records
+      records,
+      importSource: importSource === 'exam-batch' ? 'exam-batch' : 'manual',
+      examStandardId: typeof record.examStandardId === 'string' && record.examStandardId.trim() !== '' ? record.examStandardId.trim() : null,
+      scoringCitySnapshot: typeof record.scoringCitySnapshot === 'string' ? record.scoringCitySnapshot.trim() : '',
+      scoringVersionSnapshot: typeof record.scoringVersionSnapshot === 'string' ? record.scoringVersionSnapshot.trim() : ''
     }
 
     return session

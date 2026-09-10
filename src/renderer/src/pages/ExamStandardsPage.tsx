@@ -123,7 +123,11 @@ function templateGenderLabel(gender: StudentGender): string {
   return ''
 }
 
-export default function ExamStandardsPage(): React.JSX.Element {
+export default function ExamStandardsPage({
+  onGoToTests
+}: {
+  onGoToTests?: (classId: string) => void
+} = {}): React.JSX.Element {
   const standards = BUILTIN_EXAM_STANDARDS
   const { classes } = useClasses()
   const { students } = useStudents()
@@ -305,6 +309,7 @@ export default function ExamStandardsPage(): React.JSX.Element {
     return (
       <ExamBatchPage
         onBack={() => setBatchMode(false)}
+        onGoToTests={onGoToTests}
         initialCitySlug={examType === 'middle_school_exam' ? citySlug : ''}
         initialStandardId={selectedStandard?.id ?? ''}
         initialItemId={selectedItem?.id ?? ''}

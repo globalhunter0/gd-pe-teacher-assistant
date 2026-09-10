@@ -108,7 +108,11 @@ const electronAPI = {
   },
   peTests: {
     get: (): Promise<PETestSession[]> => ipcRenderer.invoke('peTests:get'),
-    save: (items: PETestSession[]): Promise<PETestSession[]> => ipcRenderer.invoke('peTests:save', items)
+    save: (items: PETestSession[]): Promise<PETestSession[]> => ipcRenderer.invoke('peTests:save', items),
+    importExamBatch: (
+      payload: import('../shared/examBatch/peTestImport/types').ImportExamBatchToPeTestsPayload
+    ): Promise<import('../shared/examBatch/peTestImport/types').ExamBatchPeTestImportResult> =>
+      ipcRenderer.invoke('peTests:importExamBatch', payload)
   },
   teachingPlans: {
     get: (): Promise<TeachingPlan[]> => ipcRenderer.invoke('teachingPlans:get'),
