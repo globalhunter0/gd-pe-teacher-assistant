@@ -4,6 +4,7 @@ import { readFile, stat, writeFile } from 'node:fs/promises'
 import { basename, extname } from 'node:path'
 import * as XLSX from 'xlsx'
 import { buildExamExportSheets, defaultExportFileName } from '../shared/examBatch/exportSheets'
+import { buildWorkbookExportSheets, singleItemExportFileName } from '../shared/examBatch/singleItem'
 import { worksheetRowsToSnapshot } from '../shared/examBatch/readSheet'
 import type {
   ExamExportPayload,
@@ -130,21 +131,89 @@ export async function loadExamSheet(sessionId: unknown, sheetName: unknown): Pro
 }
 
 export async function exportExamWorkbook(payload: ExamExportPayload): Promise<ExamExportResult> {
-  const sheets = buildExamExportSheets(payload.rows, payload.meta, payload.layout)
+  const sheets =
+    payload.snapshot && (payload.mode === 'singleItem' || payload.mode === 'workbook')
+      ? buildWorkbookExportSheets(
+          payload.snapshot,
+          payload.rows,
+          {
+            mapping: { layout: 'wide', columns: [] },
+            itemColumns: (payload.scoreColumnIndexes ?? []).map((index) => ({
+              columnIndex: index,
+              originalHeader: payload.snapshot?.columns[index]?.title ?? '',
+              matchedItemId: null,
+              matchedItemKey: null,
+              matchedItemName: '',
+              confidence: 'high',
+              matchType: 'exact',
+              genderScope: 'all',
+              unit: '',
+              autoScoreSupported: true,
+              scoreTableStatus: 'verified',
+              reason: '',
+              candidates: [],
+              maleItemId: null,
+              femaleItemId: null
+            })),
+            ignoredColumns: [],
+            genericRawIndexes: [],
+            projectGroups: (payload.scoreColumnIndexes ?? []).map((index) => ({
+              mappingId: `pnull-r${index}`,
+              projectColumnIndex: null,
+              resultColumnIndex: index,
+              mixedLabels: false,
+              detected: {
+                columnIndex: index,
+                originalHeader: payload.snapshot?.columns[index]?.title ?? '',
+                matchedItemId: null,
+                matchedItemKey: null,
+                matchedItemName: '',
+                confidence: 'high',
+                matchType: 'exact',
+                genderScope: 'all',
+                unit: '',
+                autoScoreSupported: true,
+                scoreTableStatus: 'verified',
+                reason: '',
+                candidates: [],
+                maleItemId: null,
+                femaleItemId: null
+              }
+            })),
+            issues: [],
+            identityReady: true,
+            autoReady: true
+          },
+          {
+            ...payload.meta,
+            cityName: payload.cityName ?? payload.meta.regionName,
+            versionLabel: payload.versionLabel ?? payload.meta.policyLabel,
+            credibility: payload.credibility ?? payload.meta.statusLabel
+          }
+        )
+      : buildExamExportSheets(payload.rows, payload.meta, payload.layout)
   const workbook = XLSX.utils.book_new()
   for (const sheet of sheets) {
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sheet.rows), sheet.name)
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sheet.rows), sheet.name.slice(0, 31))
   }
+
+  const defaultName =
+    (payload.mode === 'singleItem' || payload.mode === 'workbook') && payload.meta.fileBaseName
+      ? singleItemExportFileName(payload.meta.fileBaseName)
+      : defaultExportFileName(payload.meta)
 
   const owner = getMainWindow()
   const options = {
-    title: '导出成绩换算结果',
-    defaultPath: defaultExportFileName(payload.meta),
+    title: '导出评分结果',
+    defaultPath: defaultName,
     filters: [{ name: 'Excel 文件', extensions: ['xlsx'] }]
   }
   const saved = owner ? await dialog.showSaveDialog(owner, options) : await dialog.showSaveDialog(options)
   if (saved.canceled || !saved.filePath) {
     return { canceled: true }
+  }
+  if (session && saved.filePath === session.filePath) {
+    throw new Error('不能覆盖原 Excel，请另存为新文件')
   }
 
   const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer

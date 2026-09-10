@@ -302,7 +302,14 @@ export default function ExamStandardsPage(): React.JSX.Element {
   }
 
   if (batchMode) {
-    return <ExamBatchPage onBack={() => setBatchMode(false)} />
+    return (
+      <ExamBatchPage
+        onBack={() => setBatchMode(false)}
+        initialCitySlug={examType === 'middle_school_exam' ? citySlug : ''}
+        initialStandardId={selectedStandard?.id ?? ''}
+        initialItemId={selectedItem?.id ?? ''}
+      />
+    )
   }
 
   return (
@@ -317,7 +324,7 @@ export default function ExamStandardsPage(): React.JSX.Element {
               type="button"
               className="btn btn-primary"
               onClick={() => setBatchMode(true)}
-              disabled={!officialConvertAllowed}
+              disabled={false}
             >
               批量成绩换算
             </button>
@@ -679,8 +686,8 @@ export default function ExamStandardsPage(): React.JSX.Element {
           <p className="page-error">{CONVERT_TABLE_HINT}</p>
         ) : null}
         <div className="toolbar">
-          <button type="button" className="btn" onClick={() => setBatchMode(true)} disabled={!officialConvertAllowed}>
-            进入批量工作区
+          <button type="button" className="btn" onClick={() => setBatchMode(true)}>
+            批量成绩换算
           </button>
           <button
             type="button"

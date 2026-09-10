@@ -1,5 +1,5 @@
 import type { BatchAssessmentRow, ExamBatchLayout, ExamExportMeta } from './types'
-import { EXAM_BATCH_STATUS_LABELS } from './types'
+import { displayBatchStatus } from './workbook'
 
 export interface ExportSheet {
   name: string
@@ -21,7 +21,7 @@ function detailRow(row: BatchAssessmentRow): Array<string | number> {
     row.rawValueOriginal,
     row.rawValueNormalized ?? '',
     row.score ?? '',
-    EXAM_BATCH_STATUS_LABELS[row.status],
+    displayBatchStatus(row),
     row.message
   ]
 }

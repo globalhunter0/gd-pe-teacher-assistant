@@ -16,11 +16,46 @@ export type {
 } from './types'
 export { EXAM_BATCH_STATUS_LABELS } from './types'
 export { convertExamBatch, buildBatchAssessmentRows } from './convert'
+export {
+  AUTO_SCORE_CREDIBILITY,
+  MISSING_TABLE_HINT,
+  NO_AUTO_SCORE_CREDIBILITY,
+  buildSingleItemExportSheets,
+  buildWorkbookExportSheets,
+  convertSingleItemExamBatch,
+  convertWorkbookExamBatch,
+  detectSingleItemColumns,
+  detectWorkbookColumns,
+  displayBatchStatus,
+  formatNormalizedResult,
+  itemAutoScoreLabel,
+  singleItemExportFileName,
+  singleItemPreviewSummary
+} from './singleItem'
+export {
+  detectExamItemColumn,
+  columnAutoConfirmed,
+  columnNeedsConfirmation,
+  isGenericRawHeader,
+  isIgnoredExamHeader
+} from './detectExamItemColumn'
+export type {
+  DetectedExamItemColumn,
+  ExamItemMatchType
+} from './detectExamItemColumn'
+export type { WorkbookDetection, ProjectScoreGroup } from './workbook'
+export { workbookItemSummaries, workbookStudentGroups, updateProjectGroupOverride, projectGroupMappingId } from './workbook'
 export { emptyMapping, mappingFromPayload, normalizeExamColumnMapping, roleLabel, suggestColumnMapping } from './columnMapping'
 export { buildExamExportSheets, defaultExportFileName } from './exportSheets'
 export { matchExamItem, matchExamItemKey, normalizeExamLabel } from './matchExamItem'
 export { parseExamBatchGender } from './parseGender'
-export { parseExamBatchRawValue, parseBatchRawValue, expectedRawFormat } from './parseRaw'
+export {
+  parseExamBatchRawValue,
+  parseBatchRawValue,
+  expectedRawFormat,
+  detectExamNonScoreLabel,
+  nonScoreRecordMessage
+} from './parseRaw'
 export { coerceExamSnapshot, objectRowsToExcelData, snapshotRowAsObject, worksheetRowsToSnapshot } from './readSheet'
 export {
   buildExamTemplatePayload,

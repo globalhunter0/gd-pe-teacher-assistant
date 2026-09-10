@@ -126,6 +126,26 @@ export function parseBatchRawValue(value: unknown, item: ExamItemDefinition): Pa
   return fail(item, value)
 }
 
+export const EXAM_NON_SCORE_LABELS = ['缺考', '免考', '缓考', '请假', '未测试', '未测'] as const
+export type ExamNonScoreLabel = (typeof EXAM_NON_SCORE_LABELS)[number]
+
+export function detectExamNonScoreLabel(value: unknown): ExamNonScoreLabel | null {
+  const text =
+    typeof value === 'string'
+      ? value.replace(/\u3000/g, ' ').trim()
+      : value == null || value === ''
+        ? ''
+        : String(value).replace(/\u3000/g, ' ').trim()
+  if (text === '') {
+    return null
+  }
+  return EXAM_NON_SCORE_LABELS.find((label) => text === label) ?? null
+}
+
+export function nonScoreRecordMessage(label: ExamNonScoreLabel): string {
+  return `原始记录为${label}，未参与评分`
+}
+
 export function parseExamBatchRawValue(
   display: string,
   raw: unknown,

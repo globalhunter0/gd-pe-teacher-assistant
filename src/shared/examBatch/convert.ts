@@ -3,7 +3,7 @@ import type { ExamItemDefinition, ExamStandard } from '../examStandard/types'
 import { normalizeExamColumnMapping } from './columnMapping'
 import { matchExamItem } from './matchExamItem'
 import { parseExamBatchGender } from './parseGender'
-import { parseExamBatchRawValue } from './parseRaw'
+import { detectExamNonScoreLabel, nonScoreRecordMessage, parseExamBatchRawValue } from './parseRaw'
 import { coerceExamDataRow, coerceExamSnapshot } from './readSheet'
 import type {
   BatchAssessmentRow,
@@ -207,6 +207,17 @@ function scoreRow(
     return fail(withItem, 'unrecognized_gender', '该项目不适用所选性别')
   }
 
+  const nonScore = detectExamNonScoreLabel(rawValueOriginal) ?? detectExamNonScoreLabel(display) ?? detectExamNonScoreLabel(raw)
+  if (nonScore) {
+    return {
+      ...withItem,
+      rawValueOriginal: rawValueOriginal || nonScore,
+      score: null,
+      status: 'non_score_record',
+      message: nonScoreRecordMessage(nonScore)
+    }
+  }
+
   const parsed = parseExamBatchRawValue(display, raw, item)
   if (!parsed.ok) {
     return fail(withItem, 'invalid_raw_value', parsed.message)
@@ -384,6 +395,7 @@ export function convertExamBatch(
 
   const students = new Set(result.map((row) => `${row.studentNo}|${row.studentName}|${row.className}`))
   const successCount = result.filter((row) => row.status === 'success').length
+  const errorCount = result.filter((row) => row.status !== 'success' && row.status !== 'non_score_record' && row.status !== 'not_applicable').length
 
   return {
     rows: result,
@@ -391,7 +403,7 @@ export function convertExamBatch(
       studentCount: students.size,
       recordCount: result.length,
       successCount,
-      errorCount: result.length - successCount
+      errorCount
     }
   }
 }

@@ -2621,9 +2621,8 @@ textarea {
   font-size: 13px;
 }
 
-.exam-batch-steps .is-active {
-  color: var(--text-primary);
-  font-weight: 600;
+.exam-matrix-wrap {
+  overflow-x: auto;
 }
 
 .training-layout {
