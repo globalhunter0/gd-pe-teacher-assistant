@@ -9,6 +9,18 @@ export {
 } from './nav'
 export { parseQuickEntryInput } from './parse'
 export type { QuickEntryParseResult } from './parse'
+export { pushRecentEntry, recentEntryFromRecord } from './recent'
+export type { QuickEntryRecentEntry } from './recent'
+export {
+  isGroupComplete,
+  pendingStudentIds,
+  recordMatchesRosterTab,
+  recordMatchesSearch,
+  recordsInStudentScope,
+  uniqueStudentIds,
+  visibleQuickEntryRecords
+} from './roster'
+export type { QuickEntryRosterTab } from './roster'
 export {
   activeStudentsOfClass,
   findExistingPeTestsForQuickEntry,
@@ -21,3 +33,5 @@ export type { QuickEntryProgress } from './stats'
 export { resolveQuickEntryStatusShortcut } from './shortcuts'
 export type { QuickEntryStatusShortcut } from './shortcuts'
 export { convertPeTestRawToExamRaw } from './units'
+export { applyQuickEntryUndo, captureRecordState, pushUndoEntry } from './undo'
+export type { QuickEntryRecordState, QuickEntryUndoEntry } from './undo'

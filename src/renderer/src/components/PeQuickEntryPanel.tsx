@@ -7,6 +7,8 @@ import {
   TEST_RECORD_STATUS_LABELS,
   adjacentRecordId,
   applyQuickEntry,
+  applyQuickEntryUndo,
+  captureRecordState,
   countQuickEntryProgress,
   firstUnenteredRecordId,
   formatLocalDate,
@@ -16,6 +18,8 @@ import {
   sortQuickEntryRecords,
   testUnitDisplay,
   usesMinuteFormat,
+  visibleQuickEntryRecords,
+  type PETestRecord,
   type PETestSession,
   type TestItem
 } from '@shared/peTest'
@@ -26,7 +30,16 @@ import { useTestItems } from '../context/TestItemContext'
 import { buildPeTestSession } from '../data/peTest/buildSession'
 import {
   activeStudentsOfClass,
-  findExistingPeTestsForQuickEntry
+  findExistingPeTestsForQuickEntry,
+  isGroupComplete,
+  pendingStudentIds,
+  pushRecentEntry,
+  pushUndoEntry,
+  recentEntryFromRecord,
+  uniqueStudentIds,
+  type QuickEntryRecentEntry,
+  type QuickEntryRosterTab,
+  type QuickEntryUndoEntry
 } from '@shared/peTest/quickEntry'
 
 interface PeQuickEntryPanelProps {
@@ -42,6 +55,22 @@ function verifiedStandards() {
       item.status === 'verified' &&
       item.scoreTableStatus === 'verified'
   )
+}
+
+function formatRecordRaw(record: PETestRecord, testItem: TestItem | undefined, session: PETestSession): string {
+  if (record.status === 'absent') {
+    return '缺考'
+  }
+  if (record.status === 'exempt') {
+    return '免考'
+  }
+  if (record.rawValue === null) {
+    return '未测'
+  }
+  const preferMinute = testItem
+    ? usesMinuteFormat(testItem.timeInputMode, testItem.valueType)
+    : usesMinuteFormat(session.timeInputModeSnapshot, session.valueTypeSnapshot)
+  return formatRawValue(record.rawValue, session.valueTypeSnapshot, testItem?.decimalPlaces ?? 0, preferMinute)
 }
 
 export default function PeQuickEntryPanel({
@@ -64,6 +93,14 @@ export default function PeQuickEntryPanel({
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
+  const [rosterTab, setRosterTab] = useState<QuickEntryRosterTab>('pending')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [groupStudentIds, setGroupStudentIds] = useState<string[] | null>(null)
+  const [groupPickerOpen, setGroupPickerOpen] = useState(false)
+  const [pickerSelected, setPickerSelected] = useState<string[]>([])
+  const [undoStack, setUndoStack] = useState<QuickEntryUndoEntry[]>([])
+  const [recent, setRecent] = useState<QuickEntryRecentEntry[]>([])
+  const [toast, setToast] = useState<QuickEntryRecentEntry | null>(null)
 
   const [classId, setClassId] = useState(initialSession?.classId ?? listedClasses[0]?.id ?? '')
   const [testItemId, setTestItemId] = useState(initialSession?.testItemId ?? items.find((item) => item.isActive)?.id ?? '')
@@ -79,8 +116,18 @@ export default function PeQuickEntryPanel({
   const testItem: TestItem | undefined = items.find((item) => item.id === (draft?.testItemId ?? testItemId))
   const standard = verifiedStandards().find((item) => item.id === (draft?.examStandardId ?? examStandardId)) ?? null
   const records = useMemo(() => (draft ? sortQuickEntryRecords(draft.records) : []), [draft])
+  const visibleRecords = useMemo(
+    () =>
+      visibleQuickEntryRecords(records, {
+        tab: rosterTab,
+        query: searchQuery,
+        groupStudentIds
+      }),
+    [records, rosterTab, searchQuery, groupStudentIds]
+  )
   const current = records.find((item) => item.id === currentId) ?? null
   const progress = useMemo(() => countQuickEntryProgress(draft?.records ?? []), [draft])
+  const groupDone = Boolean(groupStudentIds && draft && isGroupComplete(draft.records, groupStudentIds))
 
   useEffect(() => {
     if (!current || !testItem) {
@@ -95,6 +142,14 @@ export default function PeQuickEntryPanel({
     const timer = window.setTimeout(() => inputRef.current?.focus(), 0)
     return () => window.clearTimeout(timer)
   }, [current?.id, testItem])
+
+  useEffect(() => {
+    if (!toast) {
+      return
+    }
+    const timer = window.setTimeout(() => setToast(null), 2200)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
   async function persist(next: PETestSession, nextRecordId: string | null, hint: string | null): Promise<void> {
     setWorking(true)
@@ -118,21 +173,66 @@ export default function PeQuickEntryPanel({
     if (!draft || !testItem || !currentId) {
       return
     }
+    const beforeRecord = draft.records.find((item) => item.id === currentId)
     const result = applyQuickEntry({
       session: draft,
       testItem,
       recordId: currentId,
       action,
       standard,
-      nowIso: new Date().toISOString()
+      nowIso: new Date().toISOString(),
+      scopeStudentIds: groupStudentIds
     })
     if (!result.ok) {
       setError(result.message)
       window.setTimeout(() => inputRef.current?.focus(), 0)
       return
     }
+    const afterRecord = result.session.records.find((item) => item.id === currentId)
+    if (beforeRecord && afterRecord && action.type !== 'skip') {
+      setUndoStack((stack) =>
+        pushUndoEntry(stack, {
+          sessionId: draft.id,
+          recordId: currentId,
+          studentId: beforeRecord.studentId,
+          before: captureRecordState(beforeRecord),
+          after: captureRecordState(afterRecord)
+        })
+      )
+      const recentItem = recentEntryFromRecord(afterRecord, formatRecordRaw(afterRecord, testItem, result.session))
+      setRecent((items) => pushRecentEntry(items, recentItem))
+      setToast(recentItem)
+    }
     await persist(result.session, result.nextRecordId, result.message)
   }
+
+  async function undoLast(): Promise<void> {
+    if (!draft || undoStack.length === 0) {
+      return
+    }
+    const entry = undoStack[undoStack.length - 1]
+    const restored = applyQuickEntryUndo(draft, entry, new Date().toISOString())
+    if (!restored.ok) {
+      setError(restored.message)
+      return
+    }
+    setUndoStack((stack) => stack.slice(0, -1))
+    await persist(restored.session, entry.recordId, '已撤销上一条')
+  }
+
+  useEffect(() => {
+    if (!draft) {
+      return
+    }
+    function onWindowKey(event: KeyboardEvent): void {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault()
+        void undoLast()
+      }
+    }
+    window.addEventListener('keydown', onWindowKey)
+    return () => window.removeEventListener('keydown', onWindowKey)
+  }, [draft, undoStack])
 
   async function startNew(): Promise<void> {
     const classRecord = classes.find((item) => item.id === classId)
@@ -179,7 +279,44 @@ export default function PeQuickEntryPanel({
     setError(null)
   }
 
+  function openGroupPicker(): void {
+    if (!draft) {
+      return
+    }
+    setPickerSelected(pendingStudentIds(sortQuickEntryRecords(draft.records)))
+    setGroupPickerOpen(true)
+  }
+
+  function startGroup(): void {
+    if (!draft) {
+      return
+    }
+    const ids = uniqueStudentIds(pickerSelected)
+    if (ids.length === 0) {
+      setError('请先选择本组学生')
+      return
+    }
+    setGroupStudentIds(ids)
+    setGroupPickerOpen(false)
+    setRosterTab('pending')
+    setCurrentId(firstUnenteredRecordId(draft.records, ids))
+    setError(null)
+  }
+
+  function leaveGroup(): void {
+    setGroupStudentIds(null)
+    if (draft) {
+      setCurrentId(firstUnenteredRecordId(draft.records))
+    }
+  }
+
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>): void {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+      event.preventDefault()
+      event.stopPropagation()
+      void undoLast()
+      return
+    }
     if (event.key === 'Enter') {
       event.preventDefault()
       void runAction({ type: 'score', input })
@@ -188,14 +325,14 @@ export default function PeQuickEntryPanel({
     if (event.key === 'ArrowUp') {
       event.preventDefault()
       if (draft) {
-        setCurrentId(adjacentRecordId(draft.records, currentId ?? '', -1))
+        setCurrentId(adjacentRecordId(draft.records, currentId ?? '', -1, groupStudentIds))
       }
       return
     }
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       if (draft) {
-        setCurrentId(adjacentRecordId(draft.records, currentId ?? '', 1))
+        setCurrentId(adjacentRecordId(draft.records, currentId ?? '', 1, groupStudentIds))
       }
       return
     }
@@ -213,6 +350,7 @@ export default function PeQuickEntryPanel({
 
   const unitLabel = testItem ? testUnitDisplay(testItem.unit, testItem.customUnitLabel) : ''
   const preview = testItem ? parseQuickEntryInput(input, testItem) : null
+  const progressPercent = progress.total === 0 ? 0 : Math.round((progress.recorded / progress.total) * 100)
 
   if (!draft) {
     return (
@@ -311,11 +449,7 @@ export default function PeQuickEntryPanel({
           <dd>{draft.date}</dd>
         </div>
         <div>
-          <dt>总人数</dt>
-          <dd>{progress.total}</dd>
-        </div>
-        <div>
-          <dt>已录</dt>
+          <dt>进度</dt>
           <dd>
             {progress.recorded} / {progress.total}
           </dd>
@@ -333,10 +467,19 @@ export default function PeQuickEntryPanel({
           <dd>{progress.exempt}</dd>
         </div>
       </dl>
+      <div className="pe-quick-progress" aria-label="录入进度">
+        <span style={{ width: `${progressPercent}%` }} />
+      </div>
 
       {error ? <p className="page-error">{error}</p> : null}
       {message ? <p className="page-success">{message}</p> : null}
-      {progress.complete ? (
+      {toast ? (
+        <p className="pe-quick-toast" aria-live="polite">
+          ✓ {toast.studentNo}号 {toast.name} {toast.rawDisplay}
+          {toast.examScore !== null ? ` ${toast.examScore}分` : ''}
+        </p>
+      ) : null}
+      {progress.complete && !groupStudentIds ? (
         <div className="pe-quick-done">
           <p>本次测试录入完成</p>
           <div className="pe-quick-done-actions">
@@ -352,13 +495,27 @@ export default function PeQuickEntryPanel({
           </div>
         </div>
       ) : null}
+      {groupDone ? (
+        <div className="pe-quick-done">
+          <p>本组录入完成</p>
+          <div className="pe-quick-done-actions">
+            <button type="button" className="btn btn-primary" onClick={leaveGroup}>
+              返回全班
+            </button>
+            <button type="button" className="btn" onClick={openGroupPicker}>
+              选择下一组
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="pe-quick-layout">
         <section className="pe-quick-stage">
           {current ? (
             <>
+              <p className="pe-quick-current-label">当前：{current.studentNoSnapshot}号 {current.nameSnapshot}</p>
               <p className="pe-quick-current-name">
-                {current.nameSnapshot}
+                {current.studentNoSnapshot} {current.nameSnapshot}
                 <span>
                   {STUDENT_GENDER_LABELS[current.genderSnapshot]} · {TEST_RECORD_STATUS_LABELS[current.status]}
                 </span>
@@ -397,29 +554,93 @@ export default function PeQuickEntryPanel({
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => setCurrentId(adjacentRecordId(draft.records, currentId ?? '', -1))}
+                  onClick={() => setCurrentId(adjacentRecordId(draft.records, currentId ?? '', -1, groupStudentIds))}
                 >
                   上一名
                 </button>
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => setCurrentId(adjacentRecordId(draft.records, currentId ?? '', 1))}
+                  onClick={() => setCurrentId(adjacentRecordId(draft.records, currentId ?? '', 1, groupStudentIds))}
                 >
                   下一名
+                </button>
+                <button type="button" className="btn" onClick={() => void undoLast()} disabled={working || undoStack.length === 0}>
+                  撤销上一条
                 </button>
               </div>
             </>
           ) : (
             <p className="empty-text">没有学生</p>
           )}
+
+          <div className="pe-quick-recent">
+            <h3>最近录入</h3>
+            {recent.length === 0 ? (
+              <p className="pe-quick-setup-hint">还没有刚录入的成绩</p>
+            ) : (
+              <ul>
+                {recent.map((item) => (
+                  <li key={item.recordId}>
+                    {item.studentNo} {item.name} {item.rawDisplay}
+                    {item.examScore !== null ? ` ${item.examScore}分` : ''}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </section>
 
         <section className="pe-quick-roster">
+          <div className="pe-quick-roster-tools">
+            <div className="pe-quick-tabs" role="tablist" aria-label="名单视图">
+              {(
+                [
+                  ['pending', '未录'],
+                  ['recorded', '已录'],
+                  ['absentExempt', '缺考/免考'],
+                  ['all', '全部']
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  className={rosterTab === id ? 'btn btn-small btn-primary' : 'btn btn-small'}
+                  onClick={() => setRosterTab(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <input
+              className="pe-quick-search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="搜索姓名或学号"
+              aria-label="搜索学生"
+            />
+            <div className="pe-quick-status-actions">
+              {groupStudentIds ? (
+                <button type="button" className="btn btn-small" onClick={leaveGroup}>
+                  返回全班
+                </button>
+              ) : (
+                <button type="button" className="btn btn-small" onClick={openGroupPicker}>
+                  分组模式
+                </button>
+              )}
+              <button type="button" className="btn btn-small" onClick={openGroupPicker}>
+                选择本组学生
+              </button>
+            </div>
+            {groupStudentIds ? <p className="pe-quick-setup-hint">本组 {groupStudentIds.length} 人</p> : null}
+          </div>
           <table className="data-table pe-quick-table">
             <thead>
               <tr>
                 <th>序号</th>
+                <th>学号</th>
                 <th>姓名</th>
                 <th>性别</th>
                 <th>原始成绩</th>
@@ -428,29 +649,19 @@ export default function PeQuickEntryPanel({
               </tr>
             </thead>
             <tbody>
-              {records.map((record, index) => {
-                const preferMinute = testItem
-                  ? usesMinuteFormat(testItem.timeInputMode, testItem.valueType)
-                  : false
-                const raw =
-                  record.rawValue === null
-                    ? '—'
-                    : formatRawValue(
-                        record.rawValue,
-                        draft.valueTypeSnapshot,
-                        testItem?.decimalPlaces ?? 0,
-                        preferMinute
-                      )
+              {visibleRecords.map((record) => {
+                const classIndex = records.findIndex((item) => item.id === record.id)
                 return (
                   <tr
                     key={record.id}
                     className={record.id === currentId ? 'pe-quick-row is-current' : 'pe-quick-row'}
                     onClick={() => setCurrentId(record.id)}
                   >
-                    <td>{index + 1}</td>
+                    <td>{classIndex + 1}</td>
+                    <td>{record.studentNoSnapshot}</td>
                     <td>{record.nameSnapshot}</td>
                     <td>{STUDENT_GENDER_LABELS[record.genderSnapshot]}</td>
-                    <td>{raw}</td>
+                    <td>{formatRecordRaw(record, testItem, draft)}</td>
                     <td>{TEST_RECORD_STATUS_LABELS[record.status]}</td>
                     <td>{record.examScore === null ? '—' : record.examScore}</td>
                   </tr>
@@ -460,6 +671,63 @@ export default function PeQuickEntryPanel({
           </table>
         </section>
       </div>
+
+      {groupPickerOpen ? (
+        <div className="dialog-backdrop" onMouseDown={() => setGroupPickerOpen(false)}>
+          <div
+            className="dialog dialog--class"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pe-quick-group-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <h3 id="pe-quick-group-title">选择本组学生</h3>
+            <p className="dialog-slot">只作为现场工作集，不会新建测试或复制学生。</p>
+            <div className="dialog-actions">
+              <button
+                type="button"
+                className="btn btn-small"
+                onClick={() => setPickerSelected(pendingStudentIds(records))}
+              >
+                全选未录
+              </button>
+            </div>
+            <div className="pe-quick-picker">
+              {records.map((record) => {
+                const checked = pickerSelected.includes(record.studentId)
+                return (
+                  <label key={record.id} className="pe-quick-picker-row">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setPickerSelected((ids) =>
+                          checked ? ids.filter((id) => id !== record.studentId) : [...ids, record.studentId]
+                        )
+                      }}
+                    />
+                    <span>
+                      {record.studentNoSnapshot} {record.nameSnapshot}{' '}
+                      {STUDENT_GENDER_LABELS[record.genderSnapshot]} · {TEST_RECORD_STATUS_LABELS[record.status]}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+            <div className="dialog-actions">
+              <span />
+              <div className="dialog-actions-right">
+                <button type="button" className="btn" onClick={() => setGroupPickerOpen(false)}>
+                  取消
+                </button>
+                <button type="button" className="btn btn-primary" onClick={startGroup}>
+                  开始本组录入
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </PageLayout>
   )
 }
