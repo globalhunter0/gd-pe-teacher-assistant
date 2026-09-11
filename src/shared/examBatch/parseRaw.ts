@@ -129,17 +129,45 @@ export function parseBatchRawValue(value: unknown, item: ExamItemDefinition): Pa
 export const EXAM_NON_SCORE_LABELS = ['缺考', '免考', '缓考', '请假', '未测试', '未测'] as const
 export type ExamNonScoreLabel = (typeof EXAM_NON_SCORE_LABELS)[number]
 
+const NON_SCORE_BY_LENGTH = [...EXAM_NON_SCORE_LABELS].sort((left, right) => right.length - left.length)
+
+export function normalizeExamNonScoreText(value: unknown): string {
+  if (value == null || value === '') {
+    return ''
+  }
+  const text = typeof value === 'number' && Number.isFinite(value) ? String(value) : String(value)
+  return text.replace(/[\s\u00a0\u3000\u200b\ufeff]/g, '').replace(/[()[\]（）【】]/g, '').replace(/[。．.、]/g, '')
+}
+
 export function detectExamNonScoreLabel(value: unknown): ExamNonScoreLabel | null {
-  const text =
-    typeof value === 'string'
-      ? value.replace(/\u3000/g, ' ').trim()
-      : value == null || value === ''
-        ? ''
-        : String(value).replace(/\u3000/g, ' ').trim()
+  const text = normalizeExamNonScoreText(value)
   if (text === '') {
     return null
   }
-  return EXAM_NON_SCORE_LABELS.find((label) => text === label) ?? null
+  return NON_SCORE_BY_LENGTH.find((label) => text === label) ?? null
+}
+
+export function detectExamNonScoreLabelFromMessage(message: string): ExamNonScoreLabel | null {
+  const match = message.match(/原始记录为(未测试|未测|缺考|免考|缓考|请假)/)
+  return match ? detectExamNonScoreLabel(match[1]) : null
+}
+
+export function nonScoreLabelFromBatchRow(row: { rawValueOriginal: string; message: string }): ExamNonScoreLabel | null {
+  return detectExamNonScoreLabel(row.rawValueOriginal) ?? detectExamNonScoreLabelFromMessage(row.message)
+}
+
+export function isBlankExamCell(display: string, raw: unknown): boolean {
+  const text = display.replace(/\u3000/g, ' ').trim()
+  if (text !== '') {
+    return false
+  }
+  if (raw === null || raw === undefined || raw === '') {
+    return true
+  }
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return false
+  }
+  return String(raw).replace(/\u3000/g, ' ').trim() === ''
 }
 
 export function nonScoreRecordMessage(label: ExamNonScoreLabel): string {

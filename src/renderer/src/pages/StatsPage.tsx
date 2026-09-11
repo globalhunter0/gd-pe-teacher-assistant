@@ -12,10 +12,12 @@ type StatsView = 'home' | 'class' | 'student' | 'test'
 
 interface StatsPageProps {
   onOpenTest: (sessionId: string) => void
+  initialView?: StatsView
+  initialStudentId?: string | null
 }
 
-export default function StatsPage({ onOpenTest }: StatsPageProps): React.JSX.Element {
-  const [view, setView] = useState<StatsView>('home')
+export default function StatsPage({ onOpenTest, initialView = 'home', initialStudentId = null }: StatsPageProps): React.JSX.Element {
+  const [view, setView] = useState<StatsView>(initialView === 'home' && initialStudentId ? 'student' : initialView)
   const { sessions: lessons } = usePeSessions()
   const { sessions: tests } = usePeTests()
   const hasAnalyticsSource = lessons.length > 0 || tests.length > 0
@@ -26,17 +28,17 @@ export default function StatsPage({ onOpenTest }: StatsPageProps): React.JSX.Ele
         {
           key: 'class' as const,
           title: '班级概览',
-          description: '按班级查看体育课次数、考勤人次和表现标签次数。'
+          description: '课堂考勤、最近测试，以及可解释的关注信号。'
         },
         {
           key: 'student' as const,
-          title: '学生档案',
-          description: '按学生查看课堂摘要、各项目首次/最近/最好成绩和较首次变化。'
+          title: '学生成长',
+          description: '学生体育成长档案、项目卡片、同项目趋势和得分切换。'
         },
         {
           key: 'test' as const,
-          title: '测试统计',
-          description: '按班级和项目查看各次测试的有效、缺测等记录人次、平均和最好成绩。'
+          title: '测试分析',
+          description: '单次测试分析、相对满分分档，以及班级项目长期趋势。'
         }
       ],
     []
@@ -84,7 +86,7 @@ export default function StatsPage({ onOpenTest }: StatsPageProps): React.JSX.Ele
       ) : null}
 
       {view === 'class' ? <StatsClassPanel onOpenTest={onOpenTest} /> : null}
-      {view === 'student' ? <StatsStudentPanel /> : null}
+      {view === 'student' ? <StatsStudentPanel initialStudentId={initialStudentId} /> : null}
       {view === 'test' ? <StatsTestPanel onOpenTest={onOpenTest} /> : null}
     </PageLayout>
   )

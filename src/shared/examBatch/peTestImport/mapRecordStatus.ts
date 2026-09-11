@@ -1,4 +1,4 @@
-import { detectExamNonScoreLabel } from '../parseRaw'
+import { nonScoreLabelFromBatchRow } from '../parseRaw'
 import type { BatchAssessmentRow } from '../types'
 import type { ExamToPeTestStatusMap } from './types'
 
@@ -49,8 +49,18 @@ export function mapExamRowToPeTestStatus(row: BatchAssessmentRow): ExamToPeTestS
     }
   }
 
-  const label = detectExamNonScoreLabel(row.rawValueOriginal)
+  const label = nonScoreLabelFromBatchRow(row)
   if (row.status === 'non_score_record' || label) {
+    if (!label && row.rawValueOriginal.trim() === '') {
+      return {
+        peStatus: 'pending',
+        rawValue: null,
+        examScore: null,
+        note: '原始记录为空白，记为未测',
+        blockImport: false,
+        skipCell: false
+      }
+    }
     if (label === '缺考') {
       return {
         peStatus: 'absent',

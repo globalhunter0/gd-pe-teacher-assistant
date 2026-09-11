@@ -27,17 +27,7 @@ import {
   type ExamStandard,
   type ExamType
 } from '@shared/examStandard'
-import {
-  buildExamTemplatePayload,
-  templateItemColumns,
-  type ExamWorkbookSavePayload
-} from '@shared/examBatch'
-import ExamBatchPage from './ExamBatchPage'
 import { testUnitDisplay } from '@shared/peTest'
-import { listedClassRecords } from '@shared/class'
-import { useClasses } from '../context/ClassContext'
-import { useStudents } from '../context/StudentContext'
-import type { StudentGender } from '@shared/student'
 
 const DIRECTION_LABEL = {
   higherBetter: '越高越好',
@@ -113,28 +103,14 @@ function statusToneClass(kind: 'ok' | 'partial' | 'muted'): string {
   return 'exam-status-text exam-status-text--muted'
 }
 
-function templateGenderLabel(gender: StudentGender): string {
-  if (gender === 'male') {
-    return '男'
-  }
-  if (gender === 'female') {
-    return '女'
-  }
-  return ''
-}
-
 export default function ExamStandardsPage({
-  onGoToTests
+  embedded = false,
+  onOpenTools
 }: {
-  onGoToTests?: (classId: string) => void
+  embedded?: boolean
+  onOpenTools?: () => void
 } = {}): React.JSX.Element {
   const standards = BUILTIN_EXAM_STANDARDS
-  const { classes } = useClasses()
-  const { students } = useStudents()
-  const [batchMode, setBatchMode] = useState(false)
-  const [templateClassId, setTemplateClassId] = useState('')
-  const [templateBusy, setTemplateBusy] = useState(false)
-  const [templateMessage, setTemplateMessage] = useState<string | null>(null)
   const [examType, setExamType] = useState<ExamType>('middle_school_exam')
   const [citySlug, setCitySlug] = useState('foshan')
   const [coverageGroups, setCoverageGroups] = useState<CoverageGroup[]>(['verified', 'partial'])
@@ -197,74 +173,6 @@ export default function ExamStandardsPage({
     : []
   const selectedItem = visibleItems.find((item) => item.id === itemId) ?? visibleItems[0] ?? null
   const canAutoScore = selectedItem ? itemSupportsAutoScore(selectedItem) : false
-  const templateColumns = selectedStandard ? templateItemColumns(selectedStandard) : []
-
-  async function saveTemplate(payload: ExamWorkbookSavePayload): Promise<void> {
-    setTemplateMessage(null)
-    setTemplateBusy(true)
-    try {
-      const result = await window.electronAPI.examBatch.saveWorkbook(payload)
-      if (result.canceled) {
-        return
-      }
-      setTemplateMessage(`已保存：${result.filePath}`)
-    } catch (error) {
-      setTemplateMessage(error instanceof Error ? error.message : '无法保存模板')
-    } finally {
-      setTemplateBusy(false)
-    }
-  }
-
-  function officialConvertBlockMessage(standard: ExamStandard): string {
-    return standard.scoreTableStatus !== 'verified' ? CONVERT_TABLE_HINT : '当前标准未完整核验，不能生成用于正式换算的成绩模板。'
-  }
-
-  function handleDownloadBlankTemplate(): void {
-    if (!selectedStandard) {
-      setTemplateMessage('请先选择地区、年份和考试类型')
-      return
-    }
-    if (!standardAllowsOfficialConvert(selectedStandard)) {
-      setTemplateMessage(officialConvertBlockMessage(selectedStandard))
-      return
-    }
-    void saveTemplate(
-      buildExamTemplatePayload({
-        standard: selectedStandard,
-        generatedAt: new Date().toLocaleString('zh-CN', { hour12: false })
-      })
-    )
-  }
-
-  function handleDownloadClassTemplate(): void {
-    if (!selectedStandard) {
-      setTemplateMessage('请先选择地区、年份和考试类型')
-      return
-    }
-    if (!standardAllowsOfficialConvert(selectedStandard)) {
-      setTemplateMessage(officialConvertBlockMessage(selectedStandard))
-      return
-    }
-    const selectedClass = classes.find((item) => item.id === templateClassId)
-    if (!selectedClass) {
-      setTemplateMessage('请选择要生成模板的班级')
-      return
-    }
-    const roster = students.filter((student) => student.classId === selectedClass.id && student.status === 'active')
-    void saveTemplate(
-      buildExamTemplatePayload({
-        standard: selectedStandard,
-        className: selectedClass.className,
-        generatedAt: new Date().toLocaleString('zh-CN', { hour12: false }),
-        students: roster.map((student) => ({
-          name: student.name,
-          studentNo: student.studentNo,
-          className: selectedClass.className,
-          genderLabel: templateGenderLabel(student.gender)
-        }))
-      })
-    )
-  }
 
   function handleConvert(): void {
     setConvertError(null)
@@ -305,40 +213,8 @@ export default function ExamStandardsPage({
     }
   }
 
-  if (batchMode) {
-    return (
-      <ExamBatchPage
-        onBack={() => setBatchMode(false)}
-        onGoToTests={onGoToTests}
-        initialCitySlug={examType === 'middle_school_exam' ? citySlug : ''}
-        initialStandardId={selectedStandard?.id ?? ''}
-        initialItemId={selectedItem?.id ?? ''}
-      />
-    )
-  }
-
-  return (
-    <PageLayout className="page--exams">
-      <PageHeader
-        icon="exams"
-        title="评分标准"
-        description="按城市 + 年份/适用届别 + 官方来源查阅体育中考评分标准。广东各地级市规则不同，不是省统一标准。正式换算只使用已核验且评分表完整的版本。"
-        actions={
-          <div className="exam-header-actions">
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => setBatchMode(true)}
-              disabled={false}
-            >
-              批量成绩换算
-            </button>
-            {selectedStandard && !officialConvertAllowed ? (
-              <span className="exam-convert-hint">{CONVERT_TABLE_HINT}</span>
-            ) : null}
-          </div>
-        }
-      />
+  const standardsBody = (
+    <>
       <div className="exam-tabs" role="tablist">
         <button
           type="button"
@@ -672,57 +548,15 @@ export default function ExamStandardsPage({
       )}
 
       <div className="exam-detail">
-        <h3>Excel批量成绩换算</h3>
+        <h3>查看和管理当前体育测试使用的官方评分规则</h3>
         <p className="exam-notes">
-          推荐工作流：按当前评分标准下载成绩登记模板 → 填写学生与原始成绩 → 导入同一模板 → 自动识别 → 批量换算。
-          模板第一行是唯一字段名，不含合并单元格。仍可导入其他 Excel（宽表/长表/手动映射）。
+          本页只查阅城市、年份和项目规则。Excel 评分、模板和导出请使用「评分工具」。把成绩写入体育测试请使用「导入成绩」。
         </p>
-        {selectedStandard ? (
-          <p className="exam-notes">
-            当前标准：{selectedStandard.title}。可自动换算项目列：
-            {templateColumns.length === 0
-              ? '无（没有 verified + 支持自动换算的项目，不会写入成绩列）'
-              : templateColumns.map((column) => column.header).join('、')}
-          </p>
-        ) : (
-          <p className="exam-notes">请先选择地区、年份和考试类型后再下载模板。</p>
-        )}
-        {selectedStandard && !officialConvertAllowed ? (
-          <p className="page-error">{CONVERT_TABLE_HINT}</p>
+        {onOpenTools ? (
+          <button type="button" className="btn" onClick={onOpenTools}>
+            打开评分工具
+          </button>
         ) : null}
-        <div className="toolbar">
-          <button type="button" className="btn" onClick={() => setBatchMode(true)}>
-            批量成绩换算
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={handleDownloadBlankTemplate}
-            disabled={templateBusy || !selectedStandard || !officialConvertAllowed}
-          >
-            下载空白模板
-          </button>
-          <label className="toolbar-field">
-            班级
-            <select value={templateClassId} onChange={(event) => setTemplateClassId(event.target.value)}>
-              <option value="">选择班级</option>
-              {listedClassRecords(classes).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.className}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className="btn"
-            onClick={handleDownloadClassTemplate}
-            disabled={templateBusy || !selectedStandard || !officialConvertAllowed || templateClassId === ''}
-          >
-            按班级生成模板
-          </button>
-        </div>
-        {templateMessage ? <p className="exam-notes">{templateMessage}</p> : null}
       </div>
 
       {verifiedCityStandards.length === 0 && examType === 'middle_school_exam' ? (
@@ -1002,6 +836,21 @@ export default function ExamStandardsPage({
           </dl>
         ) : null}
       </div>
+    </>
+  )
+
+  if (embedded) {
+    return standardsBody
+  }
+
+  return (
+    <PageLayout className="page--exams">
+      <PageHeader
+        icon="exams"
+        title="评分标准"
+        description="查看和管理当前体育测试使用的官方评分规则。广东各地级市规则不同，不是省统一标准。"
+      />
+      {standardsBody}
     </PageLayout>
   )
 }

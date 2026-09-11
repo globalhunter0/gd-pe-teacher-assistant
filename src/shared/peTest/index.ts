@@ -32,6 +32,18 @@ export { BUILTIN_TEST_ITEMS, mergeBuiltinTestItems } from './builtinItems'
 export { compareToPrevious, findFirstValidScore, findLatestValidScore, findPreviousValidScore } from './compare'
 export { formatRawValue, parseScoreInput, resolveTimeInputMode, usesMinuteFormat } from './scoreFormat'
 export {
+  LEGACY_STANDARDS_NAV_KEYS,
+  LEGACY_TOOLS_NAV_KEYS,
+  PE_TEST_CENTER_DEFAULT_TAB,
+  PE_TEST_CENTER_MODULE_KEY,
+  PE_TEST_CENTER_MODULE_LABEL,
+  PE_TEST_CENTER_TABS,
+  isPeTestCenterTab,
+  peTestCenterTabMeta,
+  resolvePeTestCenterNavigation
+} from './center'
+export type { PeTestCenterTab } from './center'
+export {
   countTestRecords,
   createPeTestId,
   createPeTestRecordId,

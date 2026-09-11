@@ -52,7 +52,10 @@ export {
   findDuplicatePeTests,
   mergePeTestsAtomically,
   planExamBatchPeTestImport,
-  executeImportExamBatchToPeTests
+  executeImportExamBatchToPeTests,
+  buildExamBatchPeTestImportPayload,
+  PE_TEST_PRIMARY_IMPORT_LABEL,
+  PE_TEST_WRITE_PIPELINE
 } from './peTestImport'
 export type {
   DuplicateTestAction,
@@ -63,13 +66,14 @@ export type {
 } from './peTestImport'
 export { emptyMapping, mappingFromPayload, normalizeExamColumnMapping, roleLabel, suggestColumnMapping } from './columnMapping'
 export { buildExamExportSheets, defaultExportFileName } from './exportSheets'
-export { matchExamItem, matchExamItemKey, normalizeExamLabel } from './matchExamItem'
+export { detectDeclaredScoreColumns, compareDeclaredScoreWithEngine, isDeclaredScoreHeader } from './declaredScores'
 export { parseExamBatchGender } from './parseGender'
 export {
   parseExamBatchRawValue,
   parseBatchRawValue,
   expectedRawFormat,
   detectExamNonScoreLabel,
+  isBlankExamCell,
   nonScoreRecordMessage
 } from './parseRaw'
 export { coerceExamSnapshot, objectRowsToExcelData, snapshotRowAsObject, worksheetRowsToSnapshot } from './readSheet'

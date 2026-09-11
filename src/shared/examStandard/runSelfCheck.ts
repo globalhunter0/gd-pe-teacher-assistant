@@ -32,6 +32,9 @@ import { listBuiltinExamStandards } from './catalog'
 import { runExamTableIntegritySelfCheckOrThrow } from './integrity'
 import { runExamScoreEngineSelfCheckOrThrow } from './selfcheck'
 import { runV0150AcceptanceSelfCheckOrThrow } from './v0150AcceptanceSelfcheck'
+import { runV0180AnalyticsSelfCheckOrThrow } from '../statistics/v0180Selfcheck'
+import { runV0190PeTestImportEntrySelfCheckOrThrow } from '../examBatch/v0190Selfcheck'
+import { runV0200PeTestCenterSelfCheckOrThrow } from '../peTest/v0200Selfcheck'
 
 async function main(): Promise<void> {
   console.log(runExamScoreEngineSelfCheckOrThrow())
@@ -57,6 +60,9 @@ async function main(): Promise<void> {
   console.log(runExamBatchSelfCheckOrThrow())
   console.log(runV0160ExcelBatchSelfCheckOrThrow())
   console.log(await runV0170PeTestImportPlanSelfCheckOrThrow())
+  console.log(runV0180AnalyticsSelfCheckOrThrow())
+  console.log(await runV0190PeTestImportEntrySelfCheckOrThrow())
+  console.log(await runV0200PeTestCenterSelfCheckOrThrow())
   console.log(runTrainingTeamSelfCheckOrThrow())
   console.log(await runScheduleLinkageSelfCheckOrThrow())
   console.log(await runScheduleBulkDeleteSelfCheckOrThrow())

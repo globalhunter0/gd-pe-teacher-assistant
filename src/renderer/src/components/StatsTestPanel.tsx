@@ -6,11 +6,13 @@ import { usePeTests } from '../context/PeTestContext'
 import { useTestItems } from '../context/TestItemContext'
 import { TEST_RECORD_STATUS_LABELS, TEST_RECORD_STATUSES, type PETestRecord, type TestRecordStatus } from '@shared/peTest'
 import { STUDENT_GENDER_LABELS } from '@shared/student'
+import TestAnalyticsPanel from './TestAnalyticsPanel'
 import {
   classDisplayName,
   filterTests,
   formatTestScoreWithUnit,
   resolveDateRange,
+  summarizeClassItemTrend,
   summarizeTestSession,
   type StatsRangeKind
 } from '@shared/statistics'
@@ -38,6 +40,10 @@ export default function StatsTestPanel({ onOpenTest }: StatsTestPanelProps): Rea
     [sessions, classId, testItemId, range]
   )
   const testItem = items.find((item) => item.id === testItemId)
+  const trend = useMemo(
+    () => (classId === '' || testItemId === '' ? null : summarizeClassItemTrend(sessions, classId, testItemId, items)),
+    [sessions, classId, testItemId, items]
+  )
   const detail = listed.find((item) => item.id === detailId) ?? null
   const detailSummary = detail ? summarizeTestSession(detail, testItem) : null
   const mergedCounts = useMemo(() => {
@@ -138,6 +144,35 @@ export default function StatsTestPanel({ onOpenTest }: StatsTestPanelProps): Rea
         范围内合计记录人次：有效 {mergedCounts.valid}，未录入 {mergedCounts.pending}，缺测 {mergedCounts.absent}，免测{' '}
         {mergedCounts.exempt}，无效 {mergedCounts.invalid}。
       </p>
+
+      {trend && trend.points.length > 0 ? (
+        <>
+          <h3 className="stats-subtitle">班级项目长期趋势</h3>
+          {trend.scoringStandardChanged ? <p className="stats-note">评分标准版本不同。班级平均分变化不能直接等同于身体能力变化。</p> : null}
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>平均原始成绩</th>
+                  <th>平均分</th>
+                  <th>有效 n</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trend.points.map((item) => (
+                  <tr key={item.sessionId}>
+                    <td>{item.date}</td>
+                    <td>{item.averageRawText}</td>
+                    <td>{item.averageScoreText}</td>
+                    <td>{item.validN}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
 
       {listed.length === 0 ? (
         <TechEmptyState kind="tests" title="该范围没有匹配的测试" description="统计只使用已保存记录，没有演示数据。" />
@@ -249,6 +284,7 @@ export default function StatsTestPanel({ onOpenTest }: StatsTestPanelProps): Rea
           <p className="stats-muted">
             平均 {detailSummary.average}，最好 {detailSummary.best}
           </p>
+          <TestAnalyticsPanel session={detail} sessions={sessions} testItem={testItem} classes={classes} />
         </div>
       ) : null}
     </div>

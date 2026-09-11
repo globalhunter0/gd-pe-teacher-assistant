@@ -11,6 +11,26 @@ export {
   type StudentItemStat
 } from './tests'
 export {
+  ATTENTION_KIND_LABELS,
+  SCORE_BAND_LABELS,
+  buildStudentAttentionSignals,
+  buildStudentItemHistory,
+  classifyScoreBand,
+  compareWithPreviousResult,
+  detectPersonalBest,
+  detectScoringStandardChange,
+  indexPeTests,
+  summarizeClassItemTrend,
+  summarizeSingleTest,
+  summarizeStudentGrowth,
+  type AttentionSignal,
+  type ClassItemTrend,
+  type IndexedPeTests,
+  type SingleTestSummary,
+  type StudentGrowthView,
+  type StudentItemHistory
+} from './analytics'
+export {
   classDisplayName,
   collectStudentOptions,
   filterStudentOptions,
