@@ -6,6 +6,8 @@ interface TechEmptyStateProps {
   description: string
   actionLabel?: string
   onAction?: () => void
+  secondaryLabel?: string
+  onSecondary?: () => void
   compact?: boolean
 }
 
@@ -15,6 +17,8 @@ export default function TechEmptyState({
   description,
   actionLabel,
   onAction,
+  secondaryLabel,
+  onSecondary,
   compact = false
 }: TechEmptyStateProps): React.JSX.Element {
   return (
@@ -36,6 +40,11 @@ export default function TechEmptyState({
         {actionLabel && onAction ? (
           <button type="button" className="btn btn-primary" onClick={onAction}>
             {actionLabel}
+          </button>
+        ) : null}
+        {secondaryLabel && onSecondary ? (
+          <button type="button" className="btn" onClick={onSecondary} style={{ marginLeft: 8 }}>
+            {secondaryLabel}
           </button>
         ) : null}
       </div>

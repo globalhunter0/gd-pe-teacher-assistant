@@ -12,6 +12,7 @@ import { usePeTests } from '../context/PeTestContext'
 import { useStudents } from '../context/StudentContext'
 import { useTestItems } from '../context/TestItemContext'
 import { buildPeTestSession } from '../data/peTest/buildSession'
+import { PE_TEST_PRIMARY_IMPORT_LABEL } from '@shared/examBatch'
 import {
   TEST_CATEGORY_LABELS,
   TEST_DIRECTION_LABELS,
@@ -29,13 +30,19 @@ interface PeTestsPageProps {
   onOpenSessionConsumed?: () => void
   prefillClassId?: string | null
   onPrefillClassConsumed?: () => void
+  openEditorTab?: 'edit' | 'analysis'
+  embedded?: boolean
+  onRequestImport?: () => void
 }
 
 export default function PeTestsPage({
   openSessionId = null,
   onOpenSessionConsumed,
   prefillClassId = null,
-  onPrefillClassConsumed
+  onPrefillClassConsumed,
+  openEditorTab = 'edit',
+  embedded = false,
+  onRequestImport
 }: PeTestsPageProps): React.JSX.Element {
   const { classes } = useClasses()
   const listedClasses = listedClassRecords(classes)
@@ -44,7 +51,9 @@ export default function PeTestsPage({
   const { sessions, loading, error, upsertSession, deleteSession } = usePeTests()
   const [view, setView] = useState<'list' | 'items'>('list')
   const [editing, setEditing] = useState<PETestSession | null>(null)
+  const [editorTab, setEditorTab] = useState<'edit' | 'analysis'>('edit')
   const [createOpen, setCreateOpen] = useState(false)
+  const [pendingAnalysisId, setPendingAnalysisId] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<PETestSession | null>(null)
   const [itemEditor, setItemEditor] = useState<TestItem | null | undefined>(undefined)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -64,11 +73,24 @@ export default function PeTestsPage({
     const found = sessions.find((item) => item.id === openSessionId)
     if (found) {
       setView('list')
+      setEditorTab(openEditorTab)
       setEditing(found)
     }
 
     onOpenSessionConsumed?.()
-  }, [openSessionId, loading, sessions, onOpenSessionConsumed])
+  }, [openSessionId, loading, sessions, onOpenSessionConsumed, openEditorTab])
+
+  useEffect(() => {
+    if (!pendingAnalysisId || loading) {
+      return
+    }
+    const found = sessions.find((item) => item.id === pendingAnalysisId)
+    if (found) {
+      setEditorTab('analysis')
+      setEditing(found)
+      setPendingAnalysisId(null)
+    }
+  }, [pendingAnalysisId, loading, sessions])
 
   useEffect(() => {
     if (!prefillClassId) {
@@ -149,6 +171,7 @@ export default function PeTestsPage({
     try {
       await upsertSession(created)
       setCreateOpen(false)
+      setEditorTab('edit')
       setEditing(created)
     } catch (createError) {
       setActionError(createError instanceof Error ? createError.message : '创建失败')
@@ -195,10 +218,17 @@ export default function PeTestsPage({
     }
   }
 
+  function requestImport(): void {
+    onRequestImport?.()
+  }
+
   if (loading || itemsLoading) {
+    if (embedded) {
+      return <p className="empty-text">正在读取本地测试数据…</p>
+    }
     return (
       <PageLayout>
-        <PageHeader icon="tests" title="体育测试" description="正在读取本地测试数据…" />
+        <PageHeader icon="tests" title="测试记录" description="正在读取本地测试数据…" />
       </PageLayout>
     )
   }
@@ -209,6 +239,7 @@ export default function PeTestsPage({
         session={editing}
         testItem={items.find((item) => item.id === editing.testItemId)}
         historySessions={sessions}
+        initialTab={editorTab}
         onBack={() => setEditing(null)}
         onSave={async (next) => {
           await upsertSession(next)
@@ -218,39 +249,32 @@ export default function PeTestsPage({
     )
   }
 
-  return (
-    <PageLayout className="page--pe-tests page-shell">
-      <PageHeader
-        icon="tests"
-        title="体育测试"
-        description={
-          view === 'items'
-            ? '管理内置与自定义测试项目。内置项目不能删除，只能停用。'
-            : '按班级创建测试，冻结当时在读学生名单，在表格中连续录入成绩。'
-        }
-        actions={
-          view === 'list' ? (
-            <>
-              <button type="button" className="btn" onClick={() => setView('items')}>
-                测试项目
-              </button>
-              <button type="button" className="btn btn-primary" onClick={openCreate}>
-                新建测试
-              </button>
-            </>
-          ) : (
-            <>
-              <button type="button" className="btn" onClick={() => setView('list')}>
-                返回测试列表
-              </button>
-              <button type="button" className="btn btn-primary" onClick={() => setItemEditor(null)}>
-                自定义项目
-              </button>
-            </>
-          )
-        }
-      />
+  const recordsToolbar =
+    view === 'list' ? (
+      <>
+        <button type="button" className="btn" onClick={() => setView('items')}>
+          测试项目
+        </button>
+        <button type="button" className="btn" onClick={requestImport}>
+          {PE_TEST_PRIMARY_IMPORT_LABEL}
+        </button>
+        <button type="button" className="btn btn-primary" onClick={openCreate}>
+          新建测试
+        </button>
+      </>
+    ) : (
+      <>
+        <button type="button" className="btn" onClick={() => setView('list')}>
+          返回测试列表
+        </button>
+        <button type="button" className="btn btn-primary" onClick={() => setItemEditor(null)}>
+          自定义项目
+        </button>
+      </>
+    )
 
+  const recordsBody = (
+    <>
       {error ? <p className="page-error">{error}</p> : null}
       {itemsError ? <p className="page-error">{itemsError}</p> : null}
       {actionError ? <p className="page-error">{actionError}</p> : null}
@@ -321,9 +345,11 @@ export default function PeTestsPage({
         <TechEmptyState
           kind="tests"
           title="还没有体育测试"
-          description="创建测试后即可开始录入成绩。系统会按当时在读学生生成名单快照。"
-          actionLabel="新建测试"
-          onAction={openCreate}
+          description="已有成绩表时，推荐直接导入 Excel。"
+          actionLabel="导入Excel成绩"
+          onAction={requestImport}
+          secondaryLabel="新建测试"
+          onSecondary={openCreate}
         />
       ) : (
           <DataTable>
@@ -356,8 +382,25 @@ export default function PeTestsPage({
                     <td>{counts.valid}</td>
                     <td>
                       <div className="table-actions">
-                        <button type="button" className="btn btn-small" onClick={() => setEditing(item)}>
+                        <button
+                          type="button"
+                          className="btn btn-small"
+                          onClick={() => {
+                            setEditorTab('edit')
+                            setEditing(item)
+                          }}
+                        >
                           打开/编辑
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-small"
+                          onClick={() => {
+                            setEditorTab('analysis')
+                            setEditing(item)
+                          }}
+                        >
+                          测试分析
                         </button>
                         <button type="button" className="btn btn-small btn-danger" onClick={() => setPendingDelete(item)}>
                           删除
@@ -505,6 +548,31 @@ export default function PeTestsPage({
           }}
         />
       ) : null}
+    </>
+  )
+
+  if (embedded) {
+    return (
+      <>
+        <div className="pe-center-toolbar">{recordsToolbar}</div>
+        {recordsBody}
+      </>
+    )
+  }
+
+  return (
+    <PageLayout className="page--pe-tests page-shell">
+      <PageHeader
+        icon="tests"
+        title="测试记录"
+        description={
+          view === 'items'
+            ? '管理内置与自定义测试项目。内置项目不能删除，只能停用。'
+            : '已经发生的体育测试。已有成绩表时，推荐直接导入 Excel。'
+        }
+        actions={recordsToolbar}
+      />
+      {recordsBody}
     </PageLayout>
   )
 }

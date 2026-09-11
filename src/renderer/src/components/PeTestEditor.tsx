@@ -19,6 +19,8 @@ import {
   type TestRecordStatus,
   type TimeInputMode
 } from '@shared/peTest'
+import { useClasses } from '../context/ClassContext'
+import TestAnalyticsPanel from './TestAnalyticsPanel'
 
 interface PeTestEditorProps {
   session: PETestSession
@@ -26,6 +28,7 @@ interface PeTestEditorProps {
   historySessions: PETestSession[]
   onBack: () => void
   onSave: (session: PETestSession) => Promise<void>
+  initialTab?: 'edit' | 'analysis'
 }
 
 export default function PeTestEditor({
@@ -33,8 +36,11 @@ export default function PeTestEditor({
   testItem,
   historySessions,
   onBack,
-  onSave
+  onSave,
+  initialTab = 'edit'
 }: PeTestEditorProps): React.JSX.Element {
+  const { classes } = useClasses()
+  const [tab, setTab] = useState<'edit' | 'analysis'>(initialTab)
   const [draft, setDraft] = useState<PETestSession>(session)
   const [inputs, setInputs] = useState<Record<string, string>>(() => buildInputs(session, testItem))
   const [saving, setSaving] = useState(false)
@@ -211,6 +217,12 @@ export default function PeTestEditor({
         description={`${draft.date} · ${draft.gradeSnapshot} ${draft.classNameSnapshot} · ${draft.testItemNameSnapshot}${unitLabel ? `（${unitLabel}）` : ''}${preferMinute ? ' · 长跑可输入 3:42、3\'42、3.42 或总秒数' : draft.valueTypeSnapshot === 'time' ? ' · 时间按秒录入，如 8.32' : ''}`}
         actions={
           <>
+            <button type="button" className={tab === 'analysis' ? 'btn btn-primary' : 'btn'} onClick={() => setTab('analysis')}>
+              测试分析
+            </button>
+            <button type="button" className={tab === 'edit' ? 'btn btn-primary' : 'btn'} onClick={() => setTab('edit')}>
+              成绩录入
+            </button>
             <button type="button" className="btn" onClick={onBack}>
               返回列表
             </button>
@@ -224,6 +236,10 @@ export default function PeTestEditor({
       {error ? <p className="page-error">{error}</p> : null}
       {message ? <p className="page-success">{message}</p> : null}
 
+      {tab === 'analysis' ? (
+        <TestAnalyticsPanel session={draft} sessions={historySessions} testItem={testItem} classes={classes} />
+      ) : (
+      <>
       <div className="pe-editor-meta">
         <label>
           测试名称
@@ -393,6 +409,8 @@ export default function PeTestEditor({
           </div>
         </div>
       ) : null}
+      </>
+      )}
     </PageLayout>
   )
 }

@@ -18,10 +18,12 @@ import { countActiveStudents, filterStudents } from '../data/student/query'
 
 export default function ClassStudentsPage({
   initialClassId = null,
-  onInitialClassConsumed
+  onInitialClassConsumed,
+  onOpenGrowth
 }: {
   initialClassId?: string | null
   onInitialClassConsumed?: () => void
+  onOpenGrowth?: (studentId: string) => void
 }): React.JSX.Element {
   const { classes, loading: classesLoading, error: classesError, upsertClass, deleteClass, applyLoadedClasses } =
     useClasses()
@@ -211,6 +213,11 @@ export default function ClassStudentsPage({
                           <td className="data-table-notes">{item.notes || '—'}</td>
                           <td>
                             <div className="table-actions">
+                              {onOpenGrowth ? (
+                                <button type="button" className="btn btn-small" onClick={() => onOpenGrowth(item.id)}>
+                                  体育成长
+                                </button>
+                              ) : null}
                               <button type="button" className="btn btn-small" onClick={() => setStudentEditor(item)}>
                                 编辑
                               </button>

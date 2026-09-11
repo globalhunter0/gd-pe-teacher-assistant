@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { PAGE_DESCRIPTIONS, PAGE_TITLES, type NavKey } from './navigation'
+import { useEffect, useState } from 'react'
+import { PAGE_DESCRIPTIONS, PAGE_TITLES, resolveAppNavigation, type NavKey } from './navigation'
+import { PE_TEST_CENTER_DEFAULT_TAB, type PeTestCenterTab } from '@shared/peTest/center'
 import AppHeader from './components/AppHeader'
 import PlaceholderPage from './components/PlaceholderPage'
 import Sidebar from './components/Sidebar'
@@ -16,25 +17,42 @@ import { TrainingProvider } from './context/TrainingContext'
 import ClassStudentsPage from './pages/ClassStudentsPage'
 import DashboardPage, { type PlanNavContext } from './pages/DashboardPage'
 import PeLessonRecordsPage from './pages/PeLessonRecordsPage'
-import PeTestsPage from './pages/PeTestsPage'
+import PeTestCenterPage from './pages/PeTestCenterPage'
 import SchedulePage from './pages/SchedulePage'
 import StatsPage from './pages/StatsPage'
 import TeachingPlansPage from './pages/TeachingPlansPage'
-import ExamStandardsPage from './pages/ExamStandardsPage'
 import TrainingTeamsPage from './pages/TrainingTeamsPage'
 import ResourcesPage from './pages/ResourcesPage'
 import SettingsPage from './pages/SettingsPage'
 import type { PeSessionPrefill } from '@shared/peSession'
 
 export default function App(): React.JSX.Element {
-  const [activeKey, setActiveKey] = useState<NavKey>('exams')
+  const [activeKey, setActiveKey] = useState<NavKey>('dashboard')
+  const [peTestTab, setPeTestTab] = useState<PeTestCenterTab>(PE_TEST_CENTER_DEFAULT_TAB)
   const [pePrefill, setPePrefill] = useState<PeSessionPrefill | null>(null)
   const [openTestSessionId, setOpenTestSessionId] = useState<string | null>(null)
+  const [openTestEditorTab, setOpenTestEditorTab] = useState<'edit' | 'analysis'>('edit')
+  const [statsStudentId, setStatsStudentId] = useState<string | null>(null)
   const [studentClassId, setStudentClassId] = useState<string | null>(null)
   const [testClassId, setTestClassId] = useState<string | null>(null)
   const [planContext, setPlanContext] = useState<PlanNavContext | null>(null)
   const [openTrainingTeamId, setOpenTrainingTeamId] = useState<string | null>(null)
   const [startTrainingSession, setStartTrainingSession] = useState(false)
+
+  function navigate(key: string): void {
+    const next = resolveAppNavigation(key)
+    setActiveKey(next.key)
+    if (next.key === 'tests') {
+      setPeTestTab(next.peTestTab ?? PE_TEST_CENTER_DEFAULT_TAB)
+    }
+  }
+
+  useEffect(() => {
+    if (activeKey === 'exams') {
+      setActiveKey('tests')
+      setPeTestTab('standards')
+    }
+  }, [activeKey])
 
   return (
     <UserPreferencesProvider>
@@ -48,7 +66,7 @@ export default function App(): React.JSX.Element {
                 <TeachingPlanProvider>
                   <ResourceProvider>
                   <div className="app-shell">
-                    <Sidebar activeKey={activeKey} onNavigate={setActiveKey} />
+                    <Sidebar activeKey={activeKey === 'exams' ? 'tests' : activeKey} onNavigate={navigate} />
                     <div className="app-main">
                       {activeKey === 'dashboard' ? (
                         <AppHeader title={PAGE_TITLES[activeKey]} description={PAGE_DESCRIPTIONS[activeKey]} />
@@ -66,13 +84,14 @@ export default function App(): React.JSX.Element {
                             }}
                             onOpenTests={(classId) => {
                               setTestClassId(classId)
+                              setPeTestTab(PE_TEST_CENTER_DEFAULT_TAB)
                               setActiveKey('tests')
                             }}
                             onOpenPlan={(context) => {
                               setPlanContext(context)
                               setActiveKey('plans')
                             }}
-                            onNavigate={setActiveKey}
+                            onNavigate={(key) => navigate(key)}
                           />
                         ) : activeKey === 'schedule' ? (
                           <SchedulePage />
@@ -80,6 +99,10 @@ export default function App(): React.JSX.Element {
                           <ClassStudentsPage
                             initialClassId={studentClassId}
                             onInitialClassConsumed={() => setStudentClassId(null)}
+                            onOpenGrowth={(studentId) => {
+                              setStatsStudentId(studentId)
+                              setActiveKey('stats')
+                            }}
                           />
                         ) : activeKey === 'lessons' ? (
                           <PeLessonRecordsPage prefill={pePrefill} onPrefillConsumed={() => setPePrefill(null)} />
@@ -87,12 +110,23 @@ export default function App(): React.JSX.Element {
                           <TeachingPlansPage context={planContext} />
                         ) : activeKey === 'resources' ? (
                           <ResourcesPage />
-                        ) : activeKey === 'tests' ? (
-                          <PeTestsPage
+                        ) : activeKey === 'tests' || activeKey === 'exams' ? (
+                          <PeTestCenterPage
+                            tab={activeKey === 'exams' ? 'standards' : peTestTab}
+                            onTabChange={setPeTestTab}
                             openSessionId={openTestSessionId}
-                            onOpenSessionConsumed={() => setOpenTestSessionId(null)}
+                            openEditorTab={openTestEditorTab}
+                            onOpenSessionConsumed={() => {
+                              setOpenTestSessionId(null)
+                              setOpenTestEditorTab('edit')
+                            }}
                             prefillClassId={testClassId}
                             onPrefillClassConsumed={() => setTestClassId(null)}
+                            onOpenSession={(sessionId, editorTab = 'analysis') => {
+                              setOpenTestSessionId(sessionId)
+                              setOpenTestEditorTab(editorTab)
+                              setPeTestTab(PE_TEST_CENTER_DEFAULT_TAB)
+                            }}
                           />
                         ) : activeKey === 'training' ? (
                           <TrainingTeamsPage
@@ -103,17 +137,13 @@ export default function App(): React.JSX.Element {
                               setStartTrainingSession(false)
                             }}
                           />
-                        ) : activeKey === 'exams' ? (
-                          <ExamStandardsPage
-                            onGoToTests={(classId) => {
-                              setTestClassId(classId)
-                              setActiveKey('tests')
-                            }}
-                          />
                         ) : activeKey === 'stats' ? (
                           <StatsPage
+                            initialStudentId={statsStudentId}
                             onOpenTest={(sessionId) => {
                               setOpenTestSessionId(sessionId)
+                              setOpenTestEditorTab('edit')
+                              setPeTestTab(PE_TEST_CENTER_DEFAULT_TAB)
                               setActiveKey('tests')
                             }}
                           />

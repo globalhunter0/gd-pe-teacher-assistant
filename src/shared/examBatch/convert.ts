@@ -3,7 +3,7 @@ import type { ExamItemDefinition, ExamStandard } from '../examStandard/types'
 import { normalizeExamColumnMapping } from './columnMapping'
 import { matchExamItem } from './matchExamItem'
 import { parseExamBatchGender } from './parseGender'
-import { detectExamNonScoreLabel, nonScoreRecordMessage, parseExamBatchRawValue } from './parseRaw'
+import { detectExamNonScoreLabel, isBlankExamCell, nonScoreRecordMessage, parseExamBatchRawValue } from './parseRaw'
 import { coerceExamDataRow, coerceExamSnapshot } from './readSheet'
 import type {
   BatchAssessmentRow,
@@ -215,6 +215,15 @@ function scoreRow(
       score: null,
       status: 'non_score_record',
       message: nonScoreRecordMessage(nonScore)
+    }
+  }
+  if (isBlankExamCell(display, raw) && rawValueOriginal === '') {
+    return {
+      ...withItem,
+      rawValueOriginal: '',
+      score: null,
+      status: 'non_score_record',
+      message: nonScoreRecordMessage('未测')
     }
   }
 

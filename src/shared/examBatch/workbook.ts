@@ -18,8 +18,16 @@ import type {
   ExcelDataRow
 } from './types'
 import { parseExamBatchGender } from './parseGender'
-import { detectExamNonScoreLabel, nonScoreRecordMessage, parseExamBatchRawValue, type ExamNonScoreLabel } from './parseRaw'
+import {
+  detectExamNonScoreLabel,
+  isBlankExamCell,
+  nonScoreLabelFromBatchRow,
+  nonScoreRecordMessage,
+  parseExamBatchRawValue,
+  type ExamNonScoreLabel
+} from './parseRaw'
 import { coerceExamSnapshot } from './readSheet'
+import { isDeclaredScoreHeader } from './declaredScores'
 
 const NAME_ALIASES = ['姓名', '学生姓名', '名字']
 const STUDENT_NO_ALIASES = ['学号', '学籍号', '编号']
@@ -166,8 +174,12 @@ export function detectWorkbookColumns(
       index += 1
       continue
     }
-    if (isIgnoredExamHeader(title)) {
-      ignoredColumns.push({ index, header: title, reason: '非评分列 / 已忽略' })
+    if (isIgnoredExamHeader(title) || isDeclaredScoreHeader(title)) {
+      ignoredColumns.push({
+        index,
+        header: title,
+        reason: isDeclaredScoreHeader(title) ? '已声明得分列，第一版按原始成绩换算，不覆盖 Excel 得分' : '非评分列 / 已忽略'
+      })
       used.add(index)
       continue
     }
@@ -239,10 +251,29 @@ function looksLikeNoteRow(cells: string[]): boolean {
 }
 
 function originalOf(display: string, raw: unknown): string {
-  if (display.trim() === '' && typeof raw === 'number') {
+  const trimmedDisplay = display.replace(/\u3000/g, ' ').trim()
+  if (trimmedDisplay !== '') {
+    return trimmedDisplay
+  }
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
     return String(raw)
   }
-  return display.trim()
+  if (typeof raw === 'string') {
+    return raw.replace(/\u3000/g, ' ').trim()
+  }
+  return ''
+}
+
+function adjacentStatusNonScore(
+  row: ExcelDataRow,
+  resultColumnIndex: number,
+  ignoredColumns: WorkbookDetection['ignoredColumns']
+): ExamNonScoreLabel | null {
+  const next = ignoredColumns.find((column) => column.index === resultColumnIndex + 1)
+  if (!next || !next.header.includes('状态')) {
+    return null
+  }
+  return detectExamNonScoreLabel(cellAt(row, next.index)) ?? detectExamNonScoreLabel(rawAt(row, next.index))
 }
 
 function formatNormalizedResult(item: ExamItemDefinition, parsed: number | null, formatted: string | null): string {
@@ -291,7 +322,8 @@ function scoreCell(
   gender: 'male' | 'female',
   display: string,
   raw: unknown,
-  identity: Omit<BatchAssessmentRow, 'status' | 'message' | 'score' | 'rawValueNormalized' | 'rawValueParsed' | 'examItemId' | 'examItemName' | 'rawValueOriginal'>
+  identity: Omit<BatchAssessmentRow, 'status' | 'message' | 'score' | 'rawValueNormalized' | 'rawValueParsed' | 'examItemId' | 'examItemName' | 'rawValueOriginal'>,
+  fallbackNonScore?: ExamNonScoreLabel | null
 ): BatchAssessmentRow {
   const original = originalOf(display, raw)
   const base: BatchAssessmentRow = {
@@ -305,13 +337,25 @@ function scoreCell(
     status: 'invalid_raw_value',
     message: ''
   }
-  const nonScore = detectExamNonScoreLabel(original) ?? detectExamNonScoreLabel(display) ?? detectExamNonScoreLabel(raw)
+  const blank = isBlankExamCell(display, raw) && original === ''
+  const nonScore =
+    detectExamNonScoreLabel(original) ??
+    detectExamNonScoreLabel(display) ??
+    detectExamNonScoreLabel(raw) ??
+    (blank ? fallbackNonScore ?? null : null)
   if (nonScore) {
     return {
       ...base,
       rawValueOriginal: original || nonScore,
       status: 'non_score_record',
       message: nonScoreRecordMessage(nonScore)
+    }
+  }
+  if (blank) {
+    return {
+      ...base,
+      status: 'non_score_record',
+      message: nonScoreRecordMessage('未测')
     }
   }
   const parsed = parseExamBatchRawValue(display, raw, item)
@@ -512,10 +556,9 @@ export function convertWorkbookExamBatch(
         })
         continue
       }
-      if (original === '') {
-        continue
-      }
-      rows.push(scoreCell(standard, item, gender, display, raw, { ...identity, sourceColumn: group.resultColumnIndex }))
+      rows.push(
+        scoreCell(standard, item, gender, display, raw, { ...identity, sourceColumn: group.resultColumnIndex }, adjacentStatusNonScore(row, group.resultColumnIndex, detection.ignoredColumns))
+      )
     }
   }
 
@@ -539,7 +582,7 @@ export function displayBatchStatus(row: BatchAssessmentRow): '成功' | '无法�
   if (row.status === 'needs_review') return '待检查'
   if (row.status === 'not_applicable') return '不适用'
   if (row.status === 'non_score_record') {
-    return detectExamNonScoreLabel(row.rawValueOriginal) ?? '缺考'
+    return nonScoreLabelFromBatchRow(row) ?? '未测'
   }
   return '无法评分'
 }

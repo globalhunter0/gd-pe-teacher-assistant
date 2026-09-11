@@ -25,6 +25,10 @@ import {
   detectWorkbookColumns,
   displayBatchStatus,
   planExamBatchPeTestImport,
+  buildExamBatchPeTestImportPayload,
+  detectDeclaredScoreColumns,
+  compareDeclaredScoreWithEngine,
+  mapExamRowToPeTestStatus,
   singleItemExportFileName,
   updateProjectGroupOverride,
   workbookItemSummaries,
@@ -36,6 +40,7 @@ import {
   type WorkbookDetection
 } from '@shared/examBatch'
 import { formatLocalDate } from '@shared/peTest'
+import ExamTemplateActions from '../components/ExamTemplateActions'
 
 type Step = 'setup' | 'detect' | 'result'
 
@@ -60,15 +65,21 @@ function columnStatusText(autoScoreSupported: boolean, matchType: string, reason
 export default function ExamBatchPage({
   onBack,
   onGoToTests,
+  onGoToAnalysis,
+  entry = 'standards-tool',
   initialCitySlug = '',
   initialStandardId = '',
-  initialItemId = ''
+  initialItemId = '',
+  embedded = false
 }: {
   onBack: () => void
   onGoToTests?: (classId: string) => void
+  onGoToAnalysis?: (sessionId: string) => void
+  entry?: 'pe-tests' | 'standards-tool'
   initialCitySlug?: string
   initialStandardId?: string
   initialItemId?: string
+  embedded?: boolean
 }): React.JSX.Element {
   const { classes } = useClasses()
   const listedClasses = listedClassRecords(classes)
@@ -116,6 +127,20 @@ export default function ExamBatchPage({
   const cellError = rows.filter(
     (row) => row.status !== 'success' && row.status !== 'not_applicable' && row.status !== 'non_score_record'
   ).length
+  const mappedRows = useMemo(() => rows.map((row) => mapExamRowToPeTestStatus(row)), [rows])
+  const cellAbsent = mappedRows.filter((item) => item.peStatus === 'absent').length
+  const cellExempt = mappedRows.filter((item) => item.peStatus === 'exempt').length
+  const cellPending = mappedRows.filter((item) => item.peStatus === 'pending' && !item.skipCell).length
+  const declaredScoreColumns = snapshot ? detectDeclaredScoreColumns(snapshot.columns.map((column) => column.title)) : []
+  const scoreMismatchHint = declaredScoreColumns.some((column) => {
+    const sample = rows.find((row) => row.status === 'success' && row.score != null)
+    if (!sample || snapshot == null) {
+      return false
+    }
+    const declaredRaw = snapshot.rows.find((entry) => entry.excelRow === sample.sourceRow)?.cells[column.scoreColumnIndex]
+    const declared = declaredRaw != null && declaredRaw !== '' ? Number(declaredRaw) : null
+    return compareDeclaredScoreWithEngine(Number.isFinite(declared as number) ? (declared as number) : null, sample.score).kind === 'mismatch'
+  })
   const canSaveToPeTest = step === 'result' && rows.length > 0 && cellError === 0 && cellSuccess + cellNonScore > 0 && Boolean(selectedStandard)
 
   const saveClass = listedClasses.find((item) => item.id === saveClassId) ?? null
@@ -124,15 +149,13 @@ export default function ExamBatchPage({
       return null
     }
     return planExamBatchPeTestImport(
-      {
+      buildExamBatchPeTestImportPayload({
         classId: saveClass.id,
         testDate: saveDate,
-        examStandardId: selectedStandard.id,
-        scoringCity: selectedStandard.examType === 'gaokao_sports' ? '广东省' : selectedStandard.cityName,
-        scoringVersion: selectedStandard.schemeLabel || selectedStandard.policyLabel,
+        standard: selectedStandard,
         duplicateAction: 'cancel',
         rows
-      },
+      }),
       {
         classRecord: saveClass,
         students: rosterStudents,
@@ -148,15 +171,13 @@ export default function ExamBatchPage({
       return null
     }
     return planExamBatchPeTestImport(
-      {
+      buildExamBatchPeTestImportPayload({
         classId: saveClass.id,
         testDate: saveDate,
-        examStandardId: selectedStandard.id,
-        scoringCity: selectedStandard.examType === 'gaokao_sports' ? '广东省' : selectedStandard.cityName,
-        scoringVersion: selectedStandard.schemeLabel || selectedStandard.policyLabel,
+        standard: selectedStandard,
         duplicateAction: 'skip',
         rows
-      },
+      }),
       {
         classRecord: saveClass,
         students: rosterStudents,
@@ -327,15 +348,15 @@ export default function ExamBatchPage({
     setSaveWorking(true)
     setSaveError(null)
     try {
-      const result = await window.electronAPI.peTests.importExamBatch({
-        classId: saveClass.id,
-        testDate: saveDate,
-        examStandardId: selectedStandard.id,
-        scoringCity: selectedStandard.examType === 'gaokao_sports' ? '广东省' : selectedStandard.cityName,
-        scoringVersion: selectedStandard.schemeLabel || selectedStandard.policyLabel,
-        duplicateAction,
-        rows
-      })
+      const result = await window.electronAPI.peTests.importExamBatch(
+        buildExamBatchPeTestImportPayload({
+          classId: saveClass.id,
+          testDate: saveDate,
+          standard: selectedStandard,
+          duplicateAction,
+          rows
+        })
+      )
       await reloadPeTests()
       setSaveResult(result)
     } catch (caught) {
@@ -355,22 +376,17 @@ export default function ExamBatchPage({
       ).length
     : 0
 
-  return (
-    <PageLayout className="page--exams">
-      <PageHeader
-        icon="exams"
-        title="Excel 批量评分工作台"
-        description="选择城市和规则版本后导入 Excel。系统自动识别多个体育项目并逐格换算，不会写入学生档案，也不会覆盖原文件。"
-        actions={
-          <button type="button" className="btn" onClick={onBack}>
-            返回评分标准
-          </button>
-        }
-      />
+  const headingTitle = entry === 'pe-tests' ? '导入成绩' : '评分工具'
+  const headingDescription =
+    entry === 'pe-tests'
+      ? '把已有 Excel 成绩导入正式体育测试。'
+      : '独立评分与模板工具，不一定写入体育测试。保存到体育测试时使用同一套入库流程。'
+  const batchBody = (
+    <>
       <ol className="exam-batch-steps">
-        <li className={step === 'setup' ? 'is-active' : ''}>① 选择城市/版本</li>
-        <li className={step === 'detect' ? 'is-active' : ''}>② 识别项目</li>
-        <li className={step === 'result' ? 'is-active' : ''}>③ 换算结果</li>
+        <li className={step === 'setup' ? 'is-active' : ''}>① 选择评分标准</li>
+        <li className={step === 'detect' ? 'is-active' : ''}>② 识别 Excel</li>
+        <li className={step === 'result' ? 'is-active' : ''}>③ 预览并保存</li>
       </ol>
       {error ? <p className="page-error">{error}</p> : null}
 
@@ -450,6 +466,8 @@ export default function ExamBatchPage({
         <p className="exam-notes">城市必须由老师明确选择。不会根据 Excel 猜测城市，也不会套用其他城市评分表。</p>
       </div>
 
+      {entry === 'standards-tool' ? <ExamTemplateActions standard={selectedStandard} /> : null}
+
       <div className="exam-detail">
         <h3>导入 Excel</h3>
         <p className="exam-notes">支持 .xlsx / .xls。一份表可含多个项目列。班级、备注、总分等列会忽略，不阻止导入。</p>
@@ -525,7 +543,7 @@ export default function ExamBatchPage({
             ))}
           </ul>
           <button type="button" className="btn btn-primary" onClick={handleConvert} disabled={!detection.identityReady}>
-            开始批量换算
+            自动评分
           </button>
         </div>
       ) : null}
@@ -555,6 +573,12 @@ export default function ExamBatchPage({
               <dd>{cellError} 格</dd>
             </div>
           </dl>
+          {declaredScoreColumns.length > 0 ? (
+            <p className="exam-notes">
+              检测到 Excel 含得分列。第一版仍按当前评分标准根据原始成绩计算得分，不会静默覆盖 Excel 得分。
+              {scoreMismatchHint ? ' Excel得分与当前评分标准计算结果不同。' : ''}
+            </p>
+          ) : null}
           <p className="exam-notes">
             {itemSummaries
               .map((item) => {
@@ -571,7 +595,7 @@ export default function ExamBatchPage({
               导出评分结果
             </button>
             <button type="button" className="btn" onClick={openSaveDialog} disabled={!canSaveToPeTest}>
-              保存到体育测试
+              {entry === 'pe-tests' ? '预览并保存' : '保存到体育测试'}
             </button>
             <span className="exam-notes">默认 {singleItemExportFileName(fileName || '成绩')}</span>
           </div>
@@ -650,7 +674,7 @@ export default function ExamBatchPage({
             aria-labelledby="exam-save-pe-title"
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <h3 id="exam-save-pe-title">{saveResult ? '已保存到体育测试' : '保存到体育测试'}</h3>
+            <h3 id="exam-save-pe-title">{saveResult ? '导入完成' : '确认导入'}</h3>
             {saveResult ? (
               <>
                 <p className="dialog-slot">
@@ -679,13 +703,28 @@ export default function ExamBatchPage({
                     </button>
                     <button
                       type="button"
-                      className="btn btn-primary"
+                      className="btn"
                       onClick={() => {
                         setSaveOpen(false)
                         onGoToTests?.(saveResult.classId)
                       }}
                     >
-                      前往体育测试
+                      查看体育测试
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => {
+                        const first = saveResult.sessions[0]
+                        setSaveOpen(false)
+                        if (first) {
+                          onGoToAnalysis?.(first.id)
+                        } else {
+                          onGoToTests?.(saveResult.classId)
+                        }
+                      }}
+                    >
+                      查看测试分析
                     </button>
                   </div>
                 </div>
@@ -720,7 +759,7 @@ export default function ExamBatchPage({
                   <br />
                   学生：{students.length} 人　预计创建：{skipPreview?.sessions.length ?? savePreview?.sessions.length ?? 0} 个体育测试
                   <br />
-                  有效成绩：{cellSuccess}　缺考/免考等：{cellNonScore}　真正异常：{cellError}
+                  有效成绩：{cellSuccess}　缺考：{cellAbsent}　免考：{cellExempt}　未测：{cellPending}　异常：{cellError}
                 </p>
                 {savePreview ? (
                   <p className="dialog-slot">
@@ -740,7 +779,7 @@ export default function ExamBatchPage({
                   ))}
                 {savePreview && savePreview.duplicateKeys.length > 0 ? (
                   <p className="dialog-error">
-                    已存在测试：{savePreview.duplicateKeys.length} 个项目与当前班级、日期、项目相同，不能静默覆盖。可跳过已有项目，仅创建尚未存在的测试。
+                    已存在测试：该项目当天已有测试。不能静默覆盖。可跳过已有项目，仅创建尚未存在的测试。
                   </p>
                 ) : null}
                 {savePreview?.errors
@@ -756,7 +795,7 @@ export default function ExamBatchPage({
                   <span />
                   <div className="dialog-actions-right">
                     <button type="button" className="btn" onClick={() => setSaveOpen(false)} disabled={saveWorking}>
-                      取消保存
+                      取消导入
                     </button>
                     {savePreview && savePreview.duplicateKeys.length > 0 ? (
                       <button
@@ -779,7 +818,7 @@ export default function ExamBatchPage({
                         disabled={saveWorking || !saveClass || !savePreview?.ok}
                         onClick={() => void commitSave('cancel')}
                       >
-                        确认保存
+                        确认导入
                       </button>
                     )}
                   </div>
@@ -789,6 +828,35 @@ export default function ExamBatchPage({
           </div>
         </div>
       ) : null}
+    </>
+  )
+
+  if (embedded) {
+    return (
+      <>
+        <div className="pe-center-toolbar">
+          <button type="button" className="btn" onClick={onBack}>
+            {entry === 'pe-tests' ? '返回测试记录' : '返回评分标准'}
+          </button>
+        </div>
+        {batchBody}
+      </>
+    )
+  }
+
+  return (
+    <PageLayout className="page--exams">
+      <PageHeader
+        icon="exams"
+        title={headingTitle}
+        description={headingDescription}
+        actions={
+          <button type="button" className="btn" onClick={onBack}>
+            {entry === 'pe-tests' ? '返回测试记录' : '返回评分标准'}
+          </button>
+        }
+      />
+      {batchBody}
     </PageLayout>
   )
 }

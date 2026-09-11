@@ -5,13 +5,16 @@ import StatsDateRangeControls from './StatsDateRangeControls'
 import { useClasses } from '../context/ClassContext'
 import { usePeSessions } from '../context/PeSessionContext'
 import { usePeTests } from '../context/PeTestContext'
+import { useStudents } from '../context/StudentContext'
 import { useTestItems } from '../context/TestItemContext'
 import { ATTENDANCE_LABELS, PERFORMANCE_TAG_LABELS, type PerformanceTag } from '@shared/peSession'
 import { TEST_RECORD_STATUS_LABELS } from '@shared/peTest'
 import {
+  buildStudentAttentionSignals,
   classDisplayName,
   filterLessonsByClass,
   inDateRange,
+  indexPeTests,
   resolveDateRange,
   summarizeClassLessons,
   summarizeTestSession,
@@ -29,6 +32,7 @@ export default function StatsClassPanel({ onOpenTest }: StatsClassPanelProps): R
   const { sessions } = usePeSessions()
   const { sessions: tests } = usePeTests()
   const { items } = useTestItems()
+  const { students } = useStudents()
   const [classId, setClassId] = useState(classes[0]?.id ?? '')
   const [kind, setKind] = useState<StatsRangeKind>('days30')
   const [customStart, setCustomStart] = useState('')
@@ -48,6 +52,18 @@ export default function StatsClassPanel({ onOpenTest }: StatsClassPanelProps): R
         .slice(0, 8),
     [tests, classId, range]
   )
+  const attention = useMemo(() => {
+    const index = indexPeTests(tests)
+    const ids = new Set<string>(
+      tests.filter((item) => item.classId === classId).flatMap((item) => item.records.map((row) => row.studentId))
+    )
+    for (const person of students) {
+      if (person.classId === classId && person.status === 'active') {
+        ids.add(person.id)
+      }
+    }
+    return [...ids].flatMap((id) => buildStudentAttentionSignals(id, tests, items, { index })).slice(0, 20)
+  }, [tests, classId, items, students])
 
   if (classes.length === 0) {
     return <TechEmptyState kind="stats" title="还没有班级" description="请先在班级与学生中创建班级后再查看统计。" />
@@ -94,6 +110,19 @@ export default function StatsClassPanel({ onOpenTest }: StatsClassPanelProps): R
           <StatCard key={tag} label={`${PERFORMANCE_TAG_LABELS[tag]}次数`} value={String(summary.tags[tag])} hint="人次" />
         ))}
       </div>
+
+      <h3 className="stats-subtitle">需要关注</h3>
+      {attention.length === 0 ? (
+        <p className="stats-muted">当前没有可解释的关注信号。</p>
+      ) : (
+        <ul className="growth-signals">
+          {attention.map((item) => (
+            <li key={`${item.studentId}-${item.title}-${item.detail}`}>
+              {item.name} · {item.title} · {item.detail}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <h3 className="stats-subtitle">范围内最近体育测试</h3>
       {recentTests.length === 0 ? (
