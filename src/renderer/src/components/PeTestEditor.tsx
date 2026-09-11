@@ -28,6 +28,7 @@ interface PeTestEditorProps {
   historySessions: PETestSession[]
   onBack: () => void
   onSave: (session: PETestSession) => Promise<void>
+  onRequestQuickEntry?: () => void
   initialTab?: 'edit' | 'analysis'
 }
 
@@ -37,6 +38,7 @@ export default function PeTestEditor({
   historySessions,
   onBack,
   onSave,
+  onRequestQuickEntry,
   initialTab = 'edit'
 }: PeTestEditorProps): React.JSX.Element {
   const { classes } = useClasses()
@@ -223,6 +225,11 @@ export default function PeTestEditor({
             <button type="button" className={tab === 'edit' ? 'btn btn-primary' : 'btn'} onClick={() => setTab('edit')}>
               成绩录入
             </button>
+            {onRequestQuickEntry ? (
+              <button type="button" className="btn btn-primary" onClick={onRequestQuickEntry}>
+                快速录入成绩
+              </button>
+            ) : null}
             <button type="button" className="btn" onClick={onBack}>
               返回列表
             </button>

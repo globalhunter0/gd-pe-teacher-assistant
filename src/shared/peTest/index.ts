@@ -54,3 +54,16 @@ export {
   parseTestItems,
   rangeWarning
 } from './validate'
+export {
+  applyQuickEntry,
+  adjacentRecordId,
+  countQuickEntryProgress,
+  convertPeTestRawToExamRaw,
+  firstUnenteredRecordId,
+  nextUnenteredRecordId,
+  parseQuickEntryInput,
+  QUICK_ENTRY_NO_SCORE_HINT,
+  resolveQuickEntryStatusShortcut,
+  scoreQuickEntryRaw,
+  sortQuickEntryRecords
+} from './quickEntry'
