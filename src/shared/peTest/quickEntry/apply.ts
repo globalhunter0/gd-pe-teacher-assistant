@@ -63,6 +63,7 @@ export function applyQuickEntry(options: {
   action: QuickEntryAction
   standard: ExamStandard | null
   nowIso: string
+  scopeStudentIds?: ReadonlyArray<string> | null
 }): QuickEntryApplyResult {
   const current = options.session.records.find((item) => item.id === options.recordId)
   if (!current) {
@@ -79,7 +80,7 @@ export function applyQuickEntry(options: {
     return {
       ok: true,
       session: options.session,
-      nextRecordId: nextRosterRecordId(options.session.records, options.recordId),
+      nextRecordId: nextRosterRecordId(options.session.records, options.recordId, options.scopeStudentIds),
       message: current.status === 'pending' ? '已跳过，保持未测' : null,
       focusAgain: true
     }
@@ -90,7 +91,7 @@ export function applyQuickEntry(options: {
     return {
       ok: true,
       session: next,
-      nextRecordId: nextUnenteredRecordId(next.records, options.recordId),
+      nextRecordId: nextUnenteredRecordId(next.records, options.recordId, options.scopeStudentIds),
       message: null,
       focusAgain: true
     }
@@ -133,7 +134,7 @@ export function applyQuickEntry(options: {
   return {
     ok: true,
     session: next,
-    nextRecordId: nextUnenteredRecordId(next.records, options.recordId),
+    nextRecordId: nextUnenteredRecordId(next.records, options.recordId, options.scopeStudentIds),
     message: parsed.needsConfirm ? parsed.warning : scored.noScoreHint,
     focusAgain: true
   }

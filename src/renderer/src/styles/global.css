@@ -3736,6 +3736,81 @@ textarea:disabled {
   align-items: center;
 }
 
+.pe-quick-current-label {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #8a5a00;
+}
+
+.pe-quick-progress {
+  height: 8px;
+  background: #e6edf5;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0 0 12px;
+}
+
+.pe-quick-progress span {
+  display: block;
+  height: 100%;
+  background: #1f9d6a;
+}
+
+.pe-quick-toast {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  background: #eefaf2;
+  border: 1px solid #b7e0c4;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.pe-quick-roster-tools,
+.pe-quick-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.pe-quick-search {
+  min-width: 140px;
+  flex: 1 1 160px;
+  padding: 6px 8px;
+}
+
+.pe-quick-recent {
+  margin-top: 16px;
+}
+
+.pe-quick-recent h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.pe-quick-recent ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.pe-quick-picker {
+  max-height: 280px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.pe-quick-picker-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+}
+
 @media (max-width: 860px) {
   .pe-quick-layout {
     grid-template-columns: minmax(0, 1fr);

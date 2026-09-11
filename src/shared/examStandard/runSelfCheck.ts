@@ -36,6 +36,7 @@ import { runV0180AnalyticsSelfCheckOrThrow } from '../statistics/v0180Selfcheck'
 import { runV0190PeTestImportEntrySelfCheckOrThrow } from '../examBatch/v0190Selfcheck'
 import { runV0200PeTestCenterSelfCheckOrThrow } from '../peTest/v0200Selfcheck'
 import { runV0210PeTestQuickEntrySelfCheckOrThrow } from '../peTest/v0210Selfcheck'
+import { runV0220PeTestFieldEntrySelfCheckOrThrow } from '../peTest/v0220Selfcheck'
 
 async function main(): Promise<void> {
   console.log(runExamScoreEngineSelfCheckOrThrow())
@@ -65,6 +66,7 @@ async function main(): Promise<void> {
   console.log(await runV0190PeTestImportEntrySelfCheckOrThrow())
   console.log(await runV0200PeTestCenterSelfCheckOrThrow())
   console.log(runV0210PeTestQuickEntrySelfCheckOrThrow())
+  console.log(runV0220PeTestFieldEntrySelfCheckOrThrow())
   console.log(runTrainingTeamSelfCheckOrThrow())
   console.log(await runScheduleLinkageSelfCheckOrThrow())
   console.log(await runScheduleBulkDeleteSelfCheckOrThrow())

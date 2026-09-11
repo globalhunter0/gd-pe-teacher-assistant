@@ -10,14 +10,29 @@ export function sortQuickEntryRecords<T extends Pick<PETestRecord, 'studentNoSna
   )
 }
 
-export function firstUnenteredRecordId(records: ReadonlyArray<PETestRecord>): string | null {
-  const sorted = sortQuickEntryRecords(records)
+export function firstUnenteredRecordId(
+  records: ReadonlyArray<PETestRecord>,
+  scopeStudentIds?: ReadonlyArray<string> | null
+): string | null {
+  const scoped =
+    scopeStudentIds && scopeStudentIds.length > 0
+      ? records.filter((item) => scopeStudentIds.includes(item.studentId))
+      : records
+  const sorted = sortQuickEntryRecords(scoped)
   const pending = sorted.find((item) => item.status === 'pending')
   return pending?.id ?? sorted[0]?.id ?? null
 }
 
-export function nextUnenteredRecordId(records: ReadonlyArray<PETestRecord>, currentId: string): string | null {
-  const sorted = sortQuickEntryRecords(records)
+export function nextUnenteredRecordId(
+  records: ReadonlyArray<PETestRecord>,
+  currentId: string,
+  scopeStudentIds?: ReadonlyArray<string> | null
+): string | null {
+  const scoped =
+    scopeStudentIds && scopeStudentIds.length > 0
+      ? records.filter((item) => scopeStudentIds.includes(item.studentId))
+      : records
+  const sorted = sortQuickEntryRecords(scoped.length > 0 ? scoped : records)
   if (sorted.length === 0) {
     return null
   }
@@ -35,9 +50,14 @@ export function nextUnenteredRecordId(records: ReadonlyArray<PETestRecord>, curr
 export function adjacentRecordId(
   records: ReadonlyArray<PETestRecord>,
   currentId: string,
-  direction: -1 | 1
+  direction: -1 | 1,
+  scopeStudentIds?: ReadonlyArray<string> | null
 ): string | null {
-  const sorted = sortQuickEntryRecords(records)
+  const scoped =
+    scopeStudentIds && scopeStudentIds.length > 0
+      ? records.filter((item) => scopeStudentIds.includes(item.studentId))
+      : records
+  const sorted = sortQuickEntryRecords(scoped.length > 0 ? scoped : records)
   if (sorted.length === 0) {
     return null
   }
@@ -52,8 +72,16 @@ export function adjacentRecordId(
   return sorted[next].id
 }
 
-export function nextRosterRecordId(records: ReadonlyArray<PETestRecord>, currentId: string): string | null {
-  const sorted = sortQuickEntryRecords(records)
+export function nextRosterRecordId(
+  records: ReadonlyArray<PETestRecord>,
+  currentId: string,
+  scopeStudentIds?: ReadonlyArray<string> | null
+): string | null {
+  const scoped =
+    scopeStudentIds && scopeStudentIds.length > 0
+      ? records.filter((item) => scopeStudentIds.includes(item.studentId))
+      : records
+  const sorted = sortQuickEntryRecords(scoped.length > 0 ? scoped : records)
   if (sorted.length === 0) {
     return null
   }

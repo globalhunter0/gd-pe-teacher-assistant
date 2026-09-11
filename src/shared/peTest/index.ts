@@ -65,5 +65,8 @@ export {
   QUICK_ENTRY_NO_SCORE_HINT,
   resolveQuickEntryStatusShortcut,
   scoreQuickEntryRaw,
-  sortQuickEntryRecords
+  sortQuickEntryRecords,
+  applyQuickEntryUndo,
+  captureRecordState,
+  visibleQuickEntryRecords
 } from './quickEntry'
