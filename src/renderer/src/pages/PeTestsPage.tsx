@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import PeTestEditor from '../components/PeTestEditor'
+import PeQuickEntryPanel from '../components/PeQuickEntryPanel'
 import PageLayout, { PageHeader } from '../components/PageLayout'
 import DataTable from '../components/ds/DataTable'
 import TechEmptyState from '../components/workspace/TechEmptyState'
@@ -59,6 +60,7 @@ export default function PeTestsPage({
   const [actionError, setActionError] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
   const [duplicateCount, setDuplicateCount] = useState(0)
+  const [quickEntry, setQuickEntry] = useState<{ sessionId?: string } | null>(null)
 
   const [classId, setClassId] = useState(listedClassRecords(classes)[0]?.id ?? '')
   const [testItemId, setTestItemId] = useState(items.find((item) => item.isActive)?.id ?? '')
@@ -233,6 +235,23 @@ export default function PeTestsPage({
     )
   }
 
+  if (quickEntry) {
+    const initialSession = quickEntry.sessionId
+      ? sessions.find((item) => item.id === quickEntry.sessionId) ?? null
+      : null
+    return (
+      <PeQuickEntryPanel
+        initialSession={initialSession}
+        onClose={() => setQuickEntry(null)}
+        onOpenResult={(session, tab) => {
+          setQuickEntry(null)
+          setEditorTab(tab)
+          setEditing(session)
+        }}
+      />
+    )
+  }
+
   if (editing) {
     return (
       <PeTestEditor
@@ -241,6 +260,10 @@ export default function PeTestsPage({
         historySessions={sessions}
         initialTab={editorTab}
         onBack={() => setEditing(null)}
+        onRequestQuickEntry={() => {
+          setQuickEntry({ sessionId: editing.id })
+          setEditing(null)
+        }}
         onSave={async (next) => {
           await upsertSession(next)
           setEditing(next)
@@ -258,7 +281,10 @@ export default function PeTestsPage({
         <button type="button" className="btn" onClick={requestImport}>
           {PE_TEST_PRIMARY_IMPORT_LABEL}
         </button>
-        <button type="button" className="btn btn-primary" onClick={openCreate}>
+        <button type="button" className="btn btn-primary" onClick={() => setQuickEntry({})}>
+          快速录入
+        </button>
+        <button type="button" className="btn" onClick={openCreate}>
           新建测试
         </button>
       </>
