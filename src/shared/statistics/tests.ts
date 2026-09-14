@@ -3,6 +3,7 @@ import {
   findFirstValidScore,
   findLatestValidScore,
   formatRawValue,
+  recordsForActualTestItem,
   resolveTimeInputMode,
   testUnitDisplay,
   usesMinuteFormat,
@@ -18,11 +19,16 @@ export function filterTests(
   sessions: ReadonlyArray<PETestSession>,
   classId: string,
   testItemId: string,
-  range: ResolvedDateRange
+  range: ResolvedDateRange,
+  items: ReadonlyArray<TestItem> = []
 ): PETestSession[] {
-  return sessions.filter(
-    (item) => item.classId === classId && item.testItemId === testItemId && inDateRange(item.date, range)
-  )
+  return sessions.filter((item) => {
+    if (item.classId !== classId || !inDateRange(item.date, range)) {
+      return false
+    }
+    const catalog = items.length > 0 ? items : undefined
+    return recordsForActualTestItem(item, testItemId, catalog).length > 0
+  })
 }
 
 export function countTestStatuses(records: ReadonlyArray<Pick<PETestRecord, 'status'>>): Record<TestRecordStatus, number> {
@@ -95,6 +101,18 @@ export function formatTestScoreWithUnit(
   }
 
   return unit ? `${formatted} ${unit}` : formatted
+}
+
+/** 数据统计页统一口径：保留原 session 标题/组合信息，records 只保留所选实际项目。 */
+export function selectPeTestSessionByActualItem(
+  session: PETestSession,
+  actualTestItemId: string,
+  items: ReadonlyArray<TestItem>
+): PETestSession {
+  return {
+    ...session,
+    records: recordsForActualTestItem(session, actualTestItemId, items)
+  }
 }
 
 export function summarizeTestSession(

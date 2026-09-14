@@ -6,6 +6,7 @@ export {
   filterTests,
   formatTestScore,
   formatTestScoreWithUnit,
+  selectPeTestSessionByActualItem,
   summarizeStudentTests,
   summarizeTestSession,
   type StudentItemStat

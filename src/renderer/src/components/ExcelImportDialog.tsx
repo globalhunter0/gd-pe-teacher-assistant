@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useState } from 'react'
-import { DEFAULT_ACADEMIC_YEAR, GRADES, SEMESTERS, listedClassRecords, type ClassRecord, type Grade, type Semester } from '@shared/class'
+import { DEFAULT_ACADEMIC_YEAR, GRADES, GRADE_LABELS, SEMESTERS, listedClassRecords, type ClassRecord, type Grade, type Semester } from '@shared/class'
 import {
   type ImportColumn,
   type ImportCommitResult,
@@ -339,7 +339,7 @@ export default function ExcelImportDialog({ classes, onClose, onImported }: Exce
                               <option value="">请选择年级</option>
                               {GRADES.map((item) => (
                                 <option key={item} value={item}>
-                                  {item}
+                                  {GRADE_LABELS[item]}
                                 </option>
                               ))}
                             </select>

@@ -7,6 +7,11 @@ export interface QuickEntryRecordState {
   rawOriginal: string
   note: string
   examItemId: string | null
+  resolvedTestItemId: string | null
+  baseScore: number | null
+  bonusScore: number | null
+  scoreOutcome: PETestRecord['scoreOutcome']
+  officialMinimumScore: number | null
 }
 
 export interface QuickEntryUndoEntry {
@@ -26,7 +31,12 @@ export function captureRecordState(record: PETestRecord): QuickEntryRecordState 
     examScore: record.examScore,
     rawOriginal: record.rawOriginal,
     note: record.note,
-    examItemId: record.examItemId
+    examItemId: record.examItemId,
+    resolvedTestItemId: record.resolvedTestItemId ?? null,
+    baseScore: record.baseScore ?? null,
+    bonusScore: record.bonusScore ?? null,
+    scoreOutcome: record.scoreOutcome ?? null,
+    officialMinimumScore: record.officialMinimumScore ?? null
   }
 }
 
@@ -66,6 +76,11 @@ export function applyQuickEntryUndo(
               rawOriginal: entry.before.rawOriginal,
               note: entry.before.note,
               examItemId: entry.before.examItemId,
+              resolvedTestItemId: entry.before.resolvedTestItemId,
+              baseScore: entry.before.baseScore,
+              bonusScore: entry.before.bonusScore,
+              scoreOutcome: entry.before.scoreOutcome,
+              officialMinimumScore: entry.before.officialMinimumScore,
               updatedAt: nowIso
             }
           : item

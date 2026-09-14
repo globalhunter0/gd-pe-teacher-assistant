@@ -55,7 +55,21 @@ export interface PETestRecord {
   /** Excel 原始单元格文本，例如 3:39 或 缺考。 */
   rawOriginal: string
   examItemId: string | null
+  /**
+   * 组合项目下该学生真实日常项目。读取时以性别解析为准，不回退 session.testItemId。
+   */
+  resolvedTestItemId?: string | null
+  /** 国家体测基础分；中考/高考等于 examScore；无评分时 null。缺省按 null。 */
+  baseScore?: number | null
+  /** 国家体测附加分；其他体系为 0 或 null。缺省按 null。 */
+  bonusScore?: number | null
+  /** 官方换算结果形态。缺省 null（含仅原始成绩、旧中考记录仅有 examScore）。 */
+  scoreOutcome?: PeTestScoreOutcome | null
+  /** BELOW_OFFICIAL_MINIMUM 时当前表最低公布档。缺省 null。 */
+  officialMinimumScore?: number | null
 }
+
+export type PeTestScoreOutcome = 'official' | 'below_official_minimum'
 
 export interface PETestSession {
   id: string
@@ -80,6 +94,8 @@ export interface PETestSession {
   examStandardId: string | null
   scoringCitySnapshot: string
   scoringVersionSnapshot: string
+  /** 教师选择层组合项目，例如 800米/1000米。缺省 null。 */
+  testGroupId?: string | null
 }
 
 export const TEST_VALUE_TYPES: TestValueType[] = ['number', 'time']

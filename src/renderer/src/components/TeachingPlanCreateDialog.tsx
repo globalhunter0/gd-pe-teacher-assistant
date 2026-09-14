@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import { DEFAULT_ACADEMIC_YEAR, GRADES, SEMESTERS, type Grade, type Semester } from '@shared/class'
+import { DEFAULT_ACADEMIC_YEAR, GRADES, GRADE_LABELS, SEMESTERS, type Grade, type Semester } from '@shared/class'
 import {
   MAX_PLAN_WEEKS,
   MIN_PLAN_WEEKS,
@@ -96,7 +96,7 @@ export default function TeachingPlanCreateDialog({
             <select value={grade} onChange={(event) => setGrade(event.target.value as Grade)}>
               {GRADES.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {GRADE_LABELS[item]}
                 </option>
               ))}
             </select>

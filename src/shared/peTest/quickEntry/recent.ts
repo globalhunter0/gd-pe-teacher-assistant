@@ -1,4 +1,5 @@
 import type { PETestRecord, TestRecordStatus } from '../types'
+import { formatPeTestItemScoreText } from '../scoringBasis'
 
 export interface QuickEntryRecentEntry {
   recordId: string
@@ -8,6 +9,7 @@ export interface QuickEntryRecentEntry {
   status: TestRecordStatus
   rawDisplay: string
   examScore: number | null
+  scoreText: string
 }
 
 export const QUICK_ENTRY_RECENT_LIMIT = 5
@@ -28,6 +30,7 @@ export function recentEntryFromRecord(record: PETestRecord, rawDisplay: string):
     name: record.nameSnapshot,
     status: record.status,
     rawDisplay,
-    examScore: record.examScore
+    examScore: record.examScore,
+    scoreText: formatPeTestItemScoreText(record)
   }
 }

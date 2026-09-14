@@ -1,8 +1,12 @@
 import { listBuiltinExamStandards } from '../examStandard/catalog'
 import type { ExamStandard } from '../examStandard/types'
 import type { ClassRecord } from '../class/types'
+import { isNationalFitnessStandardId } from '../nationalFitness/catalog'
 import {
+  classroomScoringLabel,
   compareToPrevious,
+  countBelowOfficialMinimum,
+  formatPeTestItemScoreText,
   formatRawValue,
   resolveTimeInputMode,
   testUnitDisplay,
@@ -15,6 +19,7 @@ import {
 } from '../peTest'
 import { STUDENT_GENDER_LABELS, type StudentRecord } from '../student'
 import { classDisplayName } from './students'
+import { actualTestItemName, isGenderLinkedSession, recordsForActualTestItem, resolvedTestItemIdOf, sessionDisplayItemName } from '../peTest/groupedItems'
 import { averageRaw, bestRaw, countTestStatuses, formatTestScore, formatTestScoreWithUnit, validRawValues } from './tests'
 
 export type VsPreviousKind = 'improved' | 'declined' | 'same' | 'first' | 'incomparable'
@@ -104,6 +109,9 @@ export function resolveExamItemFullScore(
   if (!session.examStandardId) {
     return null
   }
+  if (isNationalFitnessStandardId(session.examStandardId)) {
+    return 100
+  }
   const standard = standards.find((item) => item.id === session.examStandardId)
   if (!standard) {
     return null
@@ -150,7 +158,7 @@ export function scoreBandRangeLabel(fullScore: number, band: ScoreBandId): strin
     return Number.isInteger(value) ? String(value) : value.toFixed(1)
   }
   if (band === 'excellent') {
-    return `${cut(0.9)}–${fullScore}分`
+    return `≥${cut(0.9)}分`
   }
   if (band === 'good') {
     return `${cut(0.8)}–${cut(0.9)}分`
@@ -171,11 +179,11 @@ function previousValidBeforeDate(
   testDate: string
 ): { session: PETestSession; record: PETestRecord & { rawValue: number } } | null {
   const previous = sortSessionsAsc(sessions)
-    .filter((item) => item.testItemId === testItemId && item.date < testDate)
+    .filter((item) => item.date < testDate)
     .reverse()
   for (const session of previous) {
     const record = studentRecordIn(session, studentId)
-    if (isValidRaw(record)) {
+    if (isValidRaw(record) && resolvedTestItemIdOf(record, session) === testItemId) {
       return { session, record }
     }
   }
@@ -201,7 +209,17 @@ export function compareWithPreviousResult(
     return { kind: 'incomparable', deltaRaw: null, previousRaw: null, currentRaw: record.rawValue, text: '不可比较' }
   }
 
-  const previous = previousValidBeforeDate(allSessions, studentId, current.testItemId, current.date)
+  const itemId = resolvedTestItemIdOf(record, current)
+  if (!itemId) {
+    return { kind: 'incomparable', deltaRaw: null, previousRaw: null, currentRaw: record.rawValue, text: '不可比较' }
+  }
+
+  const previous = previousValidBeforeDate(
+    allSessions,
+    studentId,
+    itemId,
+    current.date
+  )
   if (!previous) {
     return { kind: 'first', deltaRaw: null, previousRaw: null, currentRaw: record.rawValue, text: '首次测试' }
   }
@@ -239,11 +257,15 @@ export function detectPersonalBest(
   if (!isValidRaw(record)) {
     return false
   }
+  const itemId = resolvedTestItemIdOf(record, current)
+  if (!itemId) {
+    return false
+  }
   const previousValues = allSessions
-    .filter((item) => item.id !== current.id && item.testItemId === current.testItemId)
+    .filter((item) => item.id !== current.id)
     .flatMap((item) => {
       const match = studentRecordIn(item, studentId)
-      return isValidRaw(match) ? [match.rawValue] : []
+      return isValidRaw(match) && resolvedTestItemIdOf(match, item) === itemId ? [match.rawValue] : []
     })
   if (previousValues.length === 0) {
     return false
@@ -273,9 +295,14 @@ export interface StudentItemHistoryPoint {
   sessionId: string
   date: string
   createdAt: string
+  title: string
   status: TestRecordStatus
   rawValue: number | null
   examScore: number | null
+  baseScore: number | null
+  bonusScore: number | null
+  gradeSnapshot: PETestSession['gradeSnapshot']
+  actualItemName: string
   rawText: string
   scoreText: string
   standardLabel: string
@@ -305,25 +332,38 @@ export function buildStudentItemHistory(
   testItemId: string,
   testItems: ReadonlyArray<TestItem>
 ): StudentItemHistory | null {
-  const itemSessions = sortSessionsAsc(sessions.filter((item) => item.testItemId === testItemId && item.records.some((row) => row.studentId === studentId)))
+  const itemSessions = sortSessionsAsc(
+    sessions.filter((session) => {
+      const record = studentRecordIn(session, studentId)
+      return Boolean(record && resolvedTestItemIdOf(record, session, testItems) === testItemId)
+    })
+  )
   if (itemSessions.length === 0) {
     return null
   }
   const sample = itemSessions[itemSessions.length - 1]
   const testItem = testItems.find((item) => item.id === testItemId)
-  const name = testItem?.name ?? sample.testItemNameSnapshot
+  const sampleRecord = studentRecordIn(sample, studentId)
+  const name =
+    testItem?.name ??
+    (sampleRecord ? actualTestItemName(sample, sampleRecord, testItems) : sample.testItemNameSnapshot)
   const points: StudentItemHistoryPoint[] = itemSessions.map((session) => {
     const record = studentRecordIn(session, studentId)!
     return {
       sessionId: session.id,
       date: session.date,
       createdAt: session.createdAt,
+      title: session.title,
       status: record.status,
       rawValue: record.rawValue,
       examScore: record.examScore,
+      baseScore: record.baseScore ?? null,
+      bonusScore: record.bonusScore ?? null,
+      gradeSnapshot: session.gradeSnapshot,
+      actualItemName: actualTestItemName(session, record, testItems),
       rawText: record.status === 'valid' ? formatTestScoreWithUnit(record.rawValue, session, testItem) : '—',
-      scoreText: formatExamScore(record.examScore),
-      standardLabel: [session.scoringCitySnapshot, session.scoringVersionSnapshot].filter(Boolean).join(' / ') || session.examStandardId || '—',
+      scoreText: formatPeTestItemScoreText(record),
+      standardLabel: classroomScoringLabel(session),
       isPersonalBest: detectPersonalBest(session, studentId, sessions),
       vsPrevious: compareWithPreviousResult(session, studentId, sessions)
     }
@@ -406,7 +446,15 @@ export function summarizeStudentGrowth(
   const live = students.find((item) => item.id === studentId && item.status !== 'deleted')
   const latest = related[related.length - 1]
   const snapshot = studentRecordIn(latest, studentId)
-  const itemIds = [...new Set(related.map((item) => item.testItemId))]
+  const itemIds = [
+    ...new Set(
+      related.flatMap((session) => {
+        const record = studentRecordIn(session, studentId)
+        const actualId = record ? resolvedTestItemIdOf(record, session, testItems) : null
+        return actualId ? [actualId] : []
+      })
+    )
+  ]
   let validCount = 0
   let absentCount = 0
   let exemptCount = 0
@@ -475,6 +523,7 @@ export interface SingleTestSummary {
   rosterCount: number
   statuses: Record<TestRecordStatus, number>
   scoredCount: number
+  belowOfficialMinimumCount: number
   averageRawText: string
   bestRawText: string
   worstRawText: string
@@ -503,7 +552,8 @@ export function summarizeSingleTest(
   standards: ReadonlyArray<ExamStandard> = listBuiltinExamStandards()
 ): SingleTestSummary {
   const statuses = countTestStatuses(session.records)
-  const values = validRawValues(session.records)
+  const mixedRaw = isGenderLinkedSession(session)
+  const values = mixedRaw ? [] : validRawValues(session.records)
   const scores = session.records.map((item) => item.examScore).filter((item): item is number => item !== null)
   const avgScore = averageRaw(scores)
   let bands: ScoreBandSummary | null = null
@@ -591,11 +641,12 @@ export function summarizeSingleTest(
     sessionId: session.id,
     date: session.date,
     title: session.title,
-    itemName: testItem?.name ?? session.testItemNameSnapshot,
+    itemName: sessionDisplayItemName(session),
     classLabel: classDisplayName(classes, session.classId, session),
     rosterCount: session.records.length,
     statuses,
     scoredCount: scores.length,
+    belowOfficialMinimumCount: countBelowOfficialMinimum(session.records),
     averageRawText: formatTestScore(averageRaw(values), session, testItem),
     bestRawText: formatTestScore(bestRaw(values, session.directionSnapshot), session, testItem),
     worstRawText: formatTestScore(worstRaw(values, session.directionSnapshot), session, testItem),
@@ -634,7 +685,9 @@ export function summarizeClassItemTrend(
   testItemId: string,
   testItems: ReadonlyArray<TestItem>
 ): ClassItemTrend {
-  const listed = sortSessionsAsc(sessions.filter((item) => item.classId === classId && item.testItemId === testItemId))
+  const listed = sortSessionsAsc(
+    sessions.filter((item) => item.classId === classId && recordsForActualTestItem(item, testItemId, testItems).length > 0)
+  )
   const sample = listed[0]
   const testItem = testItems.find((item) => item.id === testItemId)
   return {
@@ -643,8 +696,9 @@ export function summarizeClassItemTrend(
     itemName: testItem?.name ?? sample?.testItemNameSnapshot ?? '测试项目',
     scoringStandardChanged: detectScoringStandardChange(listed),
     points: listed.map((session) => {
-      const values = validRawValues(session.records)
-      const scores = session.records.map((item) => item.examScore).filter((item): item is number => item !== null)
+      const matched = recordsForActualTestItem(session, testItemId, testItems)
+      const values = validRawValues(matched)
+      const scores = matched.map((item) => item.examScore).filter((item): item is number => item !== null)
       const avgRaw = averageRaw(values)
       const avgScore = averageRaw(scores)
       return {
@@ -668,10 +722,13 @@ export interface AttentionSignal {
   detail: string
 }
 
-function validChronology(sessions: ReadonlyArray<PETestSession>, studentId: string, testItemId: string): Array<{ session: PETestSession; rawValue: number }> {
-  return sortSessionsAsc(sessions.filter((item) => item.testItemId === testItemId)).flatMap((session) => {
+function validChronology(sessions: ReadonlyArray<PETestSession>, studentId: string, testItemId: string, testItems: ReadonlyArray<TestItem>): Array<{ session: PETestSession; rawValue: number }> {
+  return sortSessionsAsc(sessions).flatMap((session) => {
     const record = studentRecordIn(session, studentId)
-    return isValidRaw(record) ? [{ session, rawValue: record.rawValue }] : []
+    if (!isValidRaw(record) || resolvedTestItemIdOf(record, session, testItems) !== testItemId) {
+      return []
+    }
+    return [{ session, rawValue: record.rawValue }]
   })
 }
 
@@ -704,11 +761,19 @@ export function buildStudentAttentionSignals(
   const latestName = studentRecordIn(related[related.length - 1], studentId)?.nameSnapshot ?? '学生'
   const today = options.today ?? related[related.length - 1]?.date
   const signals: AttentionSignal[] = []
-  const itemIds = [...new Set(related.map((item) => item.testItemId))]
+  const itemIds = [
+    ...new Set(
+      related.flatMap((session) => {
+        const record = studentRecordIn(session, studentId)
+        const actualId = record ? resolvedTestItemIdOf(record, session, testItems) : null
+        return actualId ? [actualId] : []
+      })
+    )
+  ]
 
   for (const testItemId of itemIds) {
-    const points = validChronology(related, studentId, testItemId)
-    const name = testItems.find((item) => item.id === testItemId)?.name ?? related.find((item) => item.testItemId === testItemId)?.testItemNameSnapshot ?? '项目'
+    const points = validChronology(related, studentId, testItemId, testItems)
+    const name = testItems.find((item) => item.id === testItemId)?.name ?? '项目'
     const formatPoint = (item: { session: PETestSession; rawValue: number }): string =>
       formatRawValue(
         item.rawValue,
@@ -736,7 +801,12 @@ export function buildStudentAttentionSignals(
         detail: `${name}最近3次：${last.map(formatPoint).join(' → ')}`
       })
     }
-    const latestSession = [...related].reverse().find((item) => item.testItemId === testItemId && isValidRaw(studentRecordIn(item, studentId)))
+    const latestSession = [...related]
+      .reverse()
+      .find((item) => {
+        const record = studentRecordIn(item, studentId)
+        return Boolean(record && resolvedTestItemIdOf(record, item, testItems) === testItemId && isValidRaw(record))
+      })
     if (latestSession && detectPersonalBest(latestSession, studentId, related)) {
       signals.push({
         studentId,
@@ -747,7 +817,10 @@ export function buildStudentAttentionSignals(
       })
     }
 
-    const recentItem = related.filter((item) => item.testItemId === testItemId).slice(-5)
+    const recentItem = related.filter((item) => {
+      const record = studentRecordIn(item, studentId)
+      return Boolean(record && resolvedTestItemIdOf(record, item, testItems) === testItemId)
+    }).slice(-5)
     const absentRecent = recentItem.filter((item) => studentRecordIn(item, studentId)?.status === 'absent').length
     if (absentRecent >= 2) {
       signals.push({

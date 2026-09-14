@@ -1,7 +1,12 @@
 import type { ClassRecord } from '@shared/class'
 import {
+  applyClassroomScoringBasis,
+  BUILTIN_TEST_ITEMS,
   createPeTestId,
   createPeTestRecordId,
+  emptyClassroomScoreFields,
+  resolveLinkedTestItem,
+  type GenderLinkedTestGroup,
   type PETestSession,
   type TestItem
 } from '@shared/peTest'
@@ -21,13 +26,16 @@ export function buildPeTestSession(options: {
   date: string
   title: string
   notes: string
+  testGroup?: GenderLinkedTestGroup | null
+  examStandardId?: string | null
 }): PETestSession {
   const now = new Date().toISOString()
   const sessionId = createPeTestId()
+  const displayName = options.testGroup?.displayName ?? options.testItem.name
   const title =
-    options.title.trim() || `${options.classRecord.className} · ${options.testItem.name} · ${options.date}`
+    options.title.trim() || `${options.classRecord.className} · ${displayName} · ${options.date}`
 
-  return {
+  const session: PETestSession = {
     id: sessionId,
     classId: options.classRecord.id,
     testItemId: options.testItem.id,
@@ -36,7 +44,7 @@ export function buildPeTestSession(options: {
     notes: options.notes.trim(),
     classNameSnapshot: options.classRecord.className,
     gradeSnapshot: options.classRecord.grade,
-    testItemNameSnapshot: options.testItem.name,
+    testItemNameSnapshot: displayName,
     unitSnapshot: options.testItem.unit,
     customUnitLabelSnapshot: options.testItem.customUnitLabel,
     directionSnapshot: options.testItem.direction,
@@ -44,25 +52,33 @@ export function buildPeTestSession(options: {
     timeInputModeSnapshot: options.testItem.timeInputMode,
     createdAt: now,
     updatedAt: now,
-    records: sortActiveStudents(options.activeStudents).map((student) => ({
-      id: createPeTestRecordId(),
-      testSessionId: sessionId,
-      studentId: student.id,
-      nameSnapshot: student.name,
-      studentNoSnapshot: student.studentNo,
-      genderSnapshot: student.gender,
-      rawValue: null,
-      status: 'pending',
-      note: '',
-      createdAt: now,
-      updatedAt: now,
-      examScore: null,
-      rawOriginal: '',
-      examItemId: null
-    })),
+    records: sortActiveStudents(options.activeStudents).map((student) => {
+      const resolved = options.testGroup
+        ? resolveLinkedTestItem(options.testGroup, student.gender, BUILTIN_TEST_ITEMS)
+        : { ok: true as const, item: options.testItem }
+      return {
+        id: createPeTestRecordId(),
+        testSessionId: sessionId,
+        studentId: student.id,
+        nameSnapshot: student.name,
+        studentNoSnapshot: student.studentNo,
+        genderSnapshot: student.gender,
+        rawValue: null,
+        status: 'pending',
+        note: '',
+        createdAt: now,
+        updatedAt: now,
+        ...emptyClassroomScoreFields(),
+        rawOriginal: '',
+        resolvedTestItemId: resolved.ok ? resolved.item.id : null
+      }
+    }),
     importSource: 'manual',
     examStandardId: null,
     scoringCitySnapshot: '',
-    scoringVersionSnapshot: ''
+    scoringVersionSnapshot: '',
+    testGroupId: options.testGroup?.id ?? null
   }
+
+  return applyClassroomScoringBasis(session, options.examStandardId ?? null)
 }

@@ -9,12 +9,23 @@ import {
   applyQuickEntry,
   applyQuickEntryUndo,
   captureRecordState,
+  classroomScoringLabel,
   countQuickEntryProgress,
+  defaultTeacherTestOptionValue,
   firstUnenteredRecordId,
   formatLocalDate,
+  formatPeTestItemScoreText,
   formatRawValue,
+  isGenderLinkedSession,
+  listClassroomScoringOptions,
   parseQuickEntryInput,
+  parseTeacherTestSelection,
+  resolveEffectiveTestItem,
   resolveQuickEntryStatusShortcut,
+  sessionDisplayItemName,
+  teacherSelectableTestOptions,
+  teacherTestOptionValue,
+  UNRESOLVED_LINKED_ITEM_MESSAGE,
   sortQuickEntryRecords,
   testUnitDisplay,
   usesMinuteFormat,
@@ -48,13 +59,24 @@ interface PeQuickEntryPanelProps {
   onOpenResult: (session: PETestSession, tab: 'edit' | 'analysis') => void
 }
 
-function verifiedStandards() {
-  return listBuiltinExamStandards().filter(
-    (item) =>
-      item.examType === 'middle_school_exam' &&
-      item.status === 'verified' &&
-      item.scoreTableStatus === 'verified'
-  )
+function examStandardForScoring(id: string | null) {
+  if (!id) {
+    return null
+  }
+  return listBuiltinExamStandards().find((item) => item.id === id) ?? null
+}
+
+function itemForQuickEntryRecord(
+  session: PETestSession | null,
+  record: PETestRecord,
+  fallback: TestItem | undefined,
+  items: ReadonlyArray<TestItem>
+): TestItem | undefined {
+  if (!session || !fallback) {
+    return fallback
+  }
+  const resolved = resolveEffectiveTestItem(session, record, fallback, items)
+  return resolved.ok ? resolved.item : fallback
 }
 
 function formatRecordRaw(record: PETestRecord, testItem: TestItem | undefined, session: PETestSession): string {
@@ -103,18 +125,27 @@ export default function PeQuickEntryPanel({
   const [toast, setToast] = useState<QuickEntryRecentEntry | null>(null)
 
   const [classId, setClassId] = useState(initialSession?.classId ?? listedClasses[0]?.id ?? '')
-  const [testItemId, setTestItemId] = useState(initialSession?.testItemId ?? items.find((item) => item.isActive)?.id ?? '')
+  const [testItemId, setTestItemId] = useState(
+    initialSession?.testGroupId
+      ? teacherTestOptionValue(initialSession.testGroupId)
+      : (initialSession?.testItemId ?? defaultTeacherTestOptionValue(items))
+  )
   const [date, setDate] = useState(initialSession?.date ?? formatLocalDate(new Date()))
   const [examStandardId, setExamStandardId] = useState(initialSession?.examStandardId ?? '')
 
-  const activeItems = useMemo(() => items.filter((item) => item.isActive), [items])
+  const teacherOptions = useMemo(() => teacherSelectableTestOptions(items), [items])
   const classStudents = useMemo(() => activeStudentsOfClass(students, classId), [students, classId])
   const existing = useMemo(
-    () => (draft ? [] : findExistingPeTestsForQuickEntry(sessions, classId, date, testItemId)),
-    [sessions, classId, date, testItemId, draft]
+    () => (draft ? [] : findExistingPeTestsForQuickEntry(sessions, classId, date, testItemId, items)),
+    [sessions, classId, date, testItemId, draft, items]
   )
-  const testItem: TestItem | undefined = items.find((item) => item.id === (draft?.testItemId ?? testItemId))
-  const standard = verifiedStandards().find((item) => item.id === (draft?.examStandardId ?? examStandardId)) ?? null
+  const teacherSelection = useMemo(() => parseTeacherTestSelection(testItemId, items), [testItemId, items])
+  const sessionItem: TestItem | undefined = draft
+    ? items.find((item) => item.id === draft.testItemId)
+    : teacherSelection?.kind === 'group'
+      ? teacherSelection.anchor
+      : teacherSelection?.item
+  const standard = examStandardForScoring(draft?.examStandardId ?? examStandardId)
   const records = useMemo(() => (draft ? sortQuickEntryRecords(draft.records) : []), [draft])
   const visibleRecords = useMemo(
     () =>
@@ -126,6 +157,9 @@ export default function PeQuickEntryPanel({
     [records, rosterTab, searchQuery, groupStudentIds]
   )
   const current = records.find((item) => item.id === currentId) ?? null
+  const resolvedCurrent = draft && current && sessionItem ? resolveEffectiveTestItem(draft, current, sessionItem, items) : null
+  const testItem = resolvedCurrent?.ok ? resolvedCurrent.item : sessionItem
+  const currentItemUnresolved = Boolean(draft && current && resolvedCurrent && !resolvedCurrent.ok)
   const progress = useMemo(() => countQuickEntryProgress(draft?.records ?? []), [draft])
   const groupDone = Boolean(groupStudentIds && draft && isGroupComplete(draft.records, groupStudentIds))
 
@@ -181,7 +215,8 @@ export default function PeQuickEntryPanel({
       action,
       standard,
       nowIso: new Date().toISOString(),
-      scopeStudentIds: groupStudentIds
+      scopeStudentIds: groupStudentIds,
+      items
     })
     if (!result.ok) {
       setError(result.message)
@@ -236,7 +271,8 @@ export default function PeQuickEntryPanel({
 
   async function startNew(): Promise<void> {
     const classRecord = classes.find((item) => item.id === classId)
-    const item = activeItems.find((entry) => entry.id === testItemId)
+    const selection = parseTeacherTestSelection(testItemId, items)
+    const item = selection?.kind === 'group' ? selection.anchor : selection?.item
     if (!classRecord || !item) {
       setError('请选择班级和测试项目')
       return
@@ -251,20 +287,15 @@ export default function PeQuickEntryPanel({
       activeStudents: classStudents,
       date,
       title: '',
-      notes: ''
+      notes: '',
+      testGroup: selection?.kind === 'group' ? selection.group : null,
+      examStandardId: examStandardId || null
     })
-    const picked = verifiedStandards().find((entry) => entry.id === examStandardId)
-    const withStandard: PETestSession = {
-      ...created,
-      examStandardId: picked?.id ?? null,
-      scoringCitySnapshot: picked?.cityName ?? '',
-      scoringVersionSnapshot: picked?.policyLabel ?? ''
-    }
     setWorking(true)
     try {
-      await upsertSession(withStandard)
-      setDraft(withStandard)
-      setCurrentId(firstUnenteredRecordId(withStandard.records))
+      await upsertSession(created)
+      setDraft(created)
+      setCurrentId(firstUnenteredRecordId(created.records))
       setError(null)
     } catch (startError) {
       setError(startError instanceof Error ? startError.message : '创建失败')
@@ -381,9 +412,9 @@ export default function PeQuickEntryPanel({
           <label>
             测试项目
             <select value={testItemId} onChange={(event) => setTestItemId(event.target.value)}>
-              {activeItems.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
+              {teacherOptions.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
                 </option>
               ))}
             </select>
@@ -393,12 +424,11 @@ export default function PeQuickEntryPanel({
             <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
           </label>
           <label>
-            评分标准（可选）
+            评分依据
             <select value={examStandardId} onChange={(event) => setExamStandardId(event.target.value)}>
-              <option value="">暂不换算</option>
-              {verifiedStandards().map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.cityName} {item.policyLabel}
+              {listClassroomScoringOptions().map((item) => (
+                <option key={item.id || 'raw'} value={item.id}>
+                  {item.label}
                 </option>
               ))}
             </select>
@@ -425,7 +455,7 @@ export default function PeQuickEntryPanel({
       <PageHeader
         icon="tests"
         title="课堂快速录入"
-        description={`${draft.gradeSnapshot} ${draft.classNameSnapshot} · ${draft.testItemNameSnapshot} · ${draft.date}`}
+        description={`${draft.gradeSnapshot} ${draft.classNameSnapshot} · ${sessionDisplayItemName(draft)} · ${draft.date} · ${classroomScoringLabel(draft)}`}
         actions={
           <button type="button" className="btn" onClick={onClose}>
             返回测试记录
@@ -442,11 +472,15 @@ export default function PeQuickEntryPanel({
         </div>
         <div>
           <dt>项目</dt>
-          <dd>{draft.testItemNameSnapshot}</dd>
+          <dd>{sessionDisplayItemName(draft)}</dd>
         </div>
         <div>
           <dt>日期</dt>
           <dd>{draft.date}</dd>
+        </div>
+        <div>
+          <dt>评分依据</dt>
+          <dd>{classroomScoringLabel(draft)}</dd>
         </div>
         <div>
           <dt>进度</dt>
@@ -476,7 +510,7 @@ export default function PeQuickEntryPanel({
       {toast ? (
         <p className="pe-quick-toast" aria-live="polite">
           ✓ {toast.studentNo}号 {toast.name} {toast.rawDisplay}
-          {toast.examScore !== null ? ` ${toast.examScore}分` : ''}
+          {toast.scoreText !== '—' ? ` ${toast.scoreText}` : ''}
         </p>
       ) : null}
       {progress.complete && !groupStudentIds ? (
@@ -513,7 +547,17 @@ export default function PeQuickEntryPanel({
         <section className="pe-quick-stage">
           {current ? (
             <>
-              <p className="pe-quick-current-label">当前：{current.studentNoSnapshot}号 {current.nameSnapshot}</p>
+              <p className="pe-quick-current-label">
+                当前：{current.studentNoSnapshot}号 {current.nameSnapshot}（{STUDENT_GENDER_LABELS[current.genderSnapshot]}）
+              </p>
+              {isGenderLinkedSession(draft) ? (
+                <p className="pe-quick-setup-hint">
+                  项目：
+                  {currentItemUnresolved
+                    ? UNRESOLVED_LINKED_ITEM_MESSAGE
+                    : (testItem?.name ?? sessionDisplayItemName(draft))}
+                </p>
+              ) : null}
               <p className="pe-quick-current-name">
                 {current.studentNoSnapshot} {current.nameSnapshot}
                 <span>
@@ -528,7 +572,7 @@ export default function PeQuickEntryPanel({
                   value={input}
                   autoFocus
                   autoComplete="off"
-                  disabled={working}
+                  disabled={working || currentItemUnresolved}
                   onChange={(event) => setInput(event.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={testItem?.timeInputMode === 'minutesSeconds' ? '342 或 3:42' : '输入成绩后按 Enter'}
@@ -536,7 +580,7 @@ export default function PeQuickEntryPanel({
               </label>
               <p className="pe-quick-preview">
                 {preview?.ok ? `将保存为 ${preview.display}` : '输入数字后按 Enter 保存并跳到下一名'}
-                {current.examScore !== null ? ` · ${current.examScore}分` : current.status === 'valid' ? ' · —' : ''}
+                {formatPeTestItemScoreText(current) !== '—' ? ` · ${formatPeTestItemScoreText(current)}` : ''}
               </p>
               <div className="pe-quick-status-actions">
                 <button type="button" className="btn" onClick={() => void runAction({ type: 'absent' })} disabled={working}>
@@ -583,7 +627,7 @@ export default function PeQuickEntryPanel({
                 {recent.map((item) => (
                   <li key={item.recordId}>
                     {item.studentNo} {item.name} {item.rawDisplay}
-                    {item.examScore !== null ? ` ${item.examScore}分` : ''}
+                    {item.scoreText !== '—' ? ` ${item.scoreText}` : ''}
                   </li>
                 ))}
               </ul>
@@ -661,9 +705,9 @@ export default function PeQuickEntryPanel({
                     <td>{record.studentNoSnapshot}</td>
                     <td>{record.nameSnapshot}</td>
                     <td>{STUDENT_GENDER_LABELS[record.genderSnapshot]}</td>
-                    <td>{formatRecordRaw(record, testItem, draft)}</td>
+                    <td>{formatRecordRaw(record, itemForQuickEntryRecord(draft, record, sessionItem, items), draft)}</td>
                     <td>{TEST_RECORD_STATUS_LABELS[record.status]}</td>
-                    <td>{record.examScore === null ? '—' : record.examScore}</td>
+                    <td>{formatPeTestItemScoreText(record)}</td>
                   </tr>
                 )
               })}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { GRADES, SEMESTERS, type Grade, type Semester } from '@shared/class'
+import { GRADES, GRADE_LABELS, SEMESTERS, type Grade, type Semester } from '@shared/class'
 import PageLayout, { PageHeader } from '../components/PageLayout'
 import TechEmptyState from '../components/workspace/TechEmptyState'
 import OverviewBar from '../components/workspace/OverviewBar'
@@ -310,7 +310,7 @@ export default function TeachingPlansPage({ context = null }: { context?: PlanNa
             <select value={draft.grade} onChange={(event) => setDraft({ ...draft, grade: event.target.value as Grade })}>
               {GRADES.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {GRADE_LABELS[item]}
                 </option>
               ))}
             </select>

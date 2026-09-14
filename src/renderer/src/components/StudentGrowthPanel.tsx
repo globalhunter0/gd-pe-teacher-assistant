@@ -131,10 +131,15 @@ export default function StudentGrowthPanel({
               <thead>
                 <tr>
                   <th>日期</th>
+                  <th>测试名称</th>
+                  <th>实际项目</th>
                   <th>原始成绩</th>
-                  <th>得分</th>
+                  <th>基础分</th>
+                  <th>附加分</th>
+                  <th>单项得分</th>
                   <th>状态</th>
-                  <th>评分标准</th>
+                  <th>评分体系</th>
+                  <th>年级快照</th>
                   <th>较上次</th>
                 </tr>
               </thead>
@@ -142,13 +147,18 @@ export default function StudentGrowthPanel({
                 {selected.points.map((row) => (
                   <tr key={row.sessionId}>
                     <td>{row.date}</td>
+                    <td>{row.title}</td>
+                    <td>{row.actualItemName}</td>
                     <td>{row.rawText}</td>
+                    <td>{row.baseScore === null ? '—' : row.baseScore}</td>
+                    <td>{row.bonusScore && row.bonusScore > 0 ? `+${row.bonusScore}` : '—'}</td>
                     <td>{row.scoreText}</td>
                     <td>
                       {TEST_RECORD_STATUS_LABELS[row.status]}
                       {row.isPersonalBest ? ' · 个人最佳' : ''}
                     </td>
                     <td>{row.standardLabel}</td>
+                    <td>{row.gradeSnapshot}</td>
                     <td>{row.vsPrevious.text}</td>
                   </tr>
                 ))}

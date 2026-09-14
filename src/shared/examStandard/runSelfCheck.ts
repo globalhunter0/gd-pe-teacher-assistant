@@ -33,10 +33,21 @@ import { runExamTableIntegritySelfCheckOrThrow } from './integrity'
 import { runExamScoreEngineSelfCheckOrThrow } from './selfcheck'
 import { runV0150AcceptanceSelfCheckOrThrow } from './v0150AcceptanceSelfcheck'
 import { runV0180AnalyticsSelfCheckOrThrow } from '../statistics/v0180Selfcheck'
+import { runHistoryCompareSelfCheckOrThrow } from '../statistics/historyCompareSelfcheck'
+import { runStatsTestPanelActualItemSelfCheckOrThrow } from '../statistics/statsTestPanelSelfcheck'
 import { runV0190PeTestImportEntrySelfCheckOrThrow } from '../examBatch/v0190Selfcheck'
 import { runV0200PeTestCenterSelfCheckOrThrow } from '../peTest/v0200Selfcheck'
 import { runV0210PeTestQuickEntrySelfCheckOrThrow } from '../peTest/v0210Selfcheck'
 import { runV0220PeTestFieldEntrySelfCheckOrThrow } from '../peTest/v0220Selfcheck'
+import { runV0230PeTestResultClosureSelfCheckOrThrow } from '../peTest/v0230Selfcheck'
+import { runNationalFitnessPhaseASelfCheckOrThrow } from '../nationalFitness/phaseASelfcheck'
+import { runNationalFitnessPhaseBSelfCheckOrThrow } from '../nationalFitness/phaseBSelfcheck'
+import { runNationalFitnessPhaseBPlusSelfCheckOrThrow } from '../nationalFitness/phaseBPlusSelfcheck'
+import { runNationalFitnessPhaseC1SelfCheckOrThrow } from '../nationalFitness/phaseC1Selfcheck'
+import { runNationalFitnessPhaseC2SelfCheckOrThrow } from '../nationalFitness/phaseC2Selfcheck'
+import { runNationalFitnessPhaseC3SelfCheckOrThrow } from '../nationalFitness/phaseC3Selfcheck'
+import { runNationalFitnessPhaseD1SelfCheckOrThrow } from '../peTest/phaseD1Selfcheck'
+import { runPeTestBusinessClosureSelfCheckOrThrow } from '../peTest/closureSelfcheck'
 
 async function main(): Promise<void> {
   console.log(runExamScoreEngineSelfCheckOrThrow())
@@ -63,10 +74,21 @@ async function main(): Promise<void> {
   console.log(runV0160ExcelBatchSelfCheckOrThrow())
   console.log(await runV0170PeTestImportPlanSelfCheckOrThrow())
   console.log(runV0180AnalyticsSelfCheckOrThrow())
+  console.log(runHistoryCompareSelfCheckOrThrow())
+  console.log(runStatsTestPanelActualItemSelfCheckOrThrow())
   console.log(await runV0190PeTestImportEntrySelfCheckOrThrow())
   console.log(await runV0200PeTestCenterSelfCheckOrThrow())
   console.log(runV0210PeTestQuickEntrySelfCheckOrThrow())
   console.log(runV0220PeTestFieldEntrySelfCheckOrThrow())
+  console.log(await runV0230PeTestResultClosureSelfCheckOrThrow())
+  console.log(runNationalFitnessPhaseASelfCheckOrThrow())
+  console.log(runNationalFitnessPhaseBSelfCheckOrThrow())
+  console.log(runNationalFitnessPhaseBPlusSelfCheckOrThrow())
+  console.log(runNationalFitnessPhaseC1SelfCheckOrThrow())
+  console.log(runNationalFitnessPhaseC2SelfCheckOrThrow())
+  console.log(runNationalFitnessPhaseC3SelfCheckOrThrow())
+  console.log(runNationalFitnessPhaseD1SelfCheckOrThrow())
+  console.log(runPeTestBusinessClosureSelfCheckOrThrow())
   console.log(runTrainingTeamSelfCheckOrThrow())
   console.log(await runScheduleLinkageSelfCheckOrThrow())
   console.log(await runScheduleBulkDeleteSelfCheckOrThrow())

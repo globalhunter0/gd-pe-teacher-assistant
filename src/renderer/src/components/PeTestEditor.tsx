@@ -2,24 +2,35 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import PageLayout, { PageHeader } from './PageLayout'
 import { STUDENT_GENDER_LABELS } from '@shared/student'
 import {
+  actualTestItemName,
+  BUILTIN_TEST_ITEMS,
   TEST_RECORD_STATUSES,
   TEST_RECORD_STATUS_LABELS,
   compareToPrevious,
   formatRawValue,
   findPreviousValidScore,
   genderWarning,
+  isGenderLinkedSession,
   parseScoreInput,
   rangeWarning,
+  resolveActualTestItem,
+  resolvedTestItemIdOf,
   resolveTimeInputMode,
+  scoreQuickEntryRaw,
   testUnitDisplay,
   usesMinuteFormat,
+  emptyClassroomScoreFields,
+  formatPeTestItemScoreText,
+  classroomScoringLabel,
   type PETestRecord,
   type PETestSession,
   type TestItem,
   type TestRecordStatus,
   type TimeInputMode
 } from '@shared/peTest'
+import { listBuiltinExamStandards } from '@shared/examStandard/catalog'
 import { useClasses } from '../context/ClassContext'
+import { useTestItems } from '../context/TestItemContext'
 import TestAnalyticsPanel from './TestAnalyticsPanel'
 
 interface PeTestEditorProps {
@@ -42,6 +53,8 @@ export default function PeTestEditor({
   initialTab = 'edit'
 }: PeTestEditorProps): React.JSX.Element {
   const { classes } = useClasses()
+  const { items } = useTestItems()
+  const catalog = items.length > 0 ? items : BUILTIN_TEST_ITEMS
   const [tab, setTab] = useState<'edit' | 'analysis'>(initialTab)
   const [draft, setDraft] = useState<PETestSession>(session)
   const [inputs, setInputs] = useState<Record<string, string>>(() => buildInputs(session, testItem))
@@ -72,28 +85,44 @@ export default function PeTestEditor({
   const preferMinute = usesMinuteFormat(timeInputMode, draft.valueTypeSnapshot)
   const unitLabel = testUnitDisplay(draft.unitSnapshot, draft.customUnitLabelSnapshot)
   const decimalPlaces = testItem?.decimalPlaces ?? (draft.valueTypeSnapshot === 'time' ? 1 : 0)
-  const genderRule = testItem?.genderRule ?? 'all'
 
   const studentHistory = useMemo(() => {
     if (!historyStudentId) {
       return []
     }
 
+    const currentRecord = draft.records.find((record) => record.studentId === historyStudentId)
+    const actualId = currentRecord ? resolvedTestItemIdOf(currentRecord, draft, catalog) : null
+
     return historySessions
-      .filter((item) => item.testItemId === draft.testItemId)
       .flatMap((item) =>
         item.records
-          .filter((record) => record.studentId === historyStudentId && record.status === 'valid' && record.rawValue !== null)
+          .filter((record) => {
+            if (record.studentId !== historyStudentId) {
+              return false
+            }
+            const id = resolvedTestItemIdOf(record, item, catalog)
+            return actualId !== null && id === actualId
+          })
           .map((record) => ({
             sessionId: item.id,
             date: item.date,
             title: item.title,
-            rawValue: record.rawValue as number,
+            itemName: item.testItemNameSnapshot,
+            actualItemName: actualTestItemName(item, record, catalog),
+            scoringLabel: classroomScoringLabel(item),
+            rawValue: record.rawValue,
+            baseScore: record.baseScore ?? null,
+            bonusScore: record.bonusScore ?? null,
+            examScore: record.examScore,
+            scoreText: formatPeTestItemScoreText(record),
+            status: record.status,
+            gradeSnapshot: item.gradeSnapshot,
             createdAt: item.createdAt
           }))
       )
       .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
-  }, [historySessions, historyStudentId, draft.testItemId])
+  }, [historySessions, historyStudentId, draft, catalog])
 
   function touchSession(patch: Partial<PETestSession>): void {
     const now = new Date().toISOString()
@@ -152,11 +181,30 @@ export default function PeTestEditor({
       for (const record of draft.records) {
         const status = record.status
         const text = (inputs[record.id] ?? '').trim()
+        const actual = resolveActualTestItem(draft, record, catalog)
+        const resolvedTestItemId = actual.ok ? actual.item.id : null
+        const standard =
+          listBuiltinExamStandards().find((entry) => entry.id === draft.examStandardId) ?? null
 
         if (status === 'absent' || status === 'exempt') {
           nextRecords.push({
             ...record,
             rawValue: null,
+            ...emptyClassroomScoreFields(),
+            resolvedTestItemId,
+            updatedAt: now
+          })
+          continue
+        }
+
+        if (isGenderLinkedSession(draft) && !actual.ok) {
+          nextRecords.push({
+            ...record,
+            rawValue: null,
+            ...emptyClassroomScoreFields(),
+            resolvedTestItemId: null,
+            status: text === '' ? 'pending' : 'invalid',
+            note: text === '' ? record.note : '无法确定项目，请先完善性别',
             updatedAt: now
           })
           continue
@@ -166,6 +214,8 @@ export default function PeTestEditor({
           nextRecords.push({
             ...record,
             rawValue: text === '' ? null : parseScoreInput(text, draft.valueTypeSnapshot, timeInputMode),
+            ...emptyClassroomScoreFields(),
+            resolvedTestItemId,
             updatedAt: now
           })
           continue
@@ -176,15 +226,36 @@ export default function PeTestEditor({
             ...record,
             rawValue: null,
             status: 'pending',
+            ...emptyClassroomScoreFields(),
+            resolvedTestItemId,
             updatedAt: now
           })
           continue
         }
 
+        const rawValue = parseScoreInput(text, draft.valueTypeSnapshot, timeInputMode)
+        const scored = actual.ok
+          ? scoreQuickEntryRaw({
+              standard,
+              examStandardId: draft.examStandardId,
+              grade: draft.gradeSnapshot,
+              testItem: actual.item,
+              gender: record.genderSnapshot,
+              rawValue
+            })
+          : { ...emptyClassroomScoreFields(), noScoreHint: null }
+
         nextRecords.push({
           ...record,
-          rawValue: parseScoreInput(text, draft.valueTypeSnapshot, timeInputMode),
+          rawValue,
           status: 'valid',
+          examScore: scored.examScore,
+          examItemId: scored.examItemId,
+          baseScore: scored.baseScore,
+          bonusScore: scored.bonusScore,
+          scoreOutcome: scored.scoreOutcome,
+          officialMinimumScore: scored.officialMinimumScore,
+          resolvedTestItemId,
           updatedAt: now
         })
       }
@@ -216,7 +287,7 @@ export default function PeTestEditor({
       <PageHeader
         icon="tests"
         title={draft.title}
-        description={`${draft.date} · ${draft.gradeSnapshot} ${draft.classNameSnapshot} · ${draft.testItemNameSnapshot}${unitLabel ? `（${unitLabel}）` : ''}${preferMinute ? ' · 长跑可输入 3:42、3\'42、3.42 或总秒数' : draft.valueTypeSnapshot === 'time' ? ' · 时间按秒录入，如 8.32' : ''}`}
+        description={`${draft.date} · ${draft.gradeSnapshot} ${draft.classNameSnapshot} · ${draft.testItemNameSnapshot}${unitLabel ? `（${unitLabel}）` : ''} · ${classroomScoringLabel(draft)}${preferMinute ? ' · 长跑可输入 3:42、3\'42、3.42 或总秒数' : draft.valueTypeSnapshot === 'time' ? ' · 时间按秒录入，如 8.32' : ''}`}
         actions={
           <>
             <button type="button" className={tab === 'analysis' ? 'btn btn-primary' : 'btn'} onClick={() => setTab('analysis')}>
@@ -252,6 +323,10 @@ export default function PeTestEditor({
           测试名称
           <input value={draft.title} onChange={(event) => touchSession({ title: event.target.value })} />
         </label>
+        <label>
+          评分依据
+          <input value={classroomScoringLabel(draft)} readOnly />
+        </label>
         <label className="pe-editor-meta-wide">
           备注
           <input value={draft.notes} onChange={(event) => touchSession({ notes: event.target.value })} />
@@ -265,7 +340,9 @@ export default function PeTestEditor({
               <th>学号</th>
               <th>姓名</th>
               <th>性别</th>
+              {isGenderLinkedSession(draft) ? <th>项目</th> : null}
               <th>成绩</th>
+              <th>单项得分</th>
               <th>状态</th>
               <th>较上次</th>
               <th>备注</th>
@@ -273,13 +350,21 @@ export default function PeTestEditor({
           </thead>
           <tbody>
             {records.map((record, index) => {
+              const actual = resolveActualTestItem(draft, record, catalog)
+              const rowItem = actual.ok ? actual.item : testItem
               const parsed = tryParse(inputs[record.id] ?? '', draft.valueTypeSnapshot, timeInputMode)
               const warning =
-                genderWarning(genderRule, record.genderSnapshot) ??
-                rangeWarning(parsed, testItem?.minValue ?? null, testItem?.maxValue ?? null)
+                genderWarning(rowItem?.genderRule ?? 'all', record.genderSnapshot) ??
+                rangeWarning(parsed, rowItem?.minValue ?? null, testItem?.maxValue ?? null)
               const previous = findPreviousValidScore(
                 historySessions
-                  .filter((item) => item.testItemId === draft.testItemId)
+                  .filter((item) => {
+                    const match = item.records.find((entry) => entry.studentId === record.studentId)
+                    if (!match) {
+                      return false
+                    }
+                    return resolvedTestItemIdOf(match, item, catalog) === resolvedTestItemIdOf(record, draft, catalog)
+                  })
                   .map((item) => {
                     const match = item.records.find((entry) => entry.studentId === record.studentId)
                     return {
@@ -315,6 +400,7 @@ export default function PeTestEditor({
                     </button>
                   </td>
                   <td>{STUDENT_GENDER_LABELS[record.genderSnapshot]}</td>
+                  {isGenderLinkedSession(draft) ? <td>{actualTestItemName(draft, record, catalog)}</td> : null}
                   <td>
                     <input
                       ref={(node) => {
@@ -332,6 +418,7 @@ export default function PeTestEditor({
                     />
                     {warning ? <div className="row-warning">{warning}</div> : null}
                   </td>
+                  <td>{formatPeTestItemScoreText(record)}</td>
                   <td>
                     <select
                       className={`status-select status-select--${record.status}`}
@@ -376,29 +463,48 @@ export default function PeTestEditor({
             onMouseDown={(event) => event.stopPropagation()}
           >
             <h3 id="pe-test-history-title">
-              {historyName} · {draft.testItemNameSnapshot}历次有效成绩
+              {historyName} · {draft.testItemNameSnapshot}历次成绩
             </h3>
             {studentHistory.length === 0 ? (
-              <p className="dialog-slot">暂无有效成绩。</p>
+              <p className="dialog-slot">暂无测试记录。</p>
             ) : (
               <div className="data-table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
                       <th>日期</th>
-                      <th>成绩</th>
-                      <th>测试</th>
+                      <th>测试名称</th>
+                      <th>项目</th>
+                      <th>实际项目</th>
+                      <th>评分体系</th>
+                      <th>原始成绩</th>
+                      <th>基础分</th>
+                      <th>附加分</th>
+                      <th>单项得分</th>
+                      <th>状态</th>
+                      <th>年级快照</th>
                     </tr>
                   </thead>
                   <tbody>
                     {studentHistory.map((item) => (
-                      <tr key={`${item.sessionId}-${item.date}`}>
+                      <tr key={item.sessionId}>
                         <td>{item.date}</td>
-                        <td>
-                          {formatRawValue(item.rawValue, draft.valueTypeSnapshot, decimalPlaces, preferMinute)}
-                          {unitLabel ? ` ${unitLabel}` : ''}
-                        </td>
                         <td>{item.title}</td>
+                        <td>{item.itemName}</td>
+                        <td>{item.actualItemName}</td>
+                        <td>{item.scoringLabel}</td>
+                        <td>
+                          {item.rawValue === null
+                            ? '—'
+                            : `${formatRawValue(item.rawValue, draft.valueTypeSnapshot, decimalPlaces, preferMinute)}${
+                                unitLabel ? ` ${unitLabel}` : ''
+                              }`}
+                        </td>
+                        <td>{item.baseScore === null ? '—' : item.baseScore}</td>
+                        <td>{item.bonusScore && item.bonusScore > 0 ? `+${item.bonusScore}` : '—'}</td>
+                        <td>{item.scoreText}</td>
+                        <td>{TEST_RECORD_STATUS_LABELS[item.status]}</td>
+                        <td>{item.gradeSnapshot}</td>
                       </tr>
                     ))}
                   </tbody>

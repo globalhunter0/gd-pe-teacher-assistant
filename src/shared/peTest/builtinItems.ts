@@ -152,6 +152,18 @@ export const BUILTIN_TEST_ITEMS: TestItem[] = [
     decimalPlaces: 0,
     minValue: 0,
     maxValue: 300
+  }),
+  builtin('shuttle-50m-8', '50米×8往返跑', {
+    category: 'endurance',
+    valueType: 'time',
+    timeInputMode: 'minutesSeconds',
+    unit: 's',
+    customUnitLabel: '',
+    direction: 'lowerBetter',
+    genderRule: 'all',
+    decimalPlaces: 1,
+    minValue: 80,
+    maxValue: 400
   })
 ]
 

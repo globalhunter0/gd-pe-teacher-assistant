@@ -268,7 +268,16 @@ function parseRecord(entry: unknown, testSessionId: string): PETestRecord {
     updatedAt: record.updatedAt,
     examScore: parseOptionalNumber(record.examScore, '中考换算分'),
     rawOriginal: typeof record.rawOriginal === 'string' ? record.rawOriginal.trim() : '',
-    examItemId: typeof record.examItemId === 'string' && record.examItemId.trim() !== '' ? record.examItemId.trim() : null
+    examItemId: typeof record.examItemId === 'string' && record.examItemId.trim() !== '' ? record.examItemId.trim() : null,
+    resolvedTestItemId:
+      typeof record.resolvedTestItemId === 'string' && record.resolvedTestItemId.trim() !== ''
+        ? record.resolvedTestItemId.trim()
+        : null,
+    baseScore: parseOptionalNumber(record.baseScore, '基础分'),
+    bonusScore: parseOptionalNumber(record.bonusScore, '附加分'),
+    scoreOutcome:
+      record.scoreOutcome === 'official' || record.scoreOutcome === 'below_official_minimum' ? record.scoreOutcome : null,
+    officialMinimumScore: parseOptionalNumber(record.officialMinimumScore, '官方最低档')
   }
 }
 
@@ -384,7 +393,8 @@ export function parsePeTestSessions(input: unknown, options: ParsePeTestOptions 
       importSource: importSource === 'exam-batch' ? 'exam-batch' : 'manual',
       examStandardId: typeof record.examStandardId === 'string' && record.examStandardId.trim() !== '' ? record.examStandardId.trim() : null,
       scoringCitySnapshot: typeof record.scoringCitySnapshot === 'string' ? record.scoringCitySnapshot.trim() : '',
-      scoringVersionSnapshot: typeof record.scoringVersionSnapshot === 'string' ? record.scoringVersionSnapshot.trim() : ''
+      scoringVersionSnapshot: typeof record.scoringVersionSnapshot === 'string' ? record.scoringVersionSnapshot.trim() : '',
+      testGroupId: typeof record.testGroupId === 'string' && record.testGroupId.trim() !== '' ? record.testGroupId.trim() : null
     }
 
     return session

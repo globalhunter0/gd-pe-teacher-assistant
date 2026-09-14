@@ -2,6 +2,7 @@ export type {
   PETestRecord,
   PETestSession,
   PeTestImportSource,
+  PeTestScoreOutcome,
   TestCategory,
   TestDirection,
   TestGenderRule,
@@ -29,8 +30,42 @@ export {
   testUnitDisplay
 } from './types'
 export { BUILTIN_TEST_ITEMS, mergeBuiltinTestItems } from './builtinItems'
+export {
+  actualTestItemName,
+  defaultTeacherTestOptionValue,
+  findGenderLinkedGroup,
+  findTeacherVisibleDuplicates,
+  GENDER_LINKED_TEST_GROUPS,
+  isGenderLinkedSession,
+  linkedGenderScoreStats,
+  MIDDLE_LONG_RUN_GROUP_ID,
+  parseTeacherTestSelection,
+  resolveActualTestItem,
+  resolveEffectiveTestItem,
+  resolveLinkedTestItem,
+  recordsForActualTestItem,
+  resolvedTestItemIdOf,
+  sessionDisplayItemName,
+  teacherSelectableTestOptions,
+  teacherTestOptionValue,
+  UNRESOLVED_LINKED_ITEM_MESSAGE
+} from './groupedItems'
+export type { GenderLinkedTestGroup, TeacherTestOption, TeacherTestSelection } from './groupedItems'
 export { compareToPrevious, findFirstValidScore, findLatestValidScore, findPreviousValidScore } from './compare'
 export { formatRawValue, parseScoreInput, resolveTimeInputMode, usesMinuteFormat } from './scoreFormat'
+export {
+  applyClassroomScoringBasis,
+  CLASSROOM_NATIONAL_FITNESS_LABEL,
+  CLASSROOM_NATIONAL_FITNESS_STANDARD_ID,
+  classroomScoringLabel,
+  classroomScoringSnapshots,
+  countBelowOfficialMinimum,
+  emptyClassroomScoreFields,
+  formatPeTestItemScoreText,
+  isBelowOfficialMinimumRecord,
+  listClassroomScoringOptions
+} from './scoringBasis'
+export type { ClassroomScoringOption } from './scoringBasis'
 export {
   LEGACY_STANDARDS_NAV_KEYS,
   LEGACY_TOOLS_NAV_KEYS,
@@ -70,3 +105,5 @@ export {
   captureRecordState,
   visibleQuickEntryRecords
 } from './quickEntry'
+export { buildPeTestClosure, canMarkTestComplete, filterPeTestDetailRows } from './detail'
+export type { PeTestClosure, PeTestDetailFilter, PeTestDetailRow } from './detail'

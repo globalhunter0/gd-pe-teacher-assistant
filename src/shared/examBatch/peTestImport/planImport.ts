@@ -26,7 +26,13 @@ export function findDuplicatePeTests(
   date: string,
   testItemId: string
 ): PETestSession[] {
-  return existing.filter((session) => session.classId === classId && session.date === date && session.testItemId === testItemId)
+  return existing.filter(
+    (session) =>
+      session.classId === classId &&
+      session.date === date &&
+      session.testItemId === testItemId &&
+      !session.testGroupId
+  )
 }
 
 export function mergePeTestsAtomically(
@@ -197,7 +203,8 @@ export function planExamBatchPeTestImport(
           updatedAt: now,
           examScore: mapped.examScore,
           rawOriginal: row.rawValueOriginal,
-          examItemId: row.examItemId
+          examItemId: row.examItemId,
+          resolvedTestItemId: testItem.id
         })
       }
       if (records.length === 0) {

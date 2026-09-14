@@ -12,6 +12,7 @@ import {
   filterTests,
   formatTestScoreWithUnit,
   resolveDateRange,
+  selectPeTestSessionByActualItem,
   summarizeClassItemTrend,
   summarizeTestSession,
   type StatsRangeKind
@@ -36,19 +37,24 @@ export default function StatsTestPanel({ onOpenTest }: StatsTestPanelProps): Rea
 
   const range = useMemo(() => resolveDateRange(kind, customStart, customEnd), [kind, customStart, customEnd])
   const listed = useMemo(
-    () => (classId === '' || testItemId === '' ? [] : filterTests(sessions, classId, testItemId, range)),
-    [sessions, classId, testItemId, range]
+    () => (classId === '' || testItemId === '' ? [] : filterTests(sessions, classId, testItemId, range, items)),
+    [sessions, classId, testItemId, range, items]
   )
   const testItem = items.find((item) => item.id === testItemId)
   const trend = useMemo(
     () => (classId === '' || testItemId === '' ? null : summarizeClassItemTrend(sessions, classId, testItemId, items)),
     [sessions, classId, testItemId, items]
   )
+  const listedViews = useMemo(
+    () => listed.map((session) => selectPeTestSessionByActualItem(session, testItemId, items)),
+    [listed, testItemId, items]
+  )
   const detail = listed.find((item) => item.id === detailId) ?? null
-  const detailSummary = detail ? summarizeTestSession(detail, testItem) : null
+  const detailView = detail ? selectPeTestSessionByActualItem(detail, testItemId, items) : null
+  const detailSummary = detailView ? summarizeTestSession(detailView, testItem) : null
   const mergedCounts = useMemo(() => {
     const total = { pending: 0, valid: 0, absent: 0, exempt: 0, invalid: 0 }
-    for (const session of listed) {
+    for (const session of listedViews) {
       const stats = summarizeTestSession(session, testItem)
       total.pending += stats.statuses.pending
       total.valid += stats.statuses.valid
@@ -57,20 +63,20 @@ export default function StatsTestPanel({ onOpenTest }: StatsTestPanelProps): Rea
       total.invalid += stats.statuses.invalid
     }
     return total
-  }, [listed, testItem])
+  }, [listedViews, testItem])
 
   const detailRows = useMemo(() => {
-    if (!detail) {
+    if (!detailView) {
       return [] as PETestRecord[]
     }
 
-    let rows = [...detail.records]
+    let rows = [...detailView.records]
     if (statusFilter !== 'all') {
       rows = rows.filter((item) => item.status === statusFilter)
     }
 
     if (sortByScore) {
-      const direction = detail.directionSnapshot
+      const direction = detailView.directionSnapshot
       rows.sort((a, b) => {
         if (a.rawValue === null && b.rawValue === null) {
           return 0
@@ -92,7 +98,7 @@ export default function StatsTestPanel({ onOpenTest }: StatsTestPanelProps): Rea
     }
 
     return rows
-  }, [detail, statusFilter, sortByScore])
+  }, [detailView, statusFilter, sortByScore])
 
   if (classes.length === 0) {
     return <TechEmptyState kind="stats" title="还没有班级" description="请先在班级与学生中创建班级后再查看测试统计。" />
@@ -138,7 +144,7 @@ export default function StatsTestPanel({ onOpenTest }: StatsTestPanelProps): Rea
       </div>
 
       <p className="stats-note">
-        下列各次测试的有效 / 未录入 / 缺测 / 免测 / 无效均为该次名单上的记录人次。范围内合计也是记录人次，不是学生人数。
+        测试项目按下拉框中的实际项目统计。800米只含女生（及单独创建的800米测试）实际成绩；1000米只含男生（及单独创建的1000米测试）实际成绩。课堂「800米 / 1000米」组合不会整场算成1000米。
       </p>
       <p className="stats-note">
         范围内合计记录人次：有效 {mergedCounts.valid}，未录入 {mergedCounts.pending}，缺测 {mergedCounts.absent}，免测{' '}
@@ -195,10 +201,8 @@ export default function StatsTestPanel({ onOpenTest }: StatsTestPanelProps): Rea
             </thead>
             <tbody>
               {listed.map((item) => {
-                const stats = summarizeTestSession(
-                  item,
-                  items.find((entry) => entry.id === item.testItemId)
-                )
+                const view = selectPeTestSessionByActualItem(item, testItemId, items)
+                const stats = summarizeTestSession(view, testItem)
                 return (
                   <tr key={item.id}>
                     <td>{item.date}</td>
@@ -231,10 +235,10 @@ export default function StatsTestPanel({ onOpenTest }: StatsTestPanelProps): Rea
         </div>
       )}
 
-      {detail && detailSummary ? (
+      {detailView && detailSummary ? (
         <div className="stats-detail">
           <h3 className="stats-subtitle">
-            {detail.date} {detail.title} · {classDisplayName(classes, detail.classId, detail)}
+            {detailView.date} {detailView.title} · {classDisplayName(classes, detailView.classId, detailView)}
           </h3>
           <div className="stats-filters">
             <label>
@@ -273,7 +277,7 @@ export default function StatsTestPanel({ onOpenTest }: StatsTestPanelProps): Rea
                     <td>{TEST_RECORD_STATUS_LABELS[record.status]}</td>
                     <td>
                       {record.status === 'valid' && record.rawValue !== null
-                        ? formatTestScoreWithUnit(record.rawValue, detail, testItem)
+                        ? formatTestScoreWithUnit(record.rawValue, detailView, testItem)
                         : '—'}
                     </td>
                   </tr>
@@ -284,7 +288,7 @@ export default function StatsTestPanel({ onOpenTest }: StatsTestPanelProps): Rea
           <p className="stats-muted">
             平均 {detailSummary.average}，最好 {detailSummary.best}
           </p>
-          <TestAnalyticsPanel session={detail} sessions={sessions} testItem={testItem} classes={classes} />
+          <TestAnalyticsPanel session={detailView} sessions={sessions} testItem={testItem} classes={classes} />
         </div>
       ) : null}
     </div>

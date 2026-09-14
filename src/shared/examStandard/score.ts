@@ -1,4 +1,6 @@
 import { formatRawValue, parseScoreInput, usesMinuteFormat } from '../peTest/scoreFormat'
+import { isNationalFitnessStandardId } from '../nationalFitness/catalog'
+import { NATIONAL_FITNESS_SCORE_TABLE_MISSING } from '../nationalFitness/types'
 import type { ExamGender, ExamItemDefinition, ExamStandard, ExamStandardStatus } from './types'
 
 export const OFFICIAL_SCORE_UNAVAILABLE = '当前没有可用于正式换算的已核验评分标准。'
@@ -183,6 +185,9 @@ export function formatExamRawValue(rawValue: number, item: ExamItemDefinition): 
 }
 
 export function calculateExamScore(input: CalculateExamScoreInput): CalculateExamScoreResult {
+  if (isNationalFitnessStandardId(input.standard.id)) {
+    return { ok: false, code: 'NO_TABLE', message: NATIONAL_FITNESS_SCORE_TABLE_MISSING }
+  }
   const officialOnly = input.officialOnly !== false
   if (officialOnly && (input.standard.status === 'partial' || input.standard.scoreTableStatus !== 'verified')) {
     const message =

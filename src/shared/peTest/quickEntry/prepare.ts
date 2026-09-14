@@ -1,6 +1,7 @@
 import { findDuplicatePeTests } from '../../examBatch/peTestImport/planImport'
 import type { ClassRecord } from '../../class/types'
 import type { StudentRecord } from '../../student/types'
+import { findTeacherVisibleDuplicates, parseTeacherTestSelection } from '../groupedItems'
 import type { PETestSession, TestItem } from '../types'
 
 export function activeStudentsOfClass(
@@ -19,8 +20,15 @@ export function findExistingPeTestsForQuickEntry(
   sessions: ReadonlyArray<PETestSession>,
   classId: string,
   date: string,
-  testItemId: string
+  testItemId: string,
+  items?: ReadonlyArray<TestItem>
 ): PETestSession[] {
+  if (items) {
+    const selection = parseTeacherTestSelection(testItemId, items)
+    if (selection) {
+      return findTeacherVisibleDuplicates(sessions, classId, date, selection)
+    }
+  }
   return findDuplicatePeTests(sessions, classId, date, testItemId)
 }
 

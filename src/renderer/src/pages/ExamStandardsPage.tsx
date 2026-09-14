@@ -28,6 +28,29 @@ import {
   type ExamType
 } from '@shared/examStandard'
 import { testUnitDisplay } from '@shared/peTest'
+import {
+  NATIONAL_FITNESS_BELOW_OFFICIAL_MINIMUM,
+  nationalFitnessBelowOfficialMinimumMessage,
+  NATIONAL_FITNESS_FAMILY_LABEL,
+  NATIONAL_FITNESS_SCORE_TABLE_MISSING,
+  NATIONAL_FITNESS_SCORE_TABLE_VERIFIED,
+  NATIONAL_STUDENT_FITNESS_FAMILY,
+  NATIONAL_FITNESS_STAGE_OPTIONS,
+  findOfficialNationalFitnessBonusTable,
+  findOfficialNationalFitnessScoreTable,
+  formatNationalFitnessTableValue,
+  calculateNationalFitnessScore,
+  getNationalFitness2014,
+  gradesForStage,
+  listNationalFitnessBmiSourceItems,
+  listNationalFitnessEvaluationItems,
+  nationalFitnessAllowsOfficialConvert,
+  nationalLabelForGrade,
+  stageForGrade,
+  summarizeNationalFitnessCompleteness,
+  type NationalStudentFitnessFamily
+} from '@shared/nationalFitness'
+import type { Grade, SchoolStage } from '@shared/class'
 
 const DIRECTION_LABEL = {
   higherBetter: '越高越好',
@@ -58,6 +81,7 @@ const CONVERT_TABLE_HINT = '该城市/年度评分表尚未完整核验，暂不
 const QUICK_CITY_SLUGS = ['guangzhou', 'shenzhen', 'dongguan', 'jiangmen', 'zhanjiang', 'zhongshan'] as const
 
 type CoverageGroup = 'verified' | 'partial' | 'unverified'
+type StandardsBrowseTab = ExamType | NationalStudentFitnessFamily
 
 function coverageGroup(coverage: CityCoverageStatus): CoverageGroup {
   if (coverage === 'verified') {
@@ -111,28 +135,41 @@ export default function ExamStandardsPage({
   onOpenTools?: () => void
 } = {}): React.JSX.Element {
   const standards = BUILTIN_EXAM_STANDARDS
-  const [examType, setExamType] = useState<ExamType>('middle_school_exam')
+  const nationalFitness = getNationalFitness2014()
+  const [browseTab, setBrowseTab] = useState<StandardsBrowseTab>('middle_school_exam')
   const [citySlug, setCitySlug] = useState('foshan')
   const [coverageGroups, setCoverageGroups] = useState<CoverageGroup[]>(['verified', 'partial'])
   const [cityQuery, setCityQuery] = useState('')
   const [showAllCoverage, setShowAllCoverage] = useState(false)
   const [standardId, setStandardId] = useState('')
   const [gender, setGender] = useState<Exclude<ExamGender, 'all'>>('male')
+  const [nationalStage, setNationalStage] = useState<SchoolStage>('junior')
+  const [nationalGrade, setNationalGrade] = useState<Grade>('初一')
+  const [nationalItemKey, setNationalItemKey] = useState('bmi')
+  const [nationalRawInput, setNationalRawInput] = useState('')
+  const [nationalScoreError, setNationalScoreError] = useState<string | null>(null)
+  const [nationalScoreResult, setNationalScoreResult] = useState<ReturnType<typeof calculateNationalFitnessScore> | null>(null)
   const [itemId, setItemId] = useState('')
   const [scoreInput, setScoreInput] = useState('')
   const [convertError, setConvertError] = useState<string | null>(null)
   const [convertResult, setConvertResult] = useState<ReturnType<typeof calculateExamScore> | null>(null)
 
   const cityStandards = useMemo(() => {
-    if (examType === 'gaokao_sports') {
+    if (browseTab === NATIONAL_STUDENT_FITNESS_FAMILY) {
+      return []
+    }
+    if (browseTab === 'gaokao_sports') {
       return standards.filter((item) => item.examType === 'gaokao_sports')
     }
     return standards.filter((item) => item.examType === 'middle_school_exam' && item.citySlug === citySlug)
-  }, [examType, citySlug, standards])
+  }, [browseTab, citySlug, standards])
 
   const verifiedCityStandards = useMemo(
-    () => (examType === 'middle_school_exam' ? verifiedStandardsForCity(standards, citySlug) : cityStandards.filter((item) => item.status === 'verified')),
-    [examType, citySlug, cityStandards, standards]
+    () =>
+      browseTab === 'middle_school_exam'
+        ? verifiedStandardsForCity(standards, citySlug)
+        : cityStandards.filter((item) => item.status === 'verified'),
+    [browseTab, citySlug, cityStandards, standards]
   )
 
   const coverageRows = useMemo(() => listGuangdongCityCoverage(standards), [standards])
@@ -174,6 +211,61 @@ export default function ExamStandardsPage({
   const selectedItem = visibleItems.find((item) => item.id === itemId) ?? visibleItems[0] ?? null
   const canAutoScore = selectedItem ? itemSupportsAutoScore(selectedItem) : false
 
+  const nationalBmiSources = useMemo(
+    () => listNationalFitnessBmiSourceItems(nationalGrade, gender),
+    [nationalGrade, gender]
+  )
+  const nationalEvalItems = useMemo(
+    () => listNationalFitnessEvaluationItems(nationalGrade, gender),
+    [nationalGrade, gender]
+  )
+  const nationalVisibleItems = useMemo(
+    () => [...nationalBmiSources, ...nationalEvalItems],
+    [nationalBmiSources, nationalEvalItems]
+  )
+  const selectedNationalItem =
+    nationalVisibleItems.find((item) => item.itemKey === nationalItemKey) ?? nationalEvalItems[0] ?? null
+  const selectedNationalTable = selectedNationalItem
+    ? findOfficialNationalFitnessScoreTable({
+        grade: nationalGrade,
+        gender,
+        itemId: selectedNationalItem.itemKey
+      })
+    : undefined
+  const selectedNationalBonusTable = selectedNationalItem
+    ? findOfficialNationalFitnessBonusTable({
+        grade: nationalGrade,
+        gender,
+        itemId: selectedNationalItem.itemKey
+      })
+    : undefined
+  const selectedNationalVerified = selectedNationalTable?.verificationStatus === 'verified' && selectedNationalTable.source !== null
+  const nationalCompleteness = useMemo(() => summarizeNationalFitnessCompleteness(), [])
+
+  function handleNationalConvert(): void {
+    setNationalScoreError(null)
+    setNationalScoreResult(null)
+    if (!selectedNationalItem || selectedNationalItem.role === 'bmi-source') {
+      setNationalScoreError(NATIONAL_FITNESS_SCORE_TABLE_MISSING)
+      return
+    }
+    if (!selectedNationalVerified) {
+      setNationalScoreError(NATIONAL_FITNESS_SCORE_TABLE_MISSING)
+      return
+    }
+    const result = calculateNationalFitnessScore({
+      grade: nationalGrade,
+      gender,
+      itemId: selectedNationalItem.itemKey,
+      rawInput: nationalRawInput
+    })
+    if (!result.ok && result.code !== NATIONAL_FITNESS_BELOW_OFFICIAL_MINIMUM) {
+      setNationalScoreError(result.message)
+      return
+    }
+    setNationalScoreResult(result)
+  }
+
   function handleConvert(): void {
     setConvertError(null)
     setConvertResult(null)
@@ -213,38 +305,412 @@ export default function ExamStandardsPage({
     }
   }
 
+  function selectBrowseTab(next: StandardsBrowseTab): void {
+    setBrowseTab(next)
+    setStandardId('')
+    setItemId('')
+    setConvertResult(null)
+    setConvertError(null)
+  }
+
   const standardsBody = (
     <>
       <div className="exam-tabs" role="tablist">
         <button
           type="button"
-          className={examType === 'middle_school_exam' ? 'btn btn-primary' : 'btn'}
-          onClick={() => {
-            setExamType('middle_school_exam')
-            setStandardId('')
-            setItemId('')
-            setConvertResult(null)
-            setConvertError(null)
-          }}
+          className={browseTab === NATIONAL_STUDENT_FITNESS_FAMILY ? 'btn btn-primary' : 'btn'}
+          onClick={() => selectBrowseTab(NATIONAL_STUDENT_FITNESS_FAMILY)}
+        >
+          {NATIONAL_FITNESS_FAMILY_LABEL}
+        </button>
+        <button
+          type="button"
+          className={browseTab === 'middle_school_exam' ? 'btn btn-primary' : 'btn'}
+          onClick={() => selectBrowseTab('middle_school_exam')}
         >
           {EXAM_TYPE_LABELS.middle_school_exam}
         </button>
         <button
           type="button"
-          className={examType === 'gaokao_sports' ? 'btn btn-primary' : 'btn'}
-          onClick={() => {
-            setExamType('gaokao_sports')
-            setStandardId('')
-            setItemId('')
-            setConvertResult(null)
-            setConvertError(null)
-          }}
+          className={browseTab === 'gaokao_sports' ? 'btn btn-primary' : 'btn'}
+          onClick={() => selectBrowseTab('gaokao_sports')}
         >
           {EXAM_TYPE_LABELS.gaokao_sports}
         </button>
       </div>
 
-      {examType === 'middle_school_exam' ? (
+      {browseTab === NATIONAL_STUDENT_FITNESS_FAMILY ? (
+        <div className="exam-detail">
+          <p className="exam-notes">
+            路径：国家学生体质健康标准 → {nationalFitness.version} →{' '}
+            {NATIONAL_FITNESS_STAGE_OPTIONS.find((item) => item.stage === nationalStage)?.label} → {nationalLabelForGrade(nationalGrade)}（
+            {nationalGrade}）→ {EXAM_GENDER_LABELS[gender]}。与体育中考、体育高考评分表隔离。历史成绩只使用测试当时的年级快照。
+          </p>
+          <h3>《{nationalFitness.standardName}》</h3>
+          <dl className="exam-meta">
+            <div>
+              <dt>发布机关</dt>
+              <dd>{nationalFitness.authority}</dd>
+            </div>
+            <div>
+              <dt>版本</dt>
+              <dd>{nationalFitness.version}</dd>
+            </div>
+            <div>
+              <dt>学段</dt>
+              <dd>初中</dd>
+            </div>
+            <div>
+              <dt>来源文件</dt>
+              <dd>{nationalFitness.sourceDocument}</dd>
+            </div>
+            <div>
+              <dt>官方换算</dt>
+              <dd>{nationalFitnessAllowsOfficialConvert(nationalFitness.id) ? '可换算' : '禁止换算'}</dd>
+            </div>
+          </dl>
+          <div className="exam-summary-controls">
+            <label className="toolbar-field">
+              学段
+              <select
+                value={nationalStage}
+                onChange={(event) => {
+                  const next = event.target.value as SchoolStage
+                  setNationalStage(next)
+                  const nextGrade = gradesForStage(next)[0]
+                  setNationalGrade(nextGrade)
+                  setNationalItemKey('')
+                }}
+              >
+                {NATIONAL_FITNESS_STAGE_OPTIONS.map((option) => (
+                  <option key={option.stage} value={option.stage}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="toolbar-field">
+              年级
+              <select
+                value={nationalGrade}
+                onChange={(event) => {
+                  setNationalGrade(event.target.value as Grade)
+                  setNationalItemKey('')
+                }}
+              >
+                {gradesForStage(nationalStage).map((grade) => (
+                  <option key={grade} value={grade}>
+                    {nationalLabelForGrade(grade)}（{grade}）
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="toolbar-field">
+              性别
+              <select
+                value={gender}
+                onChange={(event) => {
+                  setGender(event.target.value as Exclude<ExamGender, 'all'>)
+                  setNationalItemKey('')
+                }}
+              >
+                <option value="male">{EXAM_GENDER_LABELS.male}</option>
+                <option value="female">{EXAM_GENDER_LABELS.female}</option>
+              </select>
+            </label>
+          </div>
+          <h4>
+            {nationalLabelForGrade(nationalGrade)} {EXAM_GENDER_LABELS[gender]} · 身体形态
+          </h4>
+          <p className="exam-notes">
+            身高、体重用于计算 BMI，本身没有 0–100 分评分表。BMI 是身体形态评价项目，不是越高越好或越低越好。具体评分/等级规则待权威数据核验后接入。
+          </p>
+          <div className="exam-item-list">
+            {nationalBmiSources.map((item) => (
+              <button
+                key={item.itemKey}
+                type="button"
+                className={selectedNationalItem?.itemKey === item.itemKey ? 'exam-item-btn exam-item-btn--active' : 'exam-item-btn'}
+                onClick={() => setNationalItemKey(item.itemKey)}
+              >
+                {item.name}（用于 BMI）
+              </button>
+            ))}
+          </div>
+          <h4>
+            {nationalLabelForGrade(nationalGrade)} {EXAM_GENDER_LABELS[gender]} · 评价项目
+          </h4>
+          <div className="exam-item-list">
+            {nationalEvalItems.map((item) => (
+              <button
+                key={item.itemKey}
+                type="button"
+                className={selectedNationalItem?.itemKey === item.itemKey ? 'exam-item-btn exam-item-btn--active' : 'exam-item-btn'}
+                onClick={() => setNationalItemKey(item.itemKey)}
+              >
+                {item.name}
+              </button>
+            ))}
+          </div>
+          {selectedNationalItem ? (
+            <div className="exam-item-detail">
+              <h4>项目详情</h4>
+              <dl className="exam-meta">
+                <div>
+                  <dt>项目名称</dt>
+                  <dd>{selectedNationalItem.name}</dd>
+                </div>
+                <div>
+                  <dt>学段</dt>
+                  <dd>{NATIONAL_FITNESS_STAGE_OPTIONS.find((item) => item.stage === stageForGrade(nationalGrade))?.label}</dd>
+                </div>
+                <div>
+                  <dt>年级</dt>
+                  <dd>
+                    {nationalLabelForGrade(nationalGrade)}（{nationalGrade}）
+                  </dd>
+                </div>
+                <div>
+                  <dt>适用性别</dt>
+                  <dd>{EXAM_GENDER_LABELS[selectedNationalItem.gender]}</dd>
+                </div>
+                <div>
+                  <dt>单位</dt>
+                  <dd>{selectedNationalItem.unitLabel}</dd>
+                </div>
+                <div>
+                  <dt>权重</dt>
+                  <dd>
+                    {selectedNationalItem.role === 'bmi-source' || selectedNationalItem.weightPercent == null
+                      ? '不计入标准分'
+                      : `${selectedNationalItem.weightPercent}%`}
+                  </dd>
+                </div>
+                <div>
+                  <dt>是否附加分指标</dt>
+                  <dd>
+                    {selectedNationalBonusTable
+                      ? `是 · ${selectedNationalBonusTable.source.tableNo}`
+                      : selectedNationalItem.bonusApplicable
+                        ? '是（换算表待核验）'
+                        : '否'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>标准来源</dt>
+              <dd>
+                《{nationalFitness.standardName}》 · 教体艺〔2014〕5号
+              </dd>
+                </div>
+                <div>
+                  <dt>评分表状态</dt>
+                  <dd>
+                    {selectedNationalVerified
+                      ? NATIONAL_FITNESS_SCORE_TABLE_VERIFIED
+                      : `pending-verification / ${NATIONAL_FITNESS_SCORE_TABLE_MISSING}`}
+                  </dd>
+                </div>
+                <div>
+                  <dt>成绩方向</dt>
+                  <dd>
+                    {selectedNationalItem.direction === 'derived'
+                      ? '派生指标（非越高越好/越低越好）'
+                      : selectedNationalItem.direction === 'neutral'
+                        ? '中性'
+                        : selectedNationalItem.direction === 'higherBetter'
+                          ? '越高越好'
+                          : '越低越好'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>日常项目</dt>
+                  <dd>
+                    {selectedNationalItem.testItemId
+                      ? selectedNationalItem.testItemId
+                      : selectedNationalItem.isDerived
+                        ? '由身高 + 体重派生，不另建日常项目'
+                        : '未映射'}
+                  </dd>
+                </div>
+              </dl>
+              <p className="exam-notes">{selectedNationalItem.notes}</p>
+              {selectedNationalItem.role === 'bmi-source' ? (
+                <p className="exam-notes">该项目用于 BMI 计算，没有单独的 0–100 分评分表。</p>
+              ) : null}
+              {selectedNationalVerified && selectedNationalTable ? (
+                <div className="exam-score-table">
+                  <p className="exam-notes">{NATIONAL_FITNESS_SCORE_TABLE_VERIFIED}</p>
+                  <p className="exam-notes">
+                    数据来源：《{selectedNationalTable.source?.standardName}》 {selectedNationalTable.source?.documentNo} ·{' '}
+                    {selectedNationalTable.source?.tableNo} {selectedNationalTable.source?.tableName} · {nationalGrade} ·{' '}
+                    {EXAM_GENDER_LABELS[gender]} · {selectedNationalItem.name}
+                  </p>
+                  {selectedNationalItem.role !== 'bmi-source' ? (
+                    <div className="exam-convert">
+                      <label className="toolbar-field">
+                        原始成绩
+                        <input
+                          value={nationalRawInput}
+                          onChange={(event) => {
+                            setNationalRawInput(event.target.value)
+                            setNationalScoreResult(null)
+                            setNationalScoreError(null)
+                          }}
+                          placeholder={selectedNationalTable.valueKind === 'time' ? '例如 3:45' : '例如 16.1'}
+                        />
+                      </label>
+                      <button type="button" className="btn btn-primary" onClick={handleNationalConvert}>
+                        换算单项标准分
+                      </button>
+                      {nationalScoreError ? <p className="page-error">{nationalScoreError}</p> : null}
+                      {nationalScoreResult?.ok ? (
+                        <dl className="exam-meta">
+                          <div>
+                            <dt>原始成绩</dt>
+                            <dd>
+                              {nationalScoreResult.formattedRawValue} {selectedNationalItem.unitLabel}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>基础分</dt>
+                            <dd>{nationalScoreResult.baseScore}</dd>
+                          </div>
+                          <div>
+                            <dt>附加分</dt>
+                            <dd>{nationalScoreResult.bonusScore}</dd>
+                          </div>
+                          <div>
+                            <dt>单项合计</dt>
+                            <dd>{nationalScoreResult.finalItemScore}</dd>
+                          </div>
+                          <div>
+                            <dt>核验状态</dt>
+                            <dd>{NATIONAL_FITNESS_SCORE_TABLE_VERIFIED}</dd>
+                          </div>
+                        </dl>
+                      ) : nationalScoreResult?.code === NATIONAL_FITNESS_BELOW_OFFICIAL_MINIMUM ? (
+                        <dl className="exam-meta">
+                          <div>
+                            <dt>原始成绩</dt>
+                            <dd>
+                              {nationalScoreResult.formattedRawValue} {selectedNationalItem.unitLabel}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>单项得分</dt>
+                            <dd>{nationalFitnessBelowOfficialMinimumMessage(nationalScoreResult.officialMinimumScore)}</dd>
+                          </div>
+                          <div>
+                            <dt>附加分</dt>
+                            <dd>—</dd>
+                          </div>
+                          <div>
+                            <dt>核验状态</dt>
+                            <dd>{NATIONAL_FITNESS_SCORE_TABLE_VERIFIED}</dd>
+                          </div>
+                        </dl>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <h4>【基础评分表】</h4>
+                  <div className="data-table-wrap">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>分数</th>
+                          <th>{selectedNationalTable.ruleKind === 'range' ? '区间' : '阈值'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedNationalTable.ruleKind === 'range'
+                          ? selectedNationalTable.rangeEntries.map((entry) => (
+                              <tr key={`range-${entry.score}-${entry.min}-${entry.max}-${entry.minInclusive}-${entry.maxInclusive}`}>
+                                <td>{entry.score}</td>
+                                <td>
+                                  {entry.min === null ? '…' : formatNationalFitnessTableValue(entry.min, selectedNationalTable)}
+                                  {entry.minInclusive ? ' ≤ ' : ' < '}x
+                                  {entry.max === null ? '' : entry.maxInclusive ? ' ≤ ' : ' < '}
+                                  {entry.max === null ? '…' : formatNationalFitnessTableValue(entry.max, selectedNationalTable)}
+                                </td>
+                              </tr>
+                            ))
+                          : selectedNationalTable.thresholdEntries.map((entry) => (
+                              <tr key={`th-${entry.score}-${entry.threshold}`}>
+                                <td>{entry.score}</td>
+                                <td>{formatNationalFitnessTableValue(entry.threshold, selectedNationalTable)}</td>
+                              </tr>
+                            ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {selectedNationalBonusTable ? (
+                    <div className="exam-score-table">
+                      <h4>【附加分评分表】</h4>
+                      <p className="exam-notes">
+                        {selectedNationalBonusTable.source.tableNo} {selectedNationalBonusTable.source.tableName} · 教体艺〔2014〕5号 ·
+                        2014-07-07
+                      </p>
+                      <p className="exam-notes">以下数值表示超过基础100分成绩后的增量。</p>
+                      <p className="exam-notes">
+                        本年级本性别基础100分成绩：
+                        {formatNationalFitnessTableValue(
+                          selectedNationalTable.thresholdEntries.find((entry) => entry.score === 100)?.threshold ?? 0,
+                          selectedNationalTable
+                        )}{' '}
+                        {selectedNationalItem.unitLabel}
+                        {selectedNationalBonusTable.incrementKind === 'fasterBySeconds'
+                          ? '。附加分按“比该时间快多少秒”计算。'
+                          : '。附加分按“超过该成绩多少次”计算。'}
+                      </p>
+                      <div className="data-table-wrap">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>附加分</th>
+                              <th>增量</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedNationalBonusTable.entries.map((entry) => (
+                              <tr key={`bonus-${entry.bonusScore}-${entry.extra}`}>
+                                <td>+{entry.bonusScore}</td>
+                                <td>
+                                  {selectedNationalBonusTable.incrementKind === 'fasterBySeconds'
+                                    ? `比100分成绩快 ${entry.extra} 秒 → +${entry.bonusScore}分`
+                                    : `超过100分成绩 ${entry.extra} 次 → +${entry.bonusScore}分`}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : selectedNationalItem.role !== 'bmi-source' ? (
+                    <p className="exam-notes">该项目无官方附加分</p>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="page-error">{NATIONAL_FITNESS_SCORE_TABLE_MISSING}</p>
+              )}
+            </div>
+          ) : null}
+          <p className="exam-notes">
+            完整性：应有评分表 {nationalCompleteness.expected}；catalog {nationalCompleteness.catalog}；已核验 {nationalCompleteness.verified}；pending{' '}
+            {nationalCompleteness.pending}；N/A {nationalCompleteness.na}；可自动评分 {nationalCompleteness.autoScoring}。小学已核验{' '}
+            {nationalCompleteness.byStage.primary.verified}/{nationalCompleteness.byStage.primary.expected}，初中 {nationalCompleteness.byStage.junior.verified}/
+            {nationalCompleteness.byStage.junior.expected}，高中 {nationalCompleteness.byStage.senior.verified}/{nationalCompleteness.byStage.senior.expected}。
+          </p>
+          {nationalCompleteness.verified === 0 ? (
+          <TechEmptyState
+            kind="exams"
+            title={NATIONAL_FITNESS_SCORE_TABLE_MISSING}
+            description="当前不能用国家体测标准换算单项得分或学年综合总分。体育中考过程性「国家学生体质健康标准」项目不是本套 2014 评分表。"
+          />
+          ) : null}
+        </div>
+      ) : (
+        <>
+      {browseTab === 'middle_school_exam' ? (
         <p className="exam-notes">
           路径：城市 → 年份/政策版本 → 中考体育。不会用较新年份自动覆盖历史版本。当前评分表已核验、可自动换算的中考标准{' '}
           {standards.filter((item) => item.examType === 'middle_school_exam' && standardAllowsOfficialConvert(item)).length}{' '}
@@ -262,7 +728,7 @@ export default function ExamStandardsPage({
         <p className="exam-notes">路径：体育高考 → 广东省 → 2026。基本素质①、基本素质②、专项基础按官方组合列出。</p>
       )}
 
-      {examType === 'middle_school_exam' ? (
+      {browseTab === 'middle_school_exam' ? (
         <div className="exam-coverage">
           <div className="exam-coverage-head">
             <h3>城市覆盖状态</h3>
@@ -336,7 +802,7 @@ export default function ExamStandardsPage({
         </div>
       ) : null}
 
-      {examType === 'middle_school_exam' ? (
+      {browseTab === 'middle_school_exam' ? (
         <div className="exam-summary">
           <div className="exam-summary-controls">
             <label className="toolbar-field">
@@ -559,7 +1025,7 @@ export default function ExamStandardsPage({
         ) : null}
       </div>
 
-      {verifiedCityStandards.length === 0 && examType === 'middle_school_exam' ? (
+      {verifiedCityStandards.length === 0 && browseTab === 'middle_school_exam' ? (
         <TechEmptyState
           kind="exams"
           title="暂无已核验评分标准"
@@ -698,7 +1164,7 @@ export default function ExamStandardsPage({
                 </div>
                 <div>
                   <dt>评分方式</dt>
-                  <dd>{scoreModeDisplay(selectedItem, examType)}</dd>
+                  <dd>{scoreModeDisplay(selectedItem, selectedStandard.examType)}</dd>
                 </div>
                 <div>
                   <dt>自动换算状态</dt>
@@ -747,7 +1213,7 @@ export default function ExamStandardsPage({
             <p className="exam-notes">本标准尚未录入项目评分表。</p>
           )}
         </div>
-      ) : examType === 'gaokao_sports' ? (
+      ) : browseTab === 'gaokao_sports' ? (
         <TechEmptyState
           kind="exams"
           title="暂无已核验评分标准"
@@ -836,6 +1302,8 @@ export default function ExamStandardsPage({
           </dl>
         ) : null}
       </div>
+        </>
+      )}
     </>
   )
 
@@ -848,7 +1316,7 @@ export default function ExamStandardsPage({
       <PageHeader
         icon="exams"
         title="评分标准"
-        description="查看和管理当前体育测试使用的官方评分规则。广东各地级市规则不同，不是省统一标准。"
+        description="查看三套独立评分体系：国家学生体质健康标准、体育中考、体育高考。中考为广东分市规则，不是省统一标准。"
       />
       {standardsBody}
     </PageLayout>

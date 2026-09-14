@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import StatCard from './StatCard'
 import { SCORE_BAND_LABELS, summarizeSingleTest } from '@shared/statistics'
 import type { ClassRecord } from '@shared/class'
-import type { PETestSession, TestItem } from '@shared/peTest'
+import { isGenderLinkedSession, linkedGenderScoreStats, BUILTIN_TEST_ITEMS, type PETestSession, type TestItem } from '@shared/peTest'
 
 interface TestAnalyticsPanelProps {
   session: PETestSession
@@ -26,6 +26,8 @@ export default function TestAnalyticsPanel({ session, sessions, testItem, classe
     [session, sessions, testItem, classes]
   )
   const [bucket, setBucket] = useState<(typeof BUCKETS)[number]['key'] | null>(null)
+  const grouped = isGenderLinkedSession(session)
+  const split = grouped ? linkedGenderScoreStats(session, BUILTIN_TEST_ITEMS) : []
   const listed = bucket
     ? summary.performanceRows.filter((item) =>
         bucket === 'personalBest' ? item.isPersonalBest : bucket === 'absent' ? item.vsKind === 'absent' : item.vsKind === bucket
@@ -43,17 +45,41 @@ export default function TestAnalyticsPanel({ session, sessions, testItem, classe
         <StatCard label="缺考" value={String(summary.statuses.absent)} hint="人次" />
         <StatCard label="免考" value={String(summary.statuses.exempt)} hint="人次" />
         <StatCard label="未测" value={String(summary.statuses.pending)} hint="人次" />
-        <StatCard label="有评分人数" value={String(summary.scoredCount)} hint="examScore 非空" />
+        <StatCard label="已评分人数" value={String(summary.scoredCount)} hint="已有评分结果" />
+        <StatCard
+          label="无官方分值"
+          value={String(summary.belowOfficialMinimumCount)}
+          hint="低于官方最低档，不按 0 分统计"
+        />
       </div>
-      <h3 className="stats-subtitle">原始成绩</h3>
-      <div className="stat-grid">
-        <StatCard label="平均值" value={summary.averageRawText} hint="仅有效 rawValue" />
-        <StatCard label="最好" value={summary.bestRawText} hint="按项目方向" />
-        <StatCard label="最差" value={summary.worstRawText} hint="按项目方向" />
-      </div>
+      {grouped ? (
+        <>
+          <h3 className="stats-subtitle">原始成绩</h3>
+          <p className="stats-note">800米与1000米距离不同，不混合统计原始时间。班级综合仅使用换算后的得分。</p>
+          <div className="stat-grid">
+            {split.map((item) => (
+              <StatCard
+                key={item.gender}
+                label={item.gender === 'male' ? `男生${item.itemName}` : `女生${item.itemName}`}
+                value={item.averageRawText}
+                hint={`有效 ${item.valid} 人 · 平均成绩`}
+              />
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <h3 className="stats-subtitle">原始成绩</h3>
+          <div className="stat-grid">
+            <StatCard label="平均值" value={summary.averageRawText} hint="仅有效 rawValue" />
+            <StatCard label="最好" value={summary.bestRawText} hint="按项目方向" />
+            <StatCard label="最差" value={summary.worstRawText} hint="按项目方向" />
+          </div>
+        </>
+      )}
       <h3 className="stats-subtitle">得分</h3>
       <div className="stat-grid">
-        <StatCard label="平均分" value={summary.averageScoreText} hint="仅有分样本" />
+        <StatCard label="平均分" value={summary.averageScoreText} hint="仅官方单项分，不含缺考/免考/未测/无官方分值" />
         <StatCard label="最高分" value={summary.maxScoreText} hint="不含空分" />
         <StatCard label="最低分" value={summary.minScoreText} hint="不含空分" />
       </div>

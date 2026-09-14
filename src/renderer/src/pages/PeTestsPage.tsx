@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import PeTestEditor from '../components/PeTestEditor'
+import PeTestDetailPanel from '../components/PeTestDetailPanel'
 import PeQuickEntryPanel from '../components/PeQuickEntryPanel'
 import PageLayout, { PageHeader } from '../components/PageLayout'
 import DataTable from '../components/ds/DataTable'
@@ -15,6 +16,12 @@ import { useTestItems } from '../context/TestItemContext'
 import { buildPeTestSession } from '../data/peTest/buildSession'
 import { PE_TEST_PRIMARY_IMPORT_LABEL } from '@shared/examBatch'
 import {
+  classroomScoringLabel,
+  defaultTeacherTestOptionValue,
+  findTeacherVisibleDuplicates,
+  listClassroomScoringOptions,
+  parseTeacherTestSelection,
+  teacherSelectableTestOptions,
   TEST_CATEGORY_LABELS,
   TEST_DIRECTION_LABELS,
   TEST_GENDER_RULE_LABELS,
@@ -52,6 +59,7 @@ export default function PeTestsPage({
   const { sessions, loading, error, upsertSession, deleteSession } = usePeTests()
   const [view, setView] = useState<'list' | 'items'>('list')
   const [editing, setEditing] = useState<PETestSession | null>(null)
+  const [detailing, setDetailing] = useState<PETestSession | null>(null)
   const [editorTab, setEditorTab] = useState<'edit' | 'analysis'>('edit')
   const [createOpen, setCreateOpen] = useState(false)
   const [pendingAnalysisId, setPendingAnalysisId] = useState<string | null>(null)
@@ -60,12 +68,13 @@ export default function PeTestsPage({
   const [actionError, setActionError] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
   const [duplicateCount, setDuplicateCount] = useState(0)
-  const [quickEntry, setQuickEntry] = useState<{ sessionId?: string } | null>(null)
+  const [quickEntry, setQuickEntry] = useState<{ sessionId?: string; seed?: PETestSession } | null>(null)
 
   const [classId, setClassId] = useState(listedClassRecords(classes)[0]?.id ?? '')
-  const [testItemId, setTestItemId] = useState(items.find((item) => item.isActive)?.id ?? '')
+  const [testItemId, setTestItemId] = useState(defaultTeacherTestOptionValue(items))
   const [date, setDate] = useState(formatLocalDate(new Date()))
   const [title, setTitle] = useState('')
+  const [examStandardId, setExamStandardId] = useState('')
 
   useEffect(() => {
     if (!openSessionId || loading) {
@@ -75,8 +84,14 @@ export default function PeTestsPage({
     const found = sessions.find((item) => item.id === openSessionId)
     if (found) {
       setView('list')
-      setEditorTab(openEditorTab)
-      setEditing(found)
+      if (openEditorTab === 'analysis') {
+        setEditorTab('analysis')
+        setEditing(found)
+        setDetailing(null)
+      } else {
+        setDetailing(found)
+        setEditing(null)
+      }
     }
 
     onOpenSessionConsumed?.()
@@ -104,10 +119,16 @@ export default function PeTestsPage({
   }, [prefillClassId, onPrefillClassConsumed])
 
   const activeItems = useMemo(() => items.filter((item) => item.isActive), [items])
+  const teacherOptions = useMemo(() => teacherSelectableTestOptions(items), [items])
   const validScoreCount = useMemo(
     () => sessions.reduce((total, item) => total + countTestRecords(item.records).valid, 0),
     [sessions]
   )
+
+  function countVisibleDuplicates(targetClassId: string, targetDate: string, optionValue: string): number {
+    const selection = parseTeacherTestSelection(optionValue, items)
+    return selection ? findTeacherVisibleDuplicates(sessions, targetClassId, targetDate, selection).length : 0
+  }
 
   function activeStudentsOf(targetClassId: string) {
     return students.filter((item) => item.classId === targetClassId && item.status === 'active')
@@ -126,29 +147,24 @@ export default function PeTestsPage({
 
     setActionError(null)
     setClassId(listedClasses[0]?.id ?? '')
-    setTestItemId(activeItems[0]?.id ?? '')
+    setTestItemId(defaultTeacherTestOptionValue(items))
     setDate(formatLocalDate(new Date()))
     setTitle('')
-    setDuplicateCount(
-      sessions.filter(
-        (item) =>
-          item.classId === (listedClasses[0]?.id ?? '') &&
-          item.date === formatLocalDate(new Date()) &&
-          item.testItemId === (activeItems[0]?.id ?? '')
-      ).length
-    )
+    setExamStandardId('')
+    setDuplicateCount(countVisibleDuplicates(listedClasses[0]?.id ?? '', formatLocalDate(new Date()), defaultTeacherTestOptionValue(items)))
     setCreateOpen(true)
   }
 
   async function handleCreate(): Promise<void> {
     const classRecord = classes.find((item) => item.id === classId)
-    const testItem = items.find((item) => item.id === testItemId && item.isActive)
+    const selection = parseTeacherTestSelection(testItemId, items)
+    const testItem = selection?.kind === 'group' ? selection.anchor : selection?.item
     if (!classRecord) {
       setActionError('请选择所属班级')
       return
     }
 
-    if (!testItem) {
+    if (!testItem || !selection) {
       setActionError('请选择测试项目')
       return
     }
@@ -159,13 +175,24 @@ export default function PeTestsPage({
       return
     }
 
+    if (selection.kind === 'group') {
+      const existing = findTeacherVisibleDuplicates(sessions, classId, date, selection)
+      if (existing[0]) {
+        setCreateOpen(false)
+        setQuickEntry({ sessionId: existing[0].id })
+        return
+      }
+    }
+
     const created = buildPeTestSession({
       classRecord,
       testItem,
       activeStudents: active,
       date,
       title,
-      notes: ''
+      notes: '',
+      testGroup: selection.kind === 'group' ? selection.group : null,
+      examStandardId: examStandardId || null
     })
 
     setWorking(true)
@@ -173,8 +200,9 @@ export default function PeTestsPage({
     try {
       await upsertSession(created)
       setCreateOpen(false)
-      setEditorTab('edit')
-      setEditing(created)
+      setEditing(null)
+      setDetailing(null)
+      setQuickEntry({ sessionId: created.id, seed: created })
     } catch (createError) {
       setActionError(createError instanceof Error ? createError.message : '创建失败')
     } finally {
@@ -236,17 +264,51 @@ export default function PeTestsPage({
   }
 
   if (quickEntry) {
-    const initialSession = quickEntry.sessionId
-      ? sessions.find((item) => item.id === quickEntry.sessionId) ?? null
-      : null
+    const initialSession =
+      (quickEntry.sessionId ? sessions.find((item) => item.id === quickEntry.sessionId) ?? null : null) ??
+      quickEntry.seed ??
+      null
     return (
       <PeQuickEntryPanel
         initialSession={initialSession}
         onClose={() => setQuickEntry(null)}
         onOpenResult={(session, tab) => {
           setQuickEntry(null)
-          setEditorTab(tab)
-          setEditing(session)
+          if (tab === 'analysis') {
+            setEditorTab('analysis')
+            setEditing(session)
+            setDetailing(null)
+          } else {
+            setDetailing(session)
+            setEditing(null)
+          }
+        }}
+      />
+    )
+  }
+
+  if (detailing) {
+    const live = sessions.find((item) => item.id === detailing.id) ?? detailing
+    return (
+      <PeTestDetailPanel
+        session={live}
+        sessions={sessions}
+        testItem={items.find((item) => item.id === live.testItemId)}
+        classes={classes}
+        onBack={() => setDetailing(null)}
+        onContinueEntry={() => {
+          setQuickEntry({ sessionId: live.id })
+          setDetailing(null)
+        }}
+        onOpenAnalysis={() => {
+          setEditorTab('analysis')
+          setEditing(live)
+          setDetailing(null)
+        }}
+        onOpenEditor={() => {
+          setEditorTab('edit')
+          setEditing(live)
+          setDetailing(null)
         }}
       />
     )
@@ -385,6 +447,7 @@ export default function PeTestsPage({
                 <th>日期</th>
                 <th>班级</th>
                 <th>项目</th>
+                <th>评分依据</th>
                 <th>已录入</th>
                 <th>未录入</th>
                 <th>有效成绩</th>
@@ -401,6 +464,7 @@ export default function PeTestsPage({
                       {item.gradeSnapshot} {item.classNameSnapshot}
                     </td>
                     <td>{item.testItemNameSnapshot}</td>
+                    <td>{classroomScoringLabel(item)}</td>
                     <td>
                       {counts.entered}/{item.records.length}
                     </td>
@@ -408,6 +472,20 @@ export default function PeTestsPage({
                     <td>{counts.valid}</td>
                     <td>
                       <div className="table-actions">
+                        <button
+                          type="button"
+                          className="btn btn-small btn-primary"
+                          onClick={() => setQuickEntry({ sessionId: item.id })}
+                        >
+                          继续录入
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-small"
+                          onClick={() => setDetailing(item)}
+                        >
+                          测试详情
+                        </button>
                         <button
                           type="button"
                           className="btn btn-small"
@@ -460,11 +538,7 @@ export default function PeTestsPage({
                   onChange={(event) => {
                     const nextClassId = event.target.value
                     setClassId(nextClassId)
-                    setDuplicateCount(
-                      sessions.filter(
-                        (item) => item.classId === nextClassId && item.date === date && item.testItemId === testItemId
-                      ).length
-                    )
+                    setDuplicateCount(countVisibleDuplicates(nextClassId, date, testItemId))
                   }}
                 >
                   {listedClasses.map((item) => (
@@ -481,15 +555,12 @@ export default function PeTestsPage({
                   onChange={(event) => {
                     const nextItemId = event.target.value
                     setTestItemId(nextItemId)
-                    setDuplicateCount(
-                      sessions.filter((item) => item.classId === classId && item.date === date && item.testItemId === nextItemId)
-                        .length
-                    )
+                    setDuplicateCount(countVisibleDuplicates(classId, date, nextItemId))
                   }}
                 >
-                  {activeItems.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
+                  {teacherOptions.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
                     </option>
                   ))}
                 </select>
@@ -502,11 +573,7 @@ export default function PeTestsPage({
                   onChange={(event) => {
                     const nextDate = event.target.value
                     setDate(nextDate)
-                    setDuplicateCount(
-                      sessions.filter(
-                        (item) => item.classId === classId && item.date === nextDate && item.testItemId === testItemId
-                      ).length
-                    )
+                    setDuplicateCount(countVisibleDuplicates(classId, nextDate, testItemId))
                   }}
                 />
               </label>
@@ -514,10 +581,22 @@ export default function PeTestsPage({
                 测试名称
                 <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="可留空，将自动生成" />
               </label>
+              <label className="dialog-span">
+                评分依据
+                <select value={examStandardId} onChange={(event) => setExamStandardId(event.target.value)}>
+                  {listClassroomScoringOptions().map((item) => (
+                    <option key={item.id || 'raw'} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
             {duplicateCount > 0 ? (
               <p className="dialog-error">
-                该班该日该项目已有 {duplicateCount} 次测试。仍可继续新建（例如补测、分组测试）。
+                {testItemId.startsWith('group:')
+                  ? '该班该日该组合项目已有测试，将继续录入同一场，不会新建第二次。'
+                  : `该班该日该项目已有 ${duplicateCount} 次测试。仍可继续新建（例如补测、分组测试）。`}
               </p>
             ) : null}
             <div className="dialog-actions">

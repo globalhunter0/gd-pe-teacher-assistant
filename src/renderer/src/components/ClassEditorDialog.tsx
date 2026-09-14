@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import {
   DEFAULT_ACADEMIC_YEAR,
   GRADES,
+  GRADE_LABELS,
   SEMESTERS,
   createClassId,
   type ClassRecord,
@@ -100,7 +101,7 @@ export default function ClassEditorDialog({
             <select value={grade} onChange={(event) => setGrade(event.target.value as Grade)}>
               {GRADES.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {GRADE_LABELS[item]}
                 </option>
               ))}
             </select>
