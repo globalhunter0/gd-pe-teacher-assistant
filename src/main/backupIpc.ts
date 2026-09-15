@@ -49,7 +49,8 @@ export function registerBackupIpc(): void {
     return {
       canceled: false as const,
       safetyBackupPath: result.safetyBackupPath,
-      restoredCount: result.restoredCount
+      restoredCount: result.restoredCount,
+      keptPaths: result.keptPaths
     }
   })
 }

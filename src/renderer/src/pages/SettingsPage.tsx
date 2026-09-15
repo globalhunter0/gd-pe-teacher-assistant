@@ -33,7 +33,7 @@ export default function SettingsPage(): React.JSX.Element {
 
   async function handleRestore(): Promise<void> {
     const confirmed = window.confirm(
-      '恢复会用备份包替换当前班级、学生、课堂、测试、训练队和资料等全部业务数据。恢复前会自动再备份当前数据；若自动备份失败则不会继续恢复。是否继续？'
+      '恢复会替换备份包里包含的业务数据。备份包没有的业务域（例如旧备份没有训练队或资料）会保留当前数据，不会被删除。恢复前会自动再备份当前数据；若自动备份失败则不会继续恢复。是否继续？'
     )
     if (!confirmed) {
       return
@@ -48,8 +48,12 @@ export default function SettingsPage(): React.JSX.Element {
         setMessage('已取消恢复。')
         return
       }
+      const keptNote =
+        result.keptPaths.length > 0
+          ? `备份未包含的 ${result.keptPaths.length} 个现有文件已保留。`
+          : ''
       setMessage(
-        `恢复成功，共写入 ${result.restoredCount} 个文件。恢复前安全备份：${result.safetyBackupPath}。即将重新加载。`
+        `恢复成功，共写入 ${result.restoredCount} 个文件。${keptNote}恢复前安全备份：${result.safetyBackupPath}。即将重新加载。`
       )
       window.setTimeout(() => {
         window.location.reload()
@@ -130,7 +134,7 @@ export default function SettingsPage(): React.JSX.Element {
         <article className="info-panel settings-card--restore">
           <h3>恢复备份</h3>
           <p className="settings-copy">
-            先校验备份包。不支持或已损坏的备份会被拒绝。恢复前必须先自动备份当前数据；该安全备份失败则停止。此操作会替换当前全部业务数据。
+            先校验备份包。不支持或已损坏的备份会被拒绝。恢复前必须先自动备份当前数据；该安全备份失败则停止。只替换备份包里有的业务数据；备份没有的业务域会保留当前文件。
           </p>
           <button type="button" className="btn btn-warning" disabled={working} onClick={() => void handleRestore()}>
             {working ? '处理中…' : '恢复备份'}
@@ -140,11 +144,12 @@ export default function SettingsPage(): React.JSX.Element {
         <article className="info-panel">
           <h3>数据安全说明</h3>
           <p className="settings-copy">
-            备份与恢复只处理本软件管理的教学数据。恢复会替换班级、学生、课堂、测试、训练队和资料等全部业务数据，但不会改评分规则引擎，也不会改 .gdpebak 格式。
+            备份与恢复只处理本软件管理的教学数据。恢复只会替换备份包里包含的班级、学生、课堂、测试、训练队和资料等业务数据；旧备份缺少的新业务域会保留现有数据，不会被删除。不会改评分规则引擎，也不会改 .gdpebak 格式。
           </p>
           <ul>
             <li>请把备份包保存在你能找到的位置，不要只留在临时文件夹。</li>
             <li>恢复前会自动再做一份安全备份；失败则不会继续恢复。</li>
+            <li>旧备份缺少的业务域会保留当前数据，不会因为恢复而被删除。</li>
             <li>危险操作会再次确认，请仔细阅读提示后再继续。</li>
           </ul>
         </article>

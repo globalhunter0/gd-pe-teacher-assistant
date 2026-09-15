@@ -50,4 +50,5 @@ export interface BackupResult {
 export interface RestoreResult {
   safetyBackupPath: string
   restoredCount: number
+  keptPaths: string[]
 }

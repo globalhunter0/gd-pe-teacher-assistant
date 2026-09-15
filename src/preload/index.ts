@@ -166,7 +166,7 @@ const electronAPI = {
       { canceled: true } | { canceled: false; filePath: string; fileCount: number; createdAt: string }
     > => ipcRenderer.invoke('backup:create'),
     restore: (): Promise<
-      { canceled: true } | { canceled: false; safetyBackupPath: string; restoredCount: number }
+      { canceled: true } | { canceled: false; safetyBackupPath: string; restoredCount: number; keptPaths: string[] }
     > => ipcRenderer.invoke('backup:restore')
   },
   userPreferences: {

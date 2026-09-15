@@ -210,25 +210,108 @@ export async function verifyBackupArchive(archivePath: string): Promise<BackupMa
   return manifest
 }
 
+const RESOURCE_FILES_PREFIX = `${RESOURCE_FILES_DIR}/`
+
+function normalizeBackupPath(path: string): string {
+  return path.replace(/\\/g, '/')
+}
+
+export function backupCoversResources(backupPaths: readonly string[]): boolean {
+  return backupPaths.some((path) => {
+    const normalized = normalizeBackupPath(path)
+    return (
+      normalized === 'resources.json' ||
+      normalized === RESOURCE_FILES_DIR ||
+      normalized.startsWith(RESOURCE_FILES_PREFIX)
+    )
+  })
+}
+
+export function listReplaceableBusinessJson(backupPaths: readonly string[]): string[] {
+  const backupSet = new Set(backupPaths.map(normalizeBackupPath))
+  return BUSINESS_JSON_FILES.filter((name) => backupSet.has(name))
+}
+
+export async function listKeptManagedPaths(
+  userDataRoot: string,
+  backupPaths: readonly string[]
+): Promise<string[]> {
+  const backupSet = new Set(backupPaths.map(normalizeBackupPath))
+  const kept: string[] = []
+  for (const name of BUSINESS_JSON_FILES) {
+    if (backupSet.has(name)) {
+      continue
+    }
+    if (await pathExists(join(userDataRoot, name))) {
+      kept.push(name)
+    }
+  }
+  if (!backupCoversResources(backupPaths)) {
+    kept.push(...(await collectResourceFileRelPaths(userDataRoot)))
+  }
+  kept.sort((a, b) => a.localeCompare(b))
+  return kept
+}
+
 async function removeIfExists(target: string): Promise<void> {
   await rm(target, { recursive: true, force: true })
 }
 
-async function moveManagedAside(userDataRoot: string, outgoingDir: string): Promise<void> {
+async function containsAnyFile(dir: string): Promise<boolean> {
+  const entries = await readdir(dir, { withFileTypes: true })
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      if (await containsAnyFile(join(dir, entry.name))) {
+        return true
+      }
+    } else {
+      return true
+    }
+  }
+  return false
+}
+
+// 回滚后才会调用：只有确认目录里没有剩余文件才删除，避免清掉尚未归位的业务数据。
+async function removeIfNoFilesLeft(target: string): Promise<void> {
+  if (!(await pathExists(target))) {
+    return
+  }
+  if (!(await containsAnyFile(target))) {
+    await rm(target, { recursive: true, force: true })
+  }
+}
+
+interface MoveAsideResult {
+  filesDirMoved: boolean
+}
+
+async function moveManagedAside(
+  userDataRoot: string,
+  outgoingDir: string,
+  backupPaths: readonly string[]
+): Promise<MoveAsideResult> {
+  const jsonToReplace = listReplaceableBusinessJson(backupPaths)
+  const coversResources = backupCoversResources(backupPaths)
   await mkdir(outgoingDir, { recursive: true })
-  for (const name of BUSINESS_JSON_FILES) {
+  for (const name of jsonToReplace) {
     const source = join(userDataRoot, name)
     if (await pathExists(source)) {
       await rename(source, join(outgoingDir, name))
     }
   }
 
-  const filesDir = join(userDataRoot, RESOURCE_FILES_DIR)
-  if (await pathExists(filesDir)) {
-    const dest = join(outgoingDir, RESOURCE_FILES_DIR)
-    await mkdir(dirname(dest), { recursive: true })
-    await rename(filesDir, dest)
+  let filesDirMoved = false
+  if (coversResources) {
+    const filesDir = join(userDataRoot, RESOURCE_FILES_DIR)
+    if (await pathExists(filesDir)) {
+      const dest = join(outgoingDir, RESOURCE_FILES_DIR)
+      await mkdir(dirname(dest), { recursive: true })
+      await rename(filesDir, dest)
+      filesDirMoved = true
+    }
   }
+
+  return { filesDirMoved }
 }
 
 async function restoreOutgoing(userDataRoot: string, outgoingDir: string): Promise<void> {
@@ -253,6 +336,33 @@ async function restoreOutgoing(userDataRoot: string, outgoingDir: string): Promi
     }
     await mkdir(dirname(destFiles), { recursive: true })
     await rename(savedFiles, destFiles)
+  }
+}
+
+async function removeNewlyPlacedPaths(
+  userDataRoot: string,
+  outgoingDir: string,
+  placedPaths: readonly string[],
+  filesDirMoved: boolean
+): Promise<void> {
+  for (const rel of placedPaths) {
+    const normalized = normalizeBackupPath(rel)
+    const isResourceFile =
+      normalized === RESOURCE_FILES_DIR || normalized.startsWith(RESOURCE_FILES_PREFIX)
+    if (isResourceFile && filesDirMoved) {
+      continue
+    }
+    const saved = join(outgoingDir, normalized)
+    if (await pathExists(saved)) {
+      continue
+    }
+    const dest = join(userDataRoot, normalized)
+    if (!isInside(userDataRoot, dest)) {
+      continue
+    }
+    if (await pathExists(dest)) {
+      await removeIfExists(dest)
+    }
   }
 }
 
@@ -309,11 +419,13 @@ export async function restoreDataBackup(
   const stagingDir = join(userDataRoot, `.restore-staging-${token}`)
   const outgoingDir = join(userDataRoot, `.restore-outgoing-${token}`)
   await mkdir(stagingDir, { recursive: true })
+  const relativePaths: string[] = []
+  let moved: MoveAsideResult | undefined
+  let placedAttempted = false
 
   try {
     const zipBuf = await readFile(archivePath)
     const entries = parseZip(zipBuf)
-    const relativePaths: string[] = []
     for (const entry of entries) {
       const rel = relPathFromZipName(entry.name.replace(/\\/g, '/'))
       if (!rel) {
@@ -328,7 +440,9 @@ export async function restoreDataBackup(
       relativePaths.push(rel)
     }
 
-    await moveManagedAside(userDataRoot, outgoingDir)
+    const keptPaths = await listKeptManagedPaths(userDataRoot, relativePaths)
+    moved = await moveManagedAside(userDataRoot, outgoingDir, relativePaths)
+    placedAttempted = true
     await placeStaging(userDataRoot, stagingDir, relativePaths)
     if (options.injectFailure === 'after-place') {
       throw new Error('injected restore failure')
@@ -345,12 +459,27 @@ export async function restoreDataBackup(
       }
     }
 
+    for (const kept of keptPaths) {
+      if (!(await pathExists(join(userDataRoot, kept)))) {
+        throw new Error(`恢复后丢失了备份未包含的现有数据：${kept}`)
+      }
+    }
+
     await removeIfExists(outgoingDir)
     await removeIfExists(stagingDir)
-    return { safetyBackupPath, restoredCount: manifest.files.length }
+    return { safetyBackupPath, restoredCount: manifest.files.length, keptPaths }
   } catch (error) {
     try {
+      if (placedAttempted) {
+        await removeNewlyPlacedPaths(
+          userDataRoot,
+          outgoingDir,
+          relativePaths,
+          moved?.filesDirMoved ?? false
+        )
+      }
       await restoreOutgoing(userDataRoot, outgoingDir)
+      await removeIfNoFilesLeft(outgoingDir)
     } catch {
       // keep original error
     }
