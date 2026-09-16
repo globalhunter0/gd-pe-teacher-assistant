@@ -8,6 +8,7 @@ import {
   applyTrainingTeamSafeDelete,
   checkTrainingTeamSafeDelete,
   collectTrainingStudentDeleteBlockers,
+  hasTrainingTeamIdentityRefs,
   parseTrainingItems,
   parseTrainingMembers,
   parseTrainingResults,
@@ -440,17 +441,38 @@ export function runTrainingTeamSelfCheck(): void {
   })
   assert(linkedResultReread[0].sessionId === linkedSessionReread[0].id, '归档不破坏 TrainingResult.sessionId')
 
+  const linkedSchedule = [{ trainingTeamId: groupA }]
+  const hierarchyTeams = teams.filter((item) => item.id === teamA || item.id === groupA)
   const hierarchyCheck = checkTrainingTeamSafeDelete(
-    teams.filter((item) => item.id === teamA || item.id === groupA),
+    hierarchyTeams,
     members,
     teamA,
     [loadedSession],
     timeResults,
-    [{ trainingTeamId: groupA }]
+    linkedSchedule
   )
   assert(hierarchyCheck.descendantCount === 1, 'preflight 统计间接关联子组')
   assert(hierarchyCheck.total.scheduleLinkCount === 1, 'preflight 统计子组课表关联')
   assert(hierarchyCheck.total.resultCount === timeResults.length, 'preflight 汇总子组成绩')
+  assert(
+    hasTrainingTeamIdentityRefs(groupA, hierarchyTeams, [], [], [], linkedSchedule),
+    '常规保存边界必须把课表 trainingTeamId 视为训练队身份引用'
+  )
+  const hierarchyArchived = applyTrainingTeamSafeDelete(
+    hierarchyTeams,
+    members,
+    teamA,
+    now,
+    [loadedSession],
+    timeResults,
+    linkedSchedule
+  )
+  assert(hierarchyArchived.action === 'archive', '有课表关联时不得物理删除训练队')
+  assert(
+    hierarchyArchived.teams.every((item) => item.status === 'archived'),
+    '有课表关联的训练队及子组必须安全归档'
+  )
+  assert(linkedSchedule[0].trainingTeamId === groupA, '安全归档不得清除历史课表 trainingTeamId')
 
   // ---- v0.24.0 P0-1 ----
   const legacyMemberRaw = {

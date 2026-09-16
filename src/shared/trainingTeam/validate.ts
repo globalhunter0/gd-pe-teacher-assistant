@@ -620,13 +620,15 @@ export function hasTrainingTeamIdentityRefs(
   teams: ReadonlyArray<Pick<TrainingTeam, 'id' | 'parentTeamId'>>,
   members: ReadonlyArray<Pick<TrainingTeamMember, 'teamId'>>,
   sessions: ReadonlyArray<Pick<TrainingSession, 'teamId'>>,
-  results: ReadonlyArray<Pick<TrainingResult, 'teamId'>>
+  results: ReadonlyArray<Pick<TrainingResult, 'teamId'>>,
+  scheduleItems: ReadonlyArray<TrainingScheduleReference> = []
 ): boolean {
   return (
     teams.some((item) => item.parentTeamId === teamId) ||
     members.some((item) => item.teamId === teamId) ||
     sessions.some((item) => item.teamId === teamId) ||
-    results.some((item) => item.teamId === teamId)
+    results.some((item) => item.teamId === teamId) ||
+    scheduleItems.some((item) => item.trainingTeamId === teamId)
   )
 }
 
