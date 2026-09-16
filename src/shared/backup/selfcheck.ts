@@ -459,6 +459,113 @@ export async function runBackupRestoreSelfCheckOrThrow(): Promise<string> {
       }
     }
 
+    await seedUserData(root)
+    const profileTeamId = 'training-team-a0240aaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const profileMemberId = 'training-member-a0240aaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const profileSessionId = 'training-session-a0240aaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const profileResultId = 'training-result-a0240aaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    await writeJsonItemsAtomic(join(root, 'training-teams.json'), [
+      {
+        id: profileTeamId,
+        parentTeamId: null,
+        name: 'P0档案队',
+        sport: 'track',
+        coach: '',
+        notes: '',
+        status: 'active',
+        createdAt: '2026-09-15T00:00:00.000Z',
+        updatedAt: '2026-09-15T00:00:00.000Z'
+      }
+    ])
+    await writeJsonItemsAtomic(join(root, 'training-members.json'), [
+      {
+        id: profileMemberId,
+        teamId: profileTeamId,
+        studentId: 'student-1',
+        joinedAt: '2026-09-01T00:00:00.000Z',
+        leftAt: null,
+        status: 'active',
+        nameSnapshot: '张三',
+        studentNoSnapshot: 'A01',
+        classNameSnapshot: '初一1班',
+        genderSnapshot: 'male',
+        specialty: '100米',
+        position: '',
+        trainingGroup: '短跑一组',
+        trainingNotes: '注意热身',
+        notes: '',
+        createdAt: '2026-09-01T00:00:00.000Z',
+        updatedAt: '2026-09-01T00:00:00.000Z'
+      }
+    ])
+    await writeJsonItemsAtomic(join(root, 'training-sessions.json'), [
+      {
+        id: profileSessionId,
+        teamId: profileTeamId,
+        date: '2026-09-10',
+        startTime: '16:00',
+        title: '速度课',
+        place: '田径场',
+        durationMinutes: 90,
+        notes: '',
+        teamNameSnapshot: 'P0档案队',
+        createdAt: '2026-09-10T00:00:00.000Z',
+        updatedAt: '2026-09-10T00:00:00.000Z',
+        exercises: [],
+        attendance: []
+      }
+    ])
+    await writeJsonItemsAtomic(join(root, 'training-results.json'), [
+      {
+        id: profileResultId,
+        teamId: profileTeamId,
+        studentId: 'student-1',
+        studentNameSnapshot: '张三',
+        studentNoSnapshot: 'A01',
+        classNameSnapshot: '初一1班',
+        genderSnapshot: 'male',
+        date: '2026-09-10',
+        itemId: 'training-item-builtin-run-1000m',
+        itemNameSnapshot: '1000米',
+        unitSnapshot: 's',
+        customUnitLabelSnapshot: '',
+        directionSnapshot: 'lowerBetter',
+        valueTypeSnapshot: 'time',
+        timeInputModeSnapshot: 'minutesSeconds',
+        decimalPlacesSnapshot: 1,
+        rawInput: '3.39',
+        rawValue: 219,
+        kind: 'training',
+        sessionId: profileSessionId,
+        status: 'valid',
+        note: '',
+        createdAt: '2026-09-10T00:00:00.000Z',
+        updatedAt: '2026-09-10T00:00:00.000Z'
+      }
+    ])
+    const profileArchive = join(outside, 'training-profile.gdpebak')
+    await createDataBackup(root, profileArchive, '0.24.0-selfcheck')
+    await writeJsonItemsAtomic(join(root, 'training-members.json'), [])
+    await writeJsonItemsAtomic(join(root, 'training-results.json'), [])
+    await restoreDataBackup(root, profileArchive, { appVersion: '0.24.0-selfcheck' })
+    const restoredMembers = await readJsonItemsFile(join(root, 'training-members.json'), parseAnyItems)
+    const restoredMember = restoredMembers[0] as {
+      specialty?: string
+      trainingGroup?: string
+      trainingNotes?: string
+    }
+    if (restoredMember.specialty !== '100米' || restoredMember.trainingGroup !== '短跑一组') {
+      throw new Error('backup/restore 后运动员档案字段丢失')
+    }
+    if (restoredMember.trainingNotes !== '注意热身') {
+      throw new Error('backup/restore 后训练备注丢失')
+    }
+    const restoredResults = await readJsonItemsFile(join(root, 'training-results.json'), parseAnyItems)
+    const restoredResult = restoredResults[0] as { sessionId?: string | null }
+    if (restoredResult.sessionId !== profileSessionId) {
+      throw new Error('backup/restore 后 sessionId 绑定丢失')
+    }
+
     const leftovers = (await readdir(root)).filter(
       (name) => name.startsWith('.restore-staging-') || name.startsWith('.restore-outgoing-')
     )

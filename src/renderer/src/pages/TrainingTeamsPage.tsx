@@ -3,7 +3,21 @@ import { listedClassRecords, type ClassRecord } from '@shared/class'
 import PageLayout, { PageHeader } from '../components/PageLayout'
 import TechEmptyState from '../components/workspace/TechEmptyState'
 import OverviewBar from '../components/workspace/OverviewBar'
-import { parseScoreInput, testUnitDisplay } from '@shared/peTest'
+import {
+  parseScoreInput,
+  testUnitDisplay,
+  TEST_DIRECTIONS,
+  TEST_UNITS,
+  TEST_UNIT_LABELS,
+  TEST_VALUE_TYPES,
+  TEST_VALUE_TYPE_LABELS,
+  TIME_INPUT_MODES,
+  TIME_INPUT_MODE_LABELS,
+  type TestDirection,
+  type TestUnit,
+  type TestValueType,
+  type TimeInputMode
+} from '@shared/peTest'
 import { type StudentRecord } from '@shared/student'
 import {
   TRAINING_MEMBER_STATUS_LABELS,
@@ -29,6 +43,8 @@ import {
   formatTrainingScoreWithUnit,
   hasActiveMembership,
   isActiveMembership,
+  isActiveTrainingTeam,
+  isArchivedTrainingTeam,
   isListedTrainingTeam,
   latestResult,
   latestSessionDateForStudent,
@@ -45,6 +61,8 @@ import {
   type TrainingTeam,
   type TrainingTeamMember
 } from '@shared/trainingTeam'
+import AthleteDetailPanel from '../components/AthleteDetailPanel'
+import MemberProfileDialog from '../components/MemberProfileDialog'
 import TrainingSessionEditor from '../components/TrainingSessionEditor'
 import TrainingTeamDialog from '../components/TrainingTeamDialog'
 import { useClasses } from '../context/ClassContext'
@@ -139,6 +157,9 @@ export default function TrainingTeamsPage({
   }, [openTeamId, startSessionOnOpen, onOpenTeamConsumed])
   const [memberQuery, setMemberQuery] = useState('')
   const [showLeftMembers, setShowLeftMembers] = useState(false)
+  const [showArchivedTeams, setShowArchivedTeams] = useState(false)
+  const [profileMember, setProfileMember] = useState<TrainingTeamMember | null>(null)
+  const [athleteMemberId, setAthleteMemberId] = useState<string | null>(null)
   const [resultStudentId, setResultStudentId] = useState('')
   const [resultItemId, setResultItemId] = useState('')
   const [resultDate, setResultDate] = useState(formatTrainingDate(new Date()))
@@ -146,10 +167,16 @@ export default function TrainingTeamsPage({
   const [resultKind, setResultKind] = useState<TrainingResultKind>('training')
   const [resultNote, setResultNote] = useState('')
   const [customItemName, setCustomItemName] = useState('')
+  const [customValueType, setCustomValueType] = useState<TestValueType>('number')
+  const [customTimeMode, setCustomTimeMode] = useState<TimeInputMode>('seconds')
+  const [customUnit, setCustomUnit] = useState<TestUnit>('times')
+  const [customDirection, setCustomDirection] = useState<TestDirection>('higherBetter')
   const [actionError, setActionError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
-  const listedTeams = training.teams.filter(isListedTrainingTeam)
+  const listedTeams = training.teams.filter((team) =>
+    showArchivedTeams ? isListedTrainingTeam(team) : isActiveTrainingTeam(team)
+  )
   const selected = listedTeams.find((item) => item.id === selectedId) ?? null
   const roots = listedTeams.filter((item) => item.parentTeamId === null)
   const listedTeamIds = new Set(listedTeams.map((item) => item.id))
@@ -184,7 +211,7 @@ export default function TrainingTeamsPage({
       return
     }
     if (!canMutateTrainingTeam(selected)) {
-      setActionError('该训练队已删除，不能再添加队员')
+      setActionError('该训练队已停用或已删除，不能再添加队员')
       return
     }
     if (student.status !== 'active') {
@@ -207,6 +234,10 @@ export default function TrainingTeamsPage({
       studentNoSnapshot: student.studentNo,
       classNameSnapshot: classLabelOf(classes, student.classId),
       genderSnapshot: student.gender,
+      specialty: '',
+      position: '',
+      trainingGroup: '',
+      trainingNotes: '',
       notes: '',
       createdAt: now,
       updatedAt: now
@@ -225,15 +256,27 @@ export default function TrainingTeamsPage({
     )
   }
 
-  async function handleSaveSession(session: TrainingSession): Promise<void> {
+  async function handleSaveSession(session: TrainingSession, sessionResults: TrainingResult[]): Promise<void> {
     if (selected && !canMutateTrainingTeam(selected)) {
-      setActionError('该训练队已删除，不能再开始训练')
+      setActionError('该训练队已停用或已删除，不能再保存训练')
       return
     }
     await training.upsertSession(session)
+    const retained = training.results.filter((item) => item.sessionId !== session.id)
+    await training.saveResults([...retained, ...sessionResults])
     setSessionRecord(undefined)
     setTab('sessions')
-    setMessage('训练已保存')
+    setMessage(
+      sessionResults.length > 0
+        ? `训练已保存，并绑定 ${sessionResults.length} 条当堂测试成绩。`
+        : '训练已保存'
+    )
+  }
+
+  async function handleSaveMemberProfile(member: TrainingTeamMember): Promise<void> {
+    await training.saveMembers(training.members.map((item) => (item.id === member.id ? member : item)))
+    setProfileMember(null)
+    setMessage(`已更新运动员档案：${member.nameSnapshot}`)
   }
 
   async function handleSaveResult(): Promise<void> {
@@ -241,7 +284,7 @@ export default function TrainingTeamsPage({
       return
     }
     if (!canMutateTrainingTeam(selected)) {
-      setActionError('该训练队已删除，不能再新增成绩')
+      setActionError('该训练队已停用或已删除，不能再新增成绩')
       return
     }
     const student = students.find((item) => item.id === resultStudentId)
@@ -296,16 +339,18 @@ export default function TrainingTeamsPage({
       return
     }
     const now = new Date().toISOString()
+    const decimalPlaces =
+      customValueType === 'time' ? (customTimeMode === 'minutesSeconds' ? 1 : 2) : customUnit === 'm' || customUnit === 'cm' ? 2 : 0
     const item: TrainingItem = {
       id: createTrainingItemId(),
       builtinKey: null,
       name,
-      valueType: 'number',
-      timeInputMode: 'seconds',
-      unit: 'other',
-      customUnitLabel: '次',
-      direction: 'higherBetter',
-      decimalPlaces: 0,
+      valueType: customValueType,
+      timeInputMode: customValueType === 'time' ? customTimeMode : 'seconds',
+      unit: customUnit,
+      customUnitLabel: customUnit === 'other' ? '单位' : '',
+      direction: customDirection,
+      decimalPlaces,
       isBuiltin: false,
       isActive: true,
       notes: '',
@@ -316,6 +361,7 @@ export default function TrainingTeamsPage({
     setCustomItemName('')
     setResultItemId(item.id)
     setMessage(`已添加项目：${name}`)
+    setActionError(null)
   }
 
   if (training.loading) {
@@ -327,16 +373,59 @@ export default function TrainingTeamsPage({
   }
 
   if (sessionRecord !== undefined && selected) {
+    const sessionId = sessionRecord?.id ?? null
+    const existingSessionResults = sessionId
+      ? training.results.filter((item) => item.sessionId === sessionId)
+      : []
     return (
       <PageLayout className="page--training">
         <TrainingSessionEditor
           team={selected}
           roster={currentRosterStudents(selected.id, training.members, students)}
           classes={classes}
+          items={training.items}
+          existingSessionResults={existingSessionResults}
           record={sessionRecord}
           onCancel={() => setSessionRecord(undefined)}
           onSave={handleSaveSession}
         />
+      </PageLayout>
+    )
+  }
+
+  const athleteMember =
+    athleteMemberId && selected
+      ? training.members.find((item) => item.id === athleteMemberId && item.teamId === selected.id) ?? null
+      : null
+  if (athleteMember && selected) {
+    const live = students.find((item) => item.id === athleteMember.studentId)
+    const cls = live ? classes.find((item) => item.id === live.classId) : undefined
+    return (
+      <PageLayout className="page--training">
+        <AthleteDetailPanel
+          member={athleteMember}
+          displayName={live?.status === 'deleted' ? athleteMember.nameSnapshot : live?.name ?? athleteMember.nameSnapshot}
+          studentNo={live?.studentNo || athleteMember.studentNoSnapshot}
+          classLabel={cls ? `${cls.grade} ${cls.className}` : athleteMember.classNameSnapshot}
+          genderLabel={athleteMember.genderSnapshot === 'male' ? '男' : '女'}
+          sessions={training.sessions}
+          results={training.results}
+          onBack={() => setAthleteMemberId(null)}
+          onEditProfile={() => setProfileMember(athleteMember)}
+          canEdit={canMutateTrainingTeam(selected)}
+        />
+        {profileMember ? (
+          <MemberProfileDialog
+            member={profileMember}
+            displayName={live?.name ?? profileMember.nameSnapshot}
+            studentNo={live?.studentNo || profileMember.studentNoSnapshot}
+            classLabel={cls ? `${cls.grade} ${cls.className}` : profileMember.classNameSnapshot}
+            genderLabel={profileMember.genderSnapshot === 'male' ? '男' : '女'}
+            readOnly={!canMutateTrainingTeam(selected)}
+            onClose={() => setProfileMember(null)}
+            onSave={handleSaveMemberProfile}
+          />
+        ) : null}
       </PageLayout>
     )
   }
@@ -359,11 +448,26 @@ export default function TrainingTeamsPage({
 
       <OverviewBar
         items={[
-          { label: '训练队', value: listedTeams.length, hint: '当前列表中的队伍' },
+          {
+            label: '训练队',
+            value: listedTeams.filter(isActiveTrainingTeam).length,
+            hint: showArchivedTeams ? '启用中（另含已停用）' : '当前启用'
+          },
           { label: '当前队员', value: overviewMemberCount, hint: '在队且在读' },
           { label: '训练记录', value: overviewSessionCount, hint: '已保存训练' }
         ]}
       />
+
+      <div className="toolbar">
+        <label className="toolbar-field">
+          <input
+            type="checkbox"
+            checked={showArchivedTeams}
+            onChange={(event) => setShowArchivedTeams(event.target.checked)}
+          />
+          显示已停用队伍
+        </label>
+      </div>
 
       {roots.length === 0 ? (
         <TechEmptyState
@@ -387,10 +491,14 @@ export default function TrainingTeamsPage({
                 {root.name}
                 <span className="text-muted">
                   {' '}
-                  · {TRAINING_SPORT_LABELS[root.sport]} · {currentMemberCount(root.id, training.members, students)}人
+                  · {TRAINING_SPORT_LABELS[root.sport]}
+                  {isArchivedTrainingTeam(root) ? ' · 已停用' : ''} ·{' '}
+                  {currentMemberCount(root.id, training.members, students)}人
                 </span>
               </button>
-              {childTeams(training.teams, root.id).map((child) => (
+              {childTeams(training.teams, root.id)
+                .filter((child) => (showArchivedTeams ? isListedTrainingTeam(child) : isActiveTrainingTeam(child)))
+                .map((child) => (
                 <button
                   key={child.id}
                   type="button"
@@ -398,7 +506,11 @@ export default function TrainingTeamsPage({
                   onClick={() => openTeam(child.id)}
                 >
                   {child.name}
-                  <span className="text-muted"> · {currentMemberCount(child.id, training.members, students)}人</span>
+                  <span className="text-muted">
+                    {' '}
+                    · {isArchivedTrainingTeam(child) ? '已停用 · ' : ''}
+                    {currentMemberCount(child.id, training.members, students)}人
+                  </span>
                 </button>
               ))}
             </div>
@@ -425,14 +537,14 @@ export default function TrainingTeamsPage({
               setShowLeftMembers={setShowLeftMembers}
               onStartTraining={() => {
                 if (!canMutateTrainingTeam(selected)) {
-                  setActionError('该训练队已删除，不能再开始训练')
+                  setActionError('该训练队已停用或已删除，不能再开始训练')
                   return
                 }
                 setSessionRecord(null)
               }}
               onEditSession={(session) => {
                 if (!canMutateTrainingTeam(selected)) {
-                  setActionError('该训练队已删除，不能再编辑训练')
+                  setActionError('该训练队已停用或已删除，不能再编辑训练')
                   return
                 }
                 setSessionRecord(session)
@@ -441,7 +553,9 @@ export default function TrainingTeamsPage({
               onEditTeam={() => setTeamDialog({ record: selected, parent: null })}
               onJoin={handleJoin}
               onLeave={(member) => void handleLeave(member)}
-              onArchive={() => void training.archiveTeam(selected.id).then(() => setMessage('已停用'))}
+              onOpenAthlete={(member) => setAthleteMemberId(member.id)}
+              onEditAthlete={(member) => setProfileMember(member)}
+              onArchive={() => void training.archiveTeam(selected.id).then(() => setMessage('已停用。历史训练和成绩仍保留。'))}
               onDelete={() => {
                 setActionError(null)
                 setPendingDelete(selected)
@@ -460,6 +574,14 @@ export default function TrainingTeamsPage({
               setResultNote={setResultNote}
               customItemName={customItemName}
               setCustomItemName={setCustomItemName}
+              customValueType={customValueType}
+              setCustomValueType={setCustomValueType}
+              customTimeMode={customTimeMode}
+              setCustomTimeMode={setCustomTimeMode}
+              customUnit={customUnit}
+              setCustomUnit={setCustomUnit}
+              customDirection={customDirection}
+              setCustomDirection={setCustomDirection}
               onSaveResult={() => void handleSaveResult()}
               onAddCustomItem={() => void handleAddCustomItem()}
             />
@@ -467,6 +589,27 @@ export default function TrainingTeamsPage({
         </div>
       </div>
       )}
+
+      {profileMember && !athleteMemberId ? (
+        <MemberProfileDialog
+          member={profileMember}
+          displayName={
+            students.find((item) => item.id === profileMember.studentId)?.name ?? profileMember.nameSnapshot
+          }
+          studentNo={
+            students.find((item) => item.id === profileMember.studentId)?.studentNo || profileMember.studentNoSnapshot
+          }
+          classLabel={(() => {
+            const live = students.find((item) => item.id === profileMember.studentId)
+            const cls = live ? classes.find((item) => item.id === live.classId) : undefined
+            return cls ? `${cls.grade} ${cls.className}` : profileMember.classNameSnapshot
+          })()}
+          genderLabel={profileMember.genderSnapshot === 'male' ? '男' : '女'}
+          readOnly={!(selected && canMutateTrainingTeam(selected))}
+          onClose={() => setProfileMember(null)}
+          onSave={handleSaveMemberProfile}
+        />
+      ) : null}
 
       {teamDialog ? (
         <TrainingTeamDialog
@@ -543,6 +686,8 @@ function TeamWorkspace({
   onEditTeam,
   onJoin,
   onLeave,
+  onOpenAthlete,
+  onEditAthlete,
   onArchive,
   onDelete,
   resultStudentId,
@@ -559,6 +704,14 @@ function TeamWorkspace({
   setResultNote,
   customItemName,
   setCustomItemName,
+  customValueType,
+  setCustomValueType,
+  customTimeMode,
+  setCustomTimeMode,
+  customUnit,
+  setCustomUnit,
+  customDirection,
+  setCustomDirection,
   onSaveResult,
   onAddCustomItem
 }: {
@@ -577,6 +730,8 @@ function TeamWorkspace({
   onEditTeam: () => void
   onJoin: (student: StudentRecord) => void
   onLeave: (member: TrainingTeamMember) => void
+  onOpenAthlete: (member: TrainingTeamMember) => void
+  onEditAthlete: (member: TrainingTeamMember) => void
   onArchive: () => void
   onDelete: () => void
   resultStudentId: string
@@ -593,6 +748,14 @@ function TeamWorkspace({
   setResultNote: (value: string) => void
   customItemName: string
   setCustomItemName: (value: string) => void
+  customValueType: TestValueType
+  setCustomValueType: (value: TestValueType) => void
+  customTimeMode: TimeInputMode
+  setCustomTimeMode: (value: TimeInputMode) => void
+  customUnit: TestUnit
+  setCustomUnit: (value: TestUnit) => void
+  customDirection: TestDirection
+  setCustomDirection: (value: TestDirection) => void
   onSaveResult: () => void
   onAddCustomItem: () => void
 }): React.JSX.Element {
@@ -627,7 +790,10 @@ function TeamWorkspace({
     <>
       <div className="page-heading page-heading--split">
         <div className="page-heading-text">
-          <h3>{teamDisplayPath(teams, team)}</h3>
+          <h3>
+            {teamDisplayPath(teams, team)}
+            {isArchivedTrainingTeam(team) ? '（已停用）' : ''}
+          </h3>
           <p>
             {TRAINING_SPORT_LABELS[team.sport]} · {TRAINING_TEAM_STATUS_LABELS[team.status]}
             {team.coach ? ` · 教练 ${team.coach}` : ''}
@@ -765,6 +931,8 @@ function TeamWorkspace({
                   <th>姓名</th>
                   <th>学号</th>
                   <th>年级 / 行政班</th>
+                  <th>专项</th>
+                  <th>分组</th>
                   <th>状态</th>
                   <th>加入</th>
                   <th />
@@ -779,12 +947,20 @@ function TeamWorkspace({
                       <td>{live?.status === 'deleted' ? member.nameSnapshot : live?.name ?? member.nameSnapshot}</td>
                       <td>{live?.studentNo || member.studentNoSnapshot || '—'}</td>
                       <td>{cls ? `${cls.grade} ${cls.className}` : member.classNameSnapshot || '—'}</td>
+                      <td>{member.specialty || '—'}</td>
+                      <td>{member.trainingGroup || '—'}</td>
                       <td>
                         {TRAINING_MEMBER_STATUS_LABELS[member.status]}
                         {live?.status === 'deleted' ? ' · 学生已删除' : live?.status === 'transferred' ? ' · 不在当前名单' : ''}
                       </td>
                       <td>{member.joinedAt.slice(0, 10)}</td>
                       <td>
+                        <button type="button" className="btn btn-small" onClick={() => onOpenAthlete(member)}>
+                          详情
+                        </button>
+                        <button type="button" className="btn btn-small" onClick={() => onEditAthlete(member)}>
+                          档案
+                        </button>
                         {isActiveMembership(member) ? (
                           <button type="button" className="btn" onClick={() => onLeave(member)}>
                             退出
@@ -898,10 +1074,65 @@ function TeamWorkspace({
               自定义项目
               <input value={customItemName} onChange={(event) => setCustomItemName(event.target.value)} placeholder="例如 30米" />
             </label>
+            <label className="toolbar-field">
+              类型
+              <select
+                value={customValueType}
+                onChange={(event) => {
+                  const next = event.target.value as TestValueType
+                  setCustomValueType(next)
+                  if (next === 'time') {
+                    setCustomUnit('s')
+                    setCustomDirection('lowerBetter')
+                  } else if (customUnit === 's') {
+                    setCustomUnit('times')
+                    setCustomDirection('higherBetter')
+                  }
+                }}
+              >
+                {TEST_VALUE_TYPES.map((value) => (
+                  <option key={value} value={value}>
+                    {TEST_VALUE_TYPE_LABELS[value]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {customValueType === 'time' ? (
+              <label className="toolbar-field">
+                时间格式
+                <select value={customTimeMode} onChange={(event) => setCustomTimeMode(event.target.value as TimeInputMode)}>
+                  {TIME_INPUT_MODES.map((value) => (
+                    <option key={value} value={value}>
+                      {TIME_INPUT_MODE_LABELS[value]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <label className="toolbar-field">
+              单位
+              <select value={customUnit} onChange={(event) => setCustomUnit(event.target.value as TestUnit)}>
+                {TEST_UNITS.map((value) => (
+                  <option key={value} value={value}>
+                    {TEST_UNIT_LABELS[value]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="toolbar-field">
+              方向
+              <select value={customDirection} onChange={(event) => setCustomDirection(event.target.value as TestDirection)}>
+                {TEST_DIRECTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value === 'lowerBetter' ? '越低越好' : value === 'higherBetter' ? '越高越好' : '中性'}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button type="button" className="btn" onClick={onAddCustomItem}>
               添加项目
             </button>
-            <span className="exam-notes">1000米请输入 3.39 表示 3分39秒，不是 3.39 秒。</span>
+            <span className="exam-notes">1000米请输入 3.39 表示 3分39秒。独立成绩不绑定训练课。</span>
           </div>
           {resultStudentId && resultItemId ? (
             <AthleteResultSummary
@@ -921,19 +1152,32 @@ function TeamWorkspace({
                   <th>输入</th>
                   <th>成绩</th>
                   <th>类型</th>
+                  <th>来源</th>
                 </tr>
               </thead>
               <tbody>
-                {teamResults.slice(0, 40).map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.date}</td>
-                    <td>{row.studentNameSnapshot}</td>
-                    <td>{row.itemNameSnapshot}</td>
-                    <td>{row.rawInput}</td>
-                    <td>{formatTrainingScoreWithUnit(row)}</td>
-                    <td>{TRAINING_RESULT_KIND_LABELS[row.kind]}</td>
-                  </tr>
-                ))}
+                {teamResults.slice(0, 40).map((row) => {
+                  const sourceSession = row.sessionId
+                    ? training.sessions.find((session) => session.id === row.sessionId)
+                    : null
+                  return (
+                    <tr key={row.id}>
+                      <td>{row.date}</td>
+                      <td>{row.studentNameSnapshot}</td>
+                      <td>{row.itemNameSnapshot}</td>
+                      <td>{row.rawInput}</td>
+                      <td>{formatTrainingScoreWithUnit(row)}</td>
+                      <td>{TRAINING_RESULT_KIND_LABELS[row.kind]}</td>
+                      <td>
+                        {row.sessionId
+                          ? sourceSession
+                            ? `${sourceSession.date} ${sourceSession.title}`
+                            : '已关联训练'
+                          : '独立成绩'}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

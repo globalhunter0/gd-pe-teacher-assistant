@@ -268,6 +268,10 @@ export function parseTrainingMembers(input: unknown, options: ParseMemberOptions
       studentNoSnapshot: parseText(record.studentNoSnapshot, '学号快照', false, 40),
       classNameSnapshot: parseText(record.classNameSnapshot, '班级快照', false, 40),
       genderSnapshot: record.genderSnapshot,
+      specialty: parseText(record.specialty ?? '', '专项/主项', false, 40),
+      position: parseText(record.position ?? '', '位置', false, 40),
+      trainingGroup: parseText(record.trainingGroup ?? '', '训练分组', false, 40),
+      trainingNotes: parseText(record.trainingNotes ?? '', '训练备注', false, 500),
       notes: parseText(record.notes, '队员备注', false, 500),
       createdAt: record.createdAt,
       updatedAt: record.updatedAt

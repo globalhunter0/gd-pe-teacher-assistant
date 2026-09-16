@@ -44,6 +44,8 @@ export {
   filterSchoolWideStudents,
   hasActiveMembership,
   isActiveMembership,
+  isActiveTrainingTeam,
+  isArchivedTrainingTeam,
   isListedTrainingTeam,
   canMutateTrainingTeam,
   latestSessionForTeam,

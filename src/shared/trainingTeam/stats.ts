@@ -152,6 +152,9 @@ export function summarizeTeam(
 }
 
 export function latestSessionDateForStudent(sessions: ReadonlyArray<TrainingSession>, studentId: string): string | null {
-  const match = sessions.find((session) => session.attendance.some((row) => row.studentId === studentId))
-  return match?.date ?? null
+  const match = sessions
+    .filter((session) => session.attendance.some((row) => row.studentId === studentId))
+    .slice()
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || '').localeCompare(a.startTime || '') || b.updatedAt.localeCompare(a.updatedAt))
+  return match[0]?.date ?? null
 }

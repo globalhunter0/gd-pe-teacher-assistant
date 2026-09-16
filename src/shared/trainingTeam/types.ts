@@ -40,6 +40,14 @@ export interface TrainingTeamMember {
   studentNoSnapshot: string
   classNameSnapshot: string
   genderSnapshot: StudentGender
+  /** 专项/主项，如 100米、后卫；旧数据可缺省为空串 */
+  specialty: string
+  /** 场上位置（球类等）；不适用时留空 */
+  position: string
+  /** 队内训练分组标签，如「短跑一组」；可与 parentTeamId 子组并存 */
+  trainingGroup: string
+  /** 训练备注（非医疗诊断）；旧数据可缺省为空串 */
+  trainingNotes: string
   notes: string
   createdAt: string
   updatedAt: string

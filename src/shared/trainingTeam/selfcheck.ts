@@ -1,10 +1,10 @@
 import { parseScoreInput } from '../peTest/scoreFormat'
 import { BUILTIN_TEST_ITEMS } from '../peTest/builtinItems'
 import { listBuiltinExamStandards } from '../examStandard/catalog'
-import { collectTrainingStudentDeleteBlockers, parseTrainingMembers, parseTrainingResults, parseTrainingSessions, parseTrainingTeams, applyTrainingTeamSafeDelete } from './validate'
-import { canMutateTrainingTeam, currentRosterStudents, filterSchoolWideStudents, hasActiveMembership, isActiveMembership, isListedTrainingTeam } from './roster'
+import { canMutateTrainingTeam, currentRosterStudents, filterSchoolWideStudents, hasActiveMembership, isActiveMembership, isActiveTrainingTeam, isArchivedTrainingTeam, isListedTrainingTeam, latestSessionForTeam } from './roster'
 import { personalBest, summarizeAthleteSessions, summarizeTeam } from './stats'
 import { mergeBuiltinTrainingItems, BUILTIN_TRAINING_ITEMS } from './builtinItems'
+import { collectTrainingStudentDeleteBlockers, parseTrainingItems, parseTrainingMembers, parseTrainingResults, parseTrainingSessions, parseTrainingTeams, applyTrainingTeamSafeDelete } from './validate'
 import type { TrainingResult, TrainingSession, TrainingTeam, TrainingTeamMember } from './types'
 import type { StudentRecord } from '../student/types'
 
@@ -43,6 +43,10 @@ function member(partial: Partial<TrainingTeamMember> & Pick<TrainingTeamMember, 
     studentNoSnapshot: 'A01',
     classNameSnapshot: '七年级3班',
     genderSnapshot: 'male',
+    specialty: '',
+    position: '',
+    trainingGroup: '',
+    trainingNotes: '',
     notes: '',
     createdAt: now,
     updatedAt: now,
@@ -363,6 +367,149 @@ export function runTrainingTeamSelfCheck(): void {
     [{ ...timeResults[0], id: result4, teamId: resultOnlyId }]
   )
   assert(afterResults.teams.find((item) => item.id === resultOnlyId)?.status === 'deleted', '有 TrainingResult 的训练队也可以删除')
+  assert(
+    afterResults.teams.find((item) => item.id === resultOnlyId)?.status === 'deleted' &&
+      [{ ...timeResults[0], id: result4, teamId: resultOnlyId }].length === 1,
+    '删除队伍后成绩对象仍保留在调用方数组中（不物理删除）'
+  )
+
+  // ---- v0.24.0 P0-1 ----
+  const legacyMemberRaw = {
+    id: member1,
+    teamId: groupA,
+    studentId: studentZhang,
+    joinedAt: now,
+    leftAt: null,
+    status: 'active',
+    nameSnapshot: '张三',
+    studentNoSnapshot: 'A01',
+    classNameSnapshot: '七年级3班',
+    genderSnapshot: 'male',
+    notes: '旧备注',
+    createdAt: now,
+    updatedAt: now
+  }
+  const legacyParsed = parseTrainingMembers([legacyMemberRaw], {
+    knownTeamIds: new Set([groupA]),
+    knownStudentIds: new Set([studentZhang])
+  })
+  assert(legacyParsed[0].specialty === '', '老队员无 specialty 仍可读')
+  assert(legacyParsed[0].position === '', '老队员无 position 仍可读')
+  assert(legacyParsed[0].trainingGroup === '', '老队员无 trainingGroup 仍可读')
+  assert(legacyParsed[0].trainingNotes === '', '老队员无 trainingNotes 仍可读')
+  assert(legacyParsed[0].notes === '旧备注', '老队员 notes 保留')
+
+  const profiled = parseTrainingMembers(
+    [
+      {
+        ...legacyMemberRaw,
+        specialty: '100米',
+        position: '',
+        trainingGroup: '短跑一组',
+        trainingNotes: '左踝注意热身'
+      }
+    ],
+    { knownTeamIds: new Set([groupA]), knownStudentIds: new Set([studentZhang]) }
+  )
+  assert(profiled[0].specialty === '100米' && profiled[0].trainingGroup === '短跑一组', '运动员档案字段可保存')
+  assert(profiled[0].trainingNotes === '左踝注意热身', '训练备注可保存')
+
+  const boundResult = parseTrainingResults(
+    [
+      {
+        ...baseResult,
+        id: result1,
+        date: '2026-09-10',
+        rawInput: '3.39',
+        rawValue: 219,
+        sessionId
+      }
+    ],
+    {
+      knownTeamIds: new Set([groupA]),
+      knownStudentIds: new Set([studentZhang]),
+      knownItemIds: new Set([item1000]),
+      knownSessionIds: new Set([sessionId])
+    }
+  )
+  assert(boundResult[0].sessionId === sessionId, '课内成绩必须绑定 sessionId')
+
+  const independent = parseTrainingResults(
+    [{ ...baseResult, id: result2, date: '2026-09-11', rawInput: '3.40', rawValue: 220, sessionId: null }],
+    {
+      knownTeamIds: new Set([groupA]),
+      knownStudentIds: new Set([studentZhang]),
+      knownItemIds: new Set([item1000]),
+      knownSessionIds: new Set([sessionId])
+    }
+  )
+  assert(independent[0].sessionId === null, '独立成绩允许 sessionId 为空')
+
+  const archivedTeam: TrainingTeam = {
+    ...teams[0],
+    id: teamA,
+    status: 'archived',
+    updatedAt: now
+  }
+  assert(isListedTrainingTeam(archivedTeam), 'archived 仍算 listed（历史区）')
+  assert(!isActiveTrainingTeam(archivedTeam), 'archived 不得出现在 active 默认列表')
+  assert(isArchivedTrainingTeam(archivedTeam), 'archived 语义')
+  assert(!canMutateTrainingTeam(archivedTeam), 'archived 不能再开始新训练')
+
+  const olderSession: TrainingSession = {
+    ...loadedSession,
+    id: 'training-session-99999999-9999-4999-8999-999999999999',
+    date: '2026-09-01',
+    updatedAt: '2026-09-01T10:00:00.000Z'
+  }
+  const newerSession: TrainingSession = {
+    ...loadedSession,
+    id: sessionId,
+    date: '2026-09-10',
+    updatedAt: '2026-09-10T10:00:00.000Z'
+  }
+  // 故意把较旧的放在数组前面，验证不按存储顺序
+  const latestByDate = latestSessionForTeam([olderSession, newerSession], groupA)
+  assert(latestByDate?.id === sessionId && latestByDate.date === '2026-09-10', 'latestSessionForTeam 按日期而非数组顺序')
+
+  const customItem = parseTrainingItems([
+    {
+      id: 'training-item-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      builtinKey: null,
+      name: '30米',
+      valueType: 'time',
+      timeInputMode: 'seconds',
+      unit: 's',
+      customUnitLabel: '',
+      direction: 'lowerBetter',
+      decimalPlaces: 2,
+      isBuiltin: false,
+      isActive: true,
+      notes: '',
+      createdAt: now,
+      updatedAt: now
+    }
+  ])
+  assert(customItem[0].valueType === 'time' && customItem[0].unit === 's', '自定义计时项目 round-trip')
+  const customCount = parseTrainingItems([
+    {
+      id: 'training-item-bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      builtinKey: null,
+      name: '药球投掷次数',
+      valueType: 'number',
+      timeInputMode: 'seconds',
+      unit: 'times',
+      customUnitLabel: '',
+      direction: 'higherBetter',
+      decimalPlaces: 0,
+      isBuiltin: false,
+      isActive: true,
+      notes: '',
+      createdAt: now,
+      updatedAt: now
+    }
+  ])
+  assert(customCount[0].unit === 'times' && customCount[0].valueType === 'number', '自定义次数项目 round-trip')
 }
 
 export function runTrainingTeamSelfCheckOrThrow(): string {
