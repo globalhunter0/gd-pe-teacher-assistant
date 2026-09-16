@@ -137,6 +137,37 @@ export interface TrainingResult {
   updatedAt: string
 }
 
+export type TrainingTeamDeleteAction = 'physical_delete' | 'archive'
+
+export interface TrainingTeamDeleteCounts {
+  activeMemberCount: number
+  historicalMemberCount: number
+  sessionCount: number
+  sessionLinkedResultCount: number
+  independentResultCount: number
+  resultCount: number
+  scheduleLinkCount: number
+}
+
+export interface TrainingTeamDeleteCheck {
+  team: TrainingTeam
+  action: TrainingTeamDeleteAction
+  canPhysicallyDelete: boolean
+  blockingReasons: string[]
+  directChildCount: number
+  descendantCount: number
+  affectedTeamIds: string[]
+  direct: TrainingTeamDeleteCounts
+  total: TrainingTeamDeleteCounts
+}
+
+export interface TrainingTeamSafeDeleteResult {
+  action: TrainingTeamDeleteAction
+  check: TrainingTeamDeleteCheck
+  teams: TrainingTeam[]
+  members: TrainingTeamMember[]
+}
+
 export const TRAINING_SPORTS: TrainingSport[] = ['track', 'basketball', 'football', 'other']
 export const TRAINING_TEAM_STATUSES: TrainingTeamStatus[] = ['active', 'archived', 'deleted']
 export const TRAINING_MEMBER_STATUSES: TrainingMemberStatus[] = ['active', 'left']

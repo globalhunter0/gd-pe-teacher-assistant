@@ -12,7 +12,11 @@ export type {
   TrainingSession,
   TrainingSport,
   TrainingTeam,
+  TrainingTeamDeleteAction,
+  TrainingTeamDeleteCheck,
+  TrainingTeamDeleteCounts,
   TrainingTeamMember,
+  TrainingTeamSafeDeleteResult,
   TrainingTeamStatus
 } from './types'
 export {
@@ -66,6 +70,7 @@ export {
 } from './stats'
 export {
   applyTrainingTeamSafeDelete,
+  checkTrainingTeamSafeDelete,
   collectTrainingStudentDeleteBlockers,
   collectTrainingTeamDeleteImpact,
   createTrainingAttendanceId,

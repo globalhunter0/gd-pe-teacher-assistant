@@ -15,7 +15,10 @@ import type {
   TrainingSession,
   TrainingSport,
   TrainingTeam,
+  TrainingTeamDeleteCheck,
+  TrainingTeamDeleteCounts,
   TrainingTeamMember,
+  TrainingTeamSafeDeleteResult,
   TrainingTeamStatus
 } from './types'
 import {
@@ -641,49 +644,162 @@ export function tombstoneTrainingTeam(team: TrainingTeam, now: string): Training
   return { ...team, status: 'deleted', updatedAt: now }
 }
 
+type TrainingScheduleReference = { trainingTeamId?: string }
+
+function affectedTrainingTeamIds(teams: ReadonlyArray<TrainingTeam>, teamId: string): string[] {
+  const affected = new Set<string>([teamId])
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const team of teams) {
+      if (
+        team.status !== 'deleted' &&
+        team.parentTeamId &&
+        affected.has(team.parentTeamId) &&
+        !affected.has(team.id)
+      ) {
+        affected.add(team.id)
+        changed = true
+      }
+    }
+  }
+  return [...affected]
+}
+
+function trainingDeleteCounts(
+  teamIds: ReadonlySet<string>,
+  members: ReadonlyArray<TrainingTeamMember>,
+  sessions: ReadonlyArray<TrainingSession>,
+  results: ReadonlyArray<TrainingResult>,
+  scheduleItems: ReadonlyArray<TrainingScheduleReference>
+): TrainingTeamDeleteCounts {
+  const scopedMembers = members.filter((item) => teamIds.has(item.teamId))
+  const scopedSessions = sessions.filter((item) => teamIds.has(item.teamId))
+  const scopedSessionIds = new Set(scopedSessions.map((item) => item.id))
+  const directTeamResults = results.filter((item) => teamIds.has(item.teamId))
+  const sessionLinkedResults = results.filter(
+    (item) => item.sessionId !== null && scopedSessionIds.has(item.sessionId)
+  )
+  const scopedResultIds = new Set([
+    ...directTeamResults.map((item) => item.id),
+    ...sessionLinkedResults.map((item) => item.id)
+  ])
+  return {
+    activeMemberCount: scopedMembers.filter(
+      (item) => item.status === 'active' && item.leftAt === null
+    ).length,
+    historicalMemberCount: scopedMembers.filter(
+      (item) => item.status === 'left' || item.leftAt !== null
+    ).length,
+    sessionCount: scopedSessions.length,
+    sessionLinkedResultCount: sessionLinkedResults.length,
+    independentResultCount: directTeamResults.filter((item) => item.sessionId === null).length,
+    resultCount: scopedResultIds.size,
+    scheduleLinkCount: scheduleItems.filter(
+      (item) => item.trainingTeamId && teamIds.has(item.trainingTeamId)
+    ).length
+  }
+}
+
+export function checkTrainingTeamSafeDelete(
+  teams: ReadonlyArray<TrainingTeam>,
+  members: ReadonlyArray<TrainingTeamMember>,
+  teamId: string,
+  sessions: ReadonlyArray<TrainingSession> = [],
+  results: ReadonlyArray<TrainingResult> = [],
+  scheduleItems: ReadonlyArray<TrainingScheduleReference> = []
+): TrainingTeamDeleteCheck {
+  const team = teams.find((item) => item.id === teamId)
+  if (!team || team.status === 'deleted') {
+    throw new Error('训练队不存在或已删除')
+  }
+
+  const affectedTeamIds = affectedTrainingTeamIds(teams, teamId)
+  const affectedSet = new Set(affectedTeamIds)
+  const direct = trainingDeleteCounts(
+    new Set([teamId]),
+    members,
+    sessions,
+    results,
+    scheduleItems
+  )
+  const total = trainingDeleteCounts(
+    affectedSet,
+    members,
+    sessions,
+    results,
+    scheduleItems
+  )
+  const blockingReasons: string[] = []
+  if (total.activeMemberCount > 0) {
+    blockingReasons.push(`仍有 ${total.activeMemberCount} 名当前队员`)
+  }
+  if (total.historicalMemberCount > 0) {
+    blockingReasons.push(`存在 ${total.historicalMemberCount} 条历史队员关系`)
+  }
+  if (total.sessionCount > 0) {
+    blockingReasons.push(`存在 ${total.sessionCount} 次训练记录`)
+  }
+  if (total.resultCount > 0) {
+    blockingReasons.push(`存在 ${total.resultCount} 条训练/比赛成绩`)
+  }
+  if (total.scheduleLinkCount > 0) {
+    blockingReasons.push(`存在 ${total.scheduleLinkCount} 条课表关联`)
+  }
+  const canPhysicallyDelete = blockingReasons.length === 0
+
+  return {
+    team: { ...team },
+    action: canPhysicallyDelete ? 'physical_delete' : 'archive',
+    canPhysicallyDelete,
+    blockingReasons,
+    directChildCount: teams.filter(
+      (item) => item.parentTeamId === teamId && item.status !== 'deleted'
+    ).length,
+    descendantCount: affectedTeamIds.length - 1,
+    affectedTeamIds,
+    direct,
+    total
+  }
+}
+
 export function applyTrainingTeamSafeDelete(
   teams: ReadonlyArray<TrainingTeam>,
   members: ReadonlyArray<TrainingTeamMember>,
   teamId: string,
   now: string,
   sessions: ReadonlyArray<TrainingSession> = [],
-  results: ReadonlyArray<TrainingResult> = []
-): { teams: TrainingTeam[]; members: TrainingTeamMember[] } {
-  let nextTeams = [...teams]
-  let nextMembers = [...members]
+  results: ReadonlyArray<TrainingResult> = [],
+  scheduleItems: ReadonlyArray<TrainingScheduleReference> = []
+): TrainingTeamSafeDeleteResult {
+  const check = checkTrainingTeamSafeDelete(
+    teams,
+    members,
+    teamId,
+    sessions,
+    results,
+    scheduleItems
+  )
+  const affectedSet = new Set(check.affectedTeamIds)
 
-  const children = nextTeams.filter((item) => item.parentTeamId === teamId && item.status !== 'deleted')
-  for (const child of children) {
-    const inner = applyTrainingTeamSafeDelete(nextTeams, nextMembers, child.id, now, sessions, results)
-    nextTeams = inner.teams
-    nextMembers = inner.members
-  }
-
-  nextMembers = leaveActiveMembershipsForTeams(nextMembers, new Set([teamId]), now)
-
-  const current = nextTeams.find((item) => item.id === teamId)
-  if (!current || current.status === 'deleted') {
-    return { teams: nextTeams, members: nextMembers }
-  }
-
-  if (
-    hasTrainingTeamIdentityRefs(
-      teamId,
-      nextTeams.filter((item) => item.id !== teamId),
-      nextMembers,
-      sessions,
-      results
-    )
-  ) {
+  if (check.action === 'physical_delete') {
     return {
-      members: nextMembers,
-      teams: nextTeams.map((item) => (item.id === teamId ? tombstoneTrainingTeam(item, now) : item))
+      action: check.action,
+      check,
+      members: members.filter((item) => !affectedSet.has(item.teamId)),
+      teams: teams.filter((item) => !affectedSet.has(item.id))
     }
   }
 
   return {
-    members: nextMembers,
-    teams: nextTeams.filter((item) => item.id !== teamId)
+    action: check.action,
+    check,
+    members: leaveActiveMembershipsForTeams(members, affectedSet, now),
+    teams: teams.map((item) =>
+      affectedSet.has(item.id) && item.status !== 'deleted'
+        ? { ...item, status: 'archived', updatedAt: now }
+        : item
+    )
   }
 }
 
@@ -695,24 +811,13 @@ export function getTrainingTeamDeleteBlockers(
   sessions: ReadonlyArray<TrainingSession>,
   results: ReadonlyArray<TrainingResult>
 ): string[] {
-  const blockers: string[] = []
-  const childCount = teams.filter((item) => item.parentTeamId === teamId).length
-  if (childCount > 0) {
-    blockers.push(`该队伍下仍有 ${childCount} 个训练组身份，必须保留队伍记录`)
-  }
-  const memberCount = members.filter((item) => item.teamId === teamId).length
-  if (memberCount > 0) {
-    blockers.push(`该队伍存在 ${memberCount} 条队员关系记录，必须保留队伍身份`)
-  }
-  const sessionCount = sessions.filter((item) => item.teamId === teamId).length
-  if (sessionCount > 0) {
-    blockers.push(`该队伍存在 ${sessionCount} 次训练记录，必须保留队伍身份`)
-  }
-  const resultCount = results.filter((item) => item.teamId === teamId).length
-  if (resultCount > 0) {
-    blockers.push(`该队伍存在 ${resultCount} 条训练成绩，必须保留队伍身份`)
-  }
-  return blockers
+  return checkTrainingTeamSafeDelete(
+    teams,
+    members,
+    teamId,
+    sessions,
+    results
+  ).blockingReasons
 }
 
 export function getTrainingItemDeleteBlockers(itemId: string, results: ReadonlyArray<TrainingResult>): string[] {

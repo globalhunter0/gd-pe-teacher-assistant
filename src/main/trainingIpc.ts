@@ -1,5 +1,10 @@
 import { ipcMain } from 'electron'
-import { getTrainingTeamDeleteBlockers, hasTrainingTeamIdentityRefs, parseTrainingTeams } from '../shared/trainingTeam/validate'
+import {
+  applyTrainingTeamSafeDelete,
+  checkTrainingTeamSafeDelete,
+  hasTrainingTeamIdentityRefs,
+  parseTrainingTeams
+} from '../shared/trainingTeam/validate'
 import { dropMissingScheduleTrainingTeamLinks } from '../shared/schedule/validate'
 import { loadSchedule, saveSchedule } from './scheduleStore'
 import { loadStudents } from './studentStore'
@@ -51,13 +56,48 @@ export function registerTrainingIpc(): void {
     if (typeof teamId !== 'string') {
       throw new Error('训练队编号不正确')
     }
-    const [teams, members, sessions, results] = await Promise.all([
+    const [teams, members, sessions, results, schedule] = await Promise.all([
       loadTrainingTeams(),
       loadTrainingMembers(),
       loadTrainingSessions(),
-      loadTrainingResults()
+      loadTrainingResults(),
+      loadSchedule()
     ])
-    return getTrainingTeamDeleteBlockers(teamId, teams, members, sessions, results)
+    return checkTrainingTeamSafeDelete(teams, members, teamId, sessions, results, schedule)
+  })
+
+  ipcMain.handle('trainingTeams:safeDelete', async (_event, teamId: unknown) => {
+    if (typeof teamId !== 'string') {
+      throw new Error('训练队编号不正确')
+    }
+    const [teams, members, sessions, results, schedule] = await Promise.all([
+      loadTrainingTeams(),
+      loadTrainingMembers(),
+      loadTrainingSessions(),
+      loadTrainingResults(),
+      loadSchedule()
+    ])
+    const next = applyTrainingTeamSafeDelete(
+      teams,
+      members,
+      teamId,
+      new Date().toISOString(),
+      sessions,
+      results,
+      schedule
+    )
+
+    // 队员先退出，再更新队伍；历史 session/result 文件从不参与删除写入。
+    const savedMembers =
+      JSON.stringify(next.members) === JSON.stringify(members)
+        ? members
+        : await saveTrainingMembers(next.members, new Set((await loadStudents()).map((item) => item.id)))
+    const savedTeams =
+      JSON.stringify(next.teams) === JSON.stringify(teams)
+        ? teams
+        : await saveTrainingTeams(next.teams)
+
+    return { ...next, teams: savedTeams, members: savedMembers }
   })
 
   ipcMain.handle('trainingMembers:get', async () => loadTrainingMembers())

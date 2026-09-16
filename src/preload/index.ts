@@ -32,7 +32,9 @@ import type {
   TrainingResult,
   TrainingSession,
   TrainingTeam,
-  TrainingTeamMember
+  TrainingTeamDeleteCheck,
+  TrainingTeamMember,
+  TrainingTeamSafeDeleteResult
 } from '../shared/trainingTeam/types'
 
 const electronAPI = {
@@ -143,7 +145,10 @@ const electronAPI = {
   trainingTeams: {
     get: (): Promise<TrainingTeam[]> => ipcRenderer.invoke('trainingTeams:get'),
     save: (items: TrainingTeam[]): Promise<TrainingTeam[]> => ipcRenderer.invoke('trainingTeams:save', items),
-    deleteCheck: (teamId: string): Promise<string[]> => ipcRenderer.invoke('trainingTeams:deleteCheck', teamId)
+    deleteCheck: (teamId: string): Promise<TrainingTeamDeleteCheck> =>
+      ipcRenderer.invoke('trainingTeams:deleteCheck', teamId),
+    safeDelete: (teamId: string): Promise<TrainingTeamSafeDeleteResult> =>
+      ipcRenderer.invoke('trainingTeams:safeDelete', teamId)
   },
   trainingMembers: {
     get: (): Promise<TrainingTeamMember[]> => ipcRenderer.invoke('trainingMembers:get'),

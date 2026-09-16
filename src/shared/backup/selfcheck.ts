@@ -566,6 +566,61 @@ export async function runBackupRestoreSelfCheckOrThrow(): Promise<string> {
       throw new Error('backup/restore 后 sessionId 绑定丢失')
     }
 
+    const archivedAt = '2026-09-16T00:00:00.000Z'
+    await writeJsonItemsAtomic(join(root, 'training-teams.json'), [
+      {
+        id: profileTeamId,
+        parentTeamId: null,
+        name: 'P0档案队',
+        sport: 'track',
+        coach: '',
+        notes: '',
+        status: 'archived',
+        createdAt: '2026-09-15T00:00:00.000Z',
+        updatedAt: archivedAt
+      }
+    ])
+    await writeJsonItemsAtomic(join(root, 'training-members.json'), [
+      {
+        ...(restoredMembers[0] as Record<string, unknown>),
+        status: 'left',
+        leftAt: archivedAt,
+        updatedAt: archivedAt
+      }
+    ])
+    const safeDeleteArchive = join(outside, 'training-safe-delete.gdpebak')
+    await createDataBackup(root, safeDeleteArchive, '0.24.0-selfcheck')
+    for (const fileName of [
+      'training-teams.json',
+      'training-members.json',
+      'training-sessions.json',
+      'training-results.json'
+    ]) {
+      await writeJsonItemsAtomic(join(root, fileName), [])
+    }
+    await restoreDataBackup(root, safeDeleteArchive, { appVersion: '0.24.0-selfcheck' })
+    const lifecycleTeams = await readJsonItemsFile(join(root, 'training-teams.json'), parseAnyItems)
+    const lifecycleMembers = await readJsonItemsFile(join(root, 'training-members.json'), parseAnyItems)
+    const lifecycleSessions = await readJsonItemsFile(join(root, 'training-sessions.json'), parseAnyItems)
+    const lifecycleResults = await readJsonItemsFile(join(root, 'training-results.json'), parseAnyItems)
+    if ((lifecycleTeams[0] as { status?: string }).status !== 'archived') {
+      throw new Error('backup/restore 后安全删除的 archived 状态丢失')
+    }
+    if (
+      (lifecycleMembers[0] as { status?: string; leftAt?: string | null }).status !== 'left' ||
+      (lifecycleMembers[0] as { leftAt?: string | null }).leftAt !== archivedAt
+    ) {
+      throw new Error('backup/restore 后安全删除的历史队籍丢失')
+    }
+    if ((lifecycleSessions[0] as { id?: string }).id !== profileSessionId) {
+      throw new Error('backup/restore 后安全删除的训练场次丢失')
+    }
+    if (
+      (lifecycleResults[0] as { sessionId?: string | null }).sessionId !== profileSessionId
+    ) {
+      throw new Error('backup/restore 后安全删除的成绩课次关联丢失')
+    }
+
     const leftovers = (await readdir(root)).filter(
       (name) => name.startsWith('.restore-staging-') || name.startsWith('.restore-outgoing-')
     )

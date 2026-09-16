@@ -4,7 +4,16 @@ import { listBuiltinExamStandards } from '../examStandard/catalog'
 import { canMutateTrainingTeam, currentRosterStudents, filterSchoolWideStudents, hasActiveMembership, isActiveMembership, isActiveTrainingTeam, isArchivedTrainingTeam, isListedTrainingTeam, latestSessionForTeam } from './roster'
 import { personalBest, summarizeAthleteSessions, summarizeTeam } from './stats'
 import { mergeBuiltinTrainingItems, BUILTIN_TRAINING_ITEMS } from './builtinItems'
-import { collectTrainingStudentDeleteBlockers, parseTrainingItems, parseTrainingMembers, parseTrainingResults, parseTrainingSessions, parseTrainingTeams, applyTrainingTeamSafeDelete } from './validate'
+import {
+  applyTrainingTeamSafeDelete,
+  checkTrainingTeamSafeDelete,
+  collectTrainingStudentDeleteBlockers,
+  parseTrainingItems,
+  parseTrainingMembers,
+  parseTrainingResults,
+  parseTrainingSessions,
+  parseTrainingTeams
+} from './validate'
 import type { TrainingResult, TrainingSession, TrainingTeam, TrainingTeamMember } from './types'
 import type { StudentRecord } from '../student/types'
 
@@ -322,14 +331,18 @@ export function runTrainingTeamSelfCheck(): void {
     updatedAt: now
   }
   const physical = applyTrainingTeamSafeDelete([emptyTeam], [], emptyId, now, [], [])
+  assert(physical.action === 'physical_delete', '空训练队 preflight 允许物理删除')
+  assert(physical.check.canPhysicallyDelete, '空训练队 canPhysicallyDelete=true')
   assert(physical.teams.length === 0, '无历史训练队可以物理删除')
 
   const studentCopy = students.map((item) => ({ ...item }))
   const afterSession = applyTrainingTeamSafeDelete(teams, members, groupA, now, [loadedSession], timeResults)
-  const tombstone = afterSession.teams.find((item) => item.id === groupA)
-  assert(tombstone?.status === 'deleted', '有 TrainingSession 的训练队也可以删除（软删除）')
-  assert(!isListedTrainingTeam(tombstone!), '删除后默认训练队列表不再出现')
-  assert(!canMutateTrainingTeam(tombstone!), '删除后不能开始新训练')
+  const archived = afterSession.teams.find((item) => item.id === groupA)
+  assert(afterSession.action === 'archive', '有 TrainingSession 的训练队必须转安全归档')
+  assert(archived?.status === 'archived', '有 TrainingSession 的训练队归档而非删除')
+  assert(isListedTrainingTeam(archived!), '归档队伍仍保留在历史列表')
+  assert(!isActiveTrainingTeam(archived!), '归档队伍不出现在 active 默认列表')
+  assert(!canMutateTrainingTeam(archived!), '归档后不能开始新训练')
   assert(!hasActiveMembership(afterSession.members, groupA, studentZhang), 'active membership 被安全结束')
   assert(afterSession.members.some((item) => item.teamId === groupA && item.studentId === studentZhang && item.status === 'left'), '历史 membership 仍保留')
   const rereadSession = parseTrainingSessions([loadedSession], { knownTeamIds: new Set(afterSession.teams.map((item) => item.id)) })
@@ -366,12 +379,78 @@ export function runTrainingTeamSelfCheck(): void {
     [],
     [{ ...timeResults[0], id: result4, teamId: resultOnlyId }]
   )
-  assert(afterResults.teams.find((item) => item.id === resultOnlyId)?.status === 'deleted', '有 TrainingResult 的训练队也可以删除')
+  assert(afterResults.action === 'archive', '有 TrainingResult 的训练队必须归档')
+  assert(afterResults.teams.find((item) => item.id === resultOnlyId)?.status === 'archived', '有 TrainingResult 的训练队保留身份')
   assert(
-    afterResults.teams.find((item) => item.id === resultOnlyId)?.status === 'deleted' &&
+    afterResults.teams.find((item) => item.id === resultOnlyId)?.status === 'archived' &&
       [{ ...timeResults[0], id: result4, teamId: resultOnlyId }].length === 1,
     '删除队伍后成绩对象仍保留在调用方数组中（不物理删除）'
   )
+
+  const activeOnlyCheck = checkTrainingTeamSafeDelete(
+    [emptyTeam],
+    [member({ id: member1, teamId: emptyId, studentId: studentZhang, status: 'active' })],
+    emptyId
+  )
+  assert(!activeOnlyCheck.canPhysicallyDelete, '有 active member 不得物理删除')
+  assert(activeOnlyCheck.total.activeMemberCount === 1, 'preflight 统计 active member')
+
+  const historicalOnlyCheck = checkTrainingTeamSafeDelete(
+    [emptyTeam],
+    [member({ id: memberLeft, teamId: emptyId, studentId: studentLi, status: 'left' })],
+    emptyId
+  )
+  assert(!historicalOnlyCheck.canPhysicallyDelete, '有 archived/left member 不得物理删除')
+  assert(historicalOnlyCheck.total.historicalMemberCount === 1, 'preflight 统计历史队员')
+
+  const sessionOnlyCheck = checkTrainingTeamSafeDelete(
+    [{ ...emptyTeam, id: groupA }],
+    [],
+    groupA,
+    [loadedSession]
+  )
+  assert(sessionOnlyCheck.total.sessionCount === 1 && sessionOnlyCheck.action === 'archive', '有训练场次必须归档')
+
+  const linkedResult = { ...timeResults[0], sessionId }
+  const linkedResultCheck = checkTrainingTeamSafeDelete(
+    [{ ...emptyTeam, id: groupA }],
+    [],
+    groupA,
+    [loadedSession],
+    [linkedResult]
+  )
+  assert(linkedResultCheck.total.sessionLinkedResultCount === 1, 'preflight 统计 sessionResult')
+  const linkedAfter = applyTrainingTeamSafeDelete(
+    [{ ...emptyTeam, id: groupA }],
+    [],
+    groupA,
+    now,
+    [loadedSession],
+    [linkedResult]
+  )
+  assert(linkedAfter.teams.some((item) => item.id === groupA), '归档保留 session 的 teamId 目标')
+  const linkedSessionReread = parseTrainingSessions([loadedSession], {
+    knownTeamIds: new Set(linkedAfter.teams.map((item) => item.id))
+  })
+  const linkedResultReread = parseTrainingResults([linkedResult], {
+    knownTeamIds: new Set(linkedAfter.teams.map((item) => item.id)),
+    knownStudentIds: new Set([studentZhang]),
+    knownItemIds: new Set([item1000]),
+    knownSessionIds: new Set(linkedSessionReread.map((item) => item.id))
+  })
+  assert(linkedResultReread[0].sessionId === linkedSessionReread[0].id, '归档不破坏 TrainingResult.sessionId')
+
+  const hierarchyCheck = checkTrainingTeamSafeDelete(
+    teams.filter((item) => item.id === teamA || item.id === groupA),
+    members,
+    teamA,
+    [loadedSession],
+    timeResults,
+    [{ trainingTeamId: groupA }]
+  )
+  assert(hierarchyCheck.descendantCount === 1, 'preflight 统计间接关联子组')
+  assert(hierarchyCheck.total.scheduleLinkCount === 1, 'preflight 统计子组课表关联')
+  assert(hierarchyCheck.total.resultCount === timeResults.length, 'preflight 汇总子组成绩')
 
   // ---- v0.24.0 P0-1 ----
   const legacyMemberRaw = {

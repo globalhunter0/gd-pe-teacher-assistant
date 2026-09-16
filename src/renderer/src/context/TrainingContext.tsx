@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import {
-  applyTrainingTeamSafeDelete,
   getTrainingItemDeleteBlockers,
   parseTrainingItems,
   parseTrainingMembers,
@@ -11,6 +10,7 @@ import {
   type TrainingResult,
   type TrainingSession,
   type TrainingTeam,
+  type TrainingTeamDeleteCheck,
   type TrainingTeamMember
 } from '@shared/trainingTeam'
 
@@ -29,7 +29,8 @@ interface TrainingContextValue {
   saveResults: (items: TrainingResult[]) => Promise<void>
   upsertTeam: (item: TrainingTeam) => Promise<void>
   archiveTeam: (id: string) => Promise<void>
-  deleteTeam: (id: string) => Promise<void>
+  checkDeleteTeam: (id: string) => Promise<TrainingTeamDeleteCheck>
+  deleteTeam: (id: string) => Promise<'physical_delete' | 'archive'>
   upsertSession: (item: TrainingSession) => Promise<void>
   upsertResult: (item: TrainingResult) => Promise<void>
   upsertItem: (item: TrainingItem) => Promise<void>
@@ -134,14 +135,17 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
 
   const deleteTeam = useCallback(
     async (id: string) => {
-      const now = new Date().toISOString()
-      const next = applyTrainingTeamSafeDelete(teams, members, id, now, sessions, results)
-      if (next.members.some((item, index) => item !== members[index])) {
-        await saveMembers(next.members)
-      }
-      await saveTeams(next.teams)
+      const result = await trainingBridge().trainingTeams.safeDelete(id)
+      setTeams(result.teams)
+      setMembers(result.members)
+      return result.action
     },
-    [members, results, saveMembers, saveTeams, sessions, teams]
+    []
+  )
+
+  const checkDeleteTeam = useCallback(
+    async (id: string) => trainingBridge().trainingTeams.deleteCheck(id),
+    []
   )
 
   const upsertSession = useCallback(
@@ -192,6 +196,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
       saveResults,
       upsertTeam,
       archiveTeam,
+      checkDeleteTeam,
       deleteTeam,
       upsertSession,
       upsertResult,
@@ -200,6 +205,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
     }),
     [
       archiveTeam,
+      checkDeleteTeam,
       deleteItem,
       deleteTeam,
       error,

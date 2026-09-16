@@ -30,7 +30,6 @@ import {
   childTeams,
   classLabelOf,
   classNameOf,
-  collectTrainingTeamDeleteImpact,
   compareToPreviousResult,
   createTrainingItemId,
   createTrainingMemberId,
@@ -59,6 +58,7 @@ import {
   type TrainingResultKind,
   type TrainingSession,
   type TrainingTeam,
+  type TrainingTeamDeleteCheck,
   type TrainingTeamMember
 } from '@shared/trainingTeam'
 import AthleteDetailPanel from '../components/AthleteDetailPanel'
@@ -95,35 +95,29 @@ function percent(value: number | null): string {
   return `${Math.round(value * 1000) / 10}%`
 }
 
-function trainingTeamDeleteConfirmText(
-  name: string,
-  impact: {
-    childCount: number
-    memberCount: number
-    activeMemberCount: number
-    sessionCount: number
-    resultCount: number
-  }
-): string {
-  const history =
-    impact.memberCount > 0 || impact.sessionCount > 0 || impact.resultCount > 0 || impact.childCount > 0
-  if (!history) {
-    return `确定删除「${name}」吗？删除后该队伍将从当前训练队列表移除。`
-  }
+function trainingTeamDeleteConfirmText(check: TrainingTeamDeleteCheck): string {
+  const { team, total } = check
   const lines = [
-    `该训练队已有：`,
-    `${impact.memberCount}名历史队员`,
-    `${impact.sessionCount}次训练记录`,
-    `${impact.resultCount}条训练成绩`
+    `队伍：${team.name}（${TRAINING_TEAM_STATUS_LABELS[team.status]}）`,
+    `当前队员：${total.activeMemberCount} 名`,
+    `已退出/历史队员：${total.historicalMemberCount} 名`,
+    `训练场次：${total.sessionCount} 次`,
+    `成绩：${total.resultCount} 条（其中绑定训练课 ${total.sessionLinkedResultCount} 条，独立成绩 ${total.independentResultCount} 条）`
   ]
-  if (impact.childCount > 0) {
-    lines.push(`另有 ${impact.childCount} 个下属训练组将一并从列表移除，其历史同样保留。`)
+  if (check.descendantCount > 0) {
+    lines.push(`直接子组 ${check.directChildCount} 个，共影响本队及 ${check.descendantCount} 个下属组。`)
   }
-  if (impact.activeMemberCount > 0) {
-    lines.push(`当前 ${impact.activeMemberCount} 名在队队员将自动结束队籍，学生档案不会删除。`)
+  if (total.scheduleLinkCount > 0) {
+    lines.push(`课表关联：${total.scheduleLinkCount} 条。`)
   }
-  lines.push('删除后，该队伍将从当前训练队列表移除，历史训练和成绩仍会保留。')
-  lines.push('确认删除？')
+  if (check.canPhysicallyDelete) {
+    lines.push('该队及下属组没有队员、训练、成绩或课表引用，可以永久删除。此操作不可撤销。')
+  } else {
+    lines.push(
+      `保护原因：${check.blockingReasons.join('；')}。`,
+      '为保护历史数据，本操作只会停用/归档相关队伍，并结束当前队籍；不会删除成员历史、训练场次或成绩，也不会破坏 sessionId 关联。'
+    )
+  }
   return lines.join('\n')
 }
 
@@ -143,7 +137,7 @@ export default function TrainingTeamsPage({
   const [tab, setTab] = useState<HomeTab>('home')
   const [sessionRecord, setSessionRecord] = useState<TrainingSession | null | undefined>(undefined)
   const [teamDialog, setTeamDialog] = useState<{ record: TrainingTeam | null; parent: TrainingTeam | null } | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<TrainingTeam | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<TrainingTeamDeleteCheck | null>(null)
 
   useEffect(() => {
     if (!openTeamId) {
@@ -558,7 +552,12 @@ export default function TrainingTeamsPage({
               onArchive={() => void training.archiveTeam(selected.id).then(() => setMessage('已停用。历史训练和成绩仍保留。'))}
               onDelete={() => {
                 setActionError(null)
-                setPendingDelete(selected)
+                void training
+                  .checkDeleteTeam(selected.id)
+                  .then(setPendingDelete)
+                  .catch((error) =>
+                    setActionError(error instanceof Error ? error.message : '无法检查训练队删除影响')
+                  )
               }}
               resultStudentId={resultStudentId}
               setResultStudentId={setResultStudentId}
@@ -624,18 +623,12 @@ export default function TrainingTeamsPage({
       {pendingDelete ? (
         <div className="dialog-backdrop" onMouseDown={() => setPendingDelete(null)}>
           <div className="dialog" role="dialog" onMouseDown={(event) => event.stopPropagation()}>
-            <h3>确定删除“{pendingDelete.name}”吗？</h3>
+            <h3>
+              {pendingDelete.canPhysicallyDelete ? '永久删除' : '安全停用'}“
+              {pendingDelete.team.name}”？
+            </h3>
             <p className="dialog-slot" style={{ whiteSpace: 'pre-wrap' }}>
-              {trainingTeamDeleteConfirmText(
-                pendingDelete.name,
-                collectTrainingTeamDeleteImpact(
-                  pendingDelete.id,
-                  training.teams,
-                  training.members,
-                  training.sessions,
-                  training.results
-                )
-              )}
+              {trainingTeamDeleteConfirmText(pendingDelete)}
             </p>
             <div className="dialog-actions">
               <span />
@@ -649,17 +642,21 @@ export default function TrainingTeamsPage({
                   onClick={() => {
                     void (async () => {
                       try {
-                        await training.deleteTeam(pendingDelete.id)
+                        const action = await training.deleteTeam(pendingDelete.team.id)
                         setPendingDelete(null)
                         setSelectedId('')
-                        setMessage('已删除。历史训练和成绩仍保留。')
+                        setMessage(
+                          action === 'physical_delete'
+                            ? '空训练队已永久删除。'
+                            : '训练队已安全停用；队员、训练场次、成绩和课次关联均已保留。'
+                        )
                       } catch (deleteError) {
                         setActionError(deleteError instanceof Error ? deleteError.message : '无法删除')
                       }
                     })()
                   }}
                 >
-                  确认删除
+                  {pendingDelete.canPhysicallyDelete ? '确认永久删除' : '确认安全停用'}
                 </button>
               </div>
             </div>

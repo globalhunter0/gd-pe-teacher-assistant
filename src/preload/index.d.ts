@@ -35,7 +35,9 @@ import type {
   TrainingResult,
   TrainingSession,
   TrainingTeam,
-  TrainingTeamMember
+  TrainingTeamDeleteCheck,
+  TrainingTeamMember,
+  TrainingTeamSafeDeleteResult
 } from '../shared/trainingTeam'
 import type { UserPreferences } from '../shared/userPreferences'
 
@@ -135,7 +137,8 @@ export interface ElectronAPI {
   trainingTeams: {
     get: () => Promise<TrainingTeam[]>
     save: (items: TrainingTeam[]) => Promise<TrainingTeam[]>
-    deleteCheck: (teamId: string) => Promise<string[]>
+    deleteCheck: (teamId: string) => Promise<TrainingTeamDeleteCheck>
+    safeDelete: (teamId: string) => Promise<TrainingTeamSafeDeleteResult>
   }
   trainingMembers: {
     get: () => Promise<TrainingTeamMember[]>
