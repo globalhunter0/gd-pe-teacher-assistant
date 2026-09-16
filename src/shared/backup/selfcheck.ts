@@ -7,6 +7,12 @@ import { parseBackupManifest } from './manifest'
 import { parseZip, buildZip } from './zip'
 import { ARCHIVE_FILES_PREFIX, ARCHIVE_MANIFEST_NAME, BACKUP_FORMAT_VERSION, BUSINESS_JSON_FILES } from './types'
 import { loadJsonItemsFile, pathExists, readJsonItemsFile, writeJsonItemsAtomic } from '../persistence/jsonFile'
+import {
+  buildTrainingTeamStats,
+  type TrainingResult,
+  type TrainingSession,
+  type TrainingTeamMember
+} from '../trainingTeam'
 
 function parseAnyItems(input: unknown): unknown[] {
   if (!Array.isArray(input)) {
@@ -605,6 +611,15 @@ export async function runBackupRestoreSelfCheckOrThrow(): Promise<string> {
         updatedAt: archivedAt
       }
     ])
+    const statsMembersBefore = await readJsonItemsFile(join(root, 'training-members.json'), parseAnyItems)
+    const statsSessionsBefore = await readJsonItemsFile(join(root, 'training-sessions.json'), parseAnyItems)
+    const statsResultsBefore = await readJsonItemsFile(join(root, 'training-results.json'), parseAnyItems)
+    const lifecycleStatsBefore = buildTrainingTeamStats(
+      profileTeamId,
+      statsMembersBefore as TrainingTeamMember[],
+      statsSessionsBefore as TrainingSession[],
+      statsResultsBefore as TrainingResult[]
+    )
     const safeDeleteArchive = join(outside, 'training-safe-delete.gdpebak')
     await createDataBackup(root, safeDeleteArchive, '0.24.0-selfcheck')
     for (const fileName of [
@@ -641,6 +656,21 @@ export async function runBackupRestoreSelfCheckOrThrow(): Promise<string> {
     }
     if ((lifecycleSchedule[0] as { trainingTeamId?: string }).trainingTeamId !== profileTeamId) {
       throw new Error('backup/restore 后 archived 训练队的课表关联丢失')
+    }
+    const lifecycleStatsAfter = buildTrainingTeamStats(
+      profileTeamId,
+      lifecycleMembers as TrainingTeamMember[],
+      lifecycleSessions as TrainingSession[],
+      lifecycleResults as TrainingResult[]
+    )
+    if (
+      lifecycleStatsAfter.activeMemberCount !== lifecycleStatsBefore.activeMemberCount ||
+      lifecycleStatsAfter.historicalMemberCount !== lifecycleStatsBefore.historicalMemberCount ||
+      lifecycleStatsAfter.sessionCount !== lifecycleStatsBefore.sessionCount ||
+      lifecycleStatsAfter.resultCount !== lifecycleStatsBefore.resultCount ||
+      lifecycleStatsAfter.latestSessionDate !== lifecycleStatsBefore.latestSessionDate
+    ) {
+      throw new Error('backup/restore 后训练队统一统计结果不一致')
     }
 
     const leftovers = (await readdir(root)).filter(

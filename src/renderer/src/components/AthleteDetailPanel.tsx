@@ -2,10 +2,10 @@ import {
   TRAINING_MEMBER_STATUS_LABELS,
   TRAINING_PARTICIPATION_LABELS,
   TRAINING_RESULT_KIND_LABELS,
+  buildTrainingTeamMemberStats,
   formatTrainingScoreWithUnit,
   latestResult,
-  latestSessionDateForStudent,
-  summarizeAthleteSessions,
+  trainingResultsForTeam,
   type TrainingResult,
   type TrainingSession,
   type TrainingTeamMember
@@ -45,21 +45,20 @@ export default function AthleteDetailPanel({
   onEditProfile,
   canEdit
 }: AthleteDetailPanelProps): React.JSX.Element {
-  const athlete = summarizeAthleteSessions(sessions, member.studentId, member.teamId)
+  const athlete = buildTrainingTeamMemberStats(member, sessions, results)
   const teamSessions = sessions
     .filter((item) => item.teamId === member.teamId && item.attendance.some((row) => row.studentId === member.studentId))
     .slice()
     .sort((a, b) => b.date.localeCompare(a.date) || b.updatedAt.localeCompare(a.updatedAt))
   const recentSessions = teamSessions.slice(0, 8)
-  const teamResults = results
-    .filter((item) => item.teamId === member.teamId && item.studentId === member.studentId && item.status === 'valid')
+  const teamResults = trainingResultsForTeam(member.teamId, sessions, results)
+    .filter((item) => item.studentId === member.studentId && item.status === 'valid')
     .slice()
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
   const recentResults = teamResults.slice(0, 12)
   const lastResult = latestResult(teamResults)
   const lastSession = recentSessions[0] ?? null
   const lastAttendance = lastSession?.attendance.find((row) => row.studentId === member.studentId) ?? null
-  const latestSessionDate = latestSessionDateForStudent(teamSessions, member.studentId)
 
   return (
     <div className="exam-detail">
@@ -93,16 +92,21 @@ export default function AthleteDetailPanel({
             <br />
             分组：{member.trainingGroup || '未填'} · 入队：{member.joinedAt.slice(0, 10)}
             <br />
+            退出：{member.leftAt?.slice(0, 10) ?? '仍在队'}
+            <br />
             备注：{member.trainingNotes || '无'}
           </p>
         </article>
         <article className="stat-card">
           <p className="stat-label">训练概览</p>
-          <p className="stat-value">{athlete.sessionCount}</p>
+          <p className="stat-value">{athlete.trainingSessionCount}</p>
           <p className="stat-hint">
-            总训练次数 · 出勤 {athlete.presentCount} / 缺席 {athlete.absentCount}
+            队内训练 {athlete.trainingSessionCount} 次 · 出勤 {athlete.presentSessionCount} / 缺席{' '}
+            {athlete.trainingSessionCount - athlete.presentSessionCount}
             <br />
-            最近训练：{latestSessionDate ?? '暂无'}
+            最近训练：{athlete.latestSessionDate ?? '暂无'}
+            <br />
+            队内成绩：{athlete.resultCount} 条 · 有成绩训练 {athlete.scoredSessionCount} 次
             <br />
             最近 RPE：{lastAttendance?.rpe != null ? lastAttendance.rpe : '未填'}
             <br />

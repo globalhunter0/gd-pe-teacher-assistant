@@ -2,7 +2,13 @@ import { parseScoreInput } from '../peTest/scoreFormat'
 import { BUILTIN_TEST_ITEMS } from '../peTest/builtinItems'
 import { listBuiltinExamStandards } from '../examStandard/catalog'
 import { canMutateTrainingTeam, currentRosterStudents, filterSchoolWideStudents, hasActiveMembership, isActiveMembership, isActiveTrainingTeam, isArchivedTrainingTeam, isListedTrainingTeam, latestSessionForTeam } from './roster'
-import { personalBest, summarizeAthleteSessions, summarizeTeam } from './stats'
+import {
+  buildTrainingTeamStats,
+  personalBest,
+  summarizeAthleteSessions,
+  summarizeTeam,
+  trainingResultsForTeam
+} from './stats'
 import { mergeBuiltinTrainingItems, BUILTIN_TRAINING_ITEMS } from './builtinItems'
 import {
   applyTrainingTeamSafeDelete,
@@ -611,6 +617,112 @@ export function runTrainingTeamSelfCheck(): void {
     }
   ])
   assert(customCount[0].unit === 'times' && customCount[0].valueType === 'number', '自定义次数项目 round-trip')
+
+  // ---- v0.24.0 P0-4 unified statistics ----
+  const emptyStats = buildTrainingTeamStats(emptyId, [], [], [])
+  assert(
+    emptyStats.activeMemberCount === 0 &&
+      emptyStats.historicalMemberCount === 0 &&
+      emptyStats.sessionCount === 0 &&
+      emptyStats.resultCount === 0 &&
+      emptyStats.latestSessionDate === null,
+    '空训练队统计应全部为 0 且不报错'
+  )
+
+  const linkedBySession: TrainingResult = {
+    ...boundResult[0],
+    id: result1,
+    teamId: teamB,
+    sessionId
+  }
+  const independentForGroup: TrainingResult = {
+    ...independent[0],
+    id: result2,
+    teamId: groupA,
+    sessionId: null
+  }
+  const independentForOtherTeam: TrainingResult = {
+    ...independent[0],
+    id: result3,
+    teamId: teamB,
+    sessionId: null
+  }
+  const orphanLinkedResult: TrainingResult = {
+    ...boundResult[0],
+    id: result4,
+    teamId: groupA,
+    sessionId: 'training-session-dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  }
+  const attributionResults = [
+    linkedBySession,
+    independentForGroup,
+    independentForOtherTeam,
+    orphanLinkedResult
+  ]
+  const groupStats = buildTrainingTeamStats(
+    groupA,
+    members,
+    [olderSession, newerSession],
+    attributionResults
+  )
+  assert(groupStats.activeMemberCount === 1, 'active member 正确计入当前队员')
+  assert(
+    groupStats.historicalMemberCount === 1 && groupStats.totalMemberCount === 2,
+    'left member 不计 active 但保留历史与总成员统计'
+  )
+  assert(
+    groupStats.sessionCount === 2 &&
+      groupStats.completedSessionCount === 2 &&
+      groupStats.latestSessionDate === '2026-09-10',
+    '训练次数与最近训练日期必须按 trainingTeamId 统一统计'
+  )
+  assert(
+    groupStats.sessionLinkedResultCount === 1 &&
+      groupStats.independentResultCount === 1 &&
+      groupStats.resultCount === 2,
+    'linked result 按 session 归属，independent result 仅按显式 teamId 归属'
+  )
+  assert(groupStats.itemStats[0]?.resultCount === 2, '训练项目成绩记录数量统计正确')
+  assert(groupStats.latestResult?.id === independentForGroup.id, '最近一次成绩必须按日期计算而非数组顺序')
+  const activeMemberStats = groupStats.memberStats.find((item) => item.memberId === member1)
+  const historicalMemberStats = groupStats.memberStats.find((item) => item.memberId === memberLeft)
+  assert(
+    activeMemberStats?.trainingSessionCount === 2 &&
+      activeMemberStats.scoredSessionCount === 1 &&
+      activeMemberStats.resultCount === 2,
+    '成员训练次数、有成绩训练次数和队内成绩数量正确'
+  )
+  assert(
+    historicalMemberStats?.isCurrentMember === false &&
+      historicalMemberStats.trainingSessionCount === 2,
+    'left member 仍保留历史训练统计'
+  )
+  const otherTeamStats = buildTrainingTeamStats(teamB, members, [], attributionResults)
+  assert(
+    otherTeamStats.resultCount === 1 &&
+      otherTeamStats.independentResultCount === 1 &&
+      otherTeamStats.sessionLinkedResultCount === 0,
+    '同一学生属于多个训练队时统计不得串队'
+  )
+  assert(
+    trainingResultsForTeam(groupA, [newerSession], attributionResults).every(
+      (item) => item.id !== independentForOtherTeam.id && item.id !== orphanLinkedResult.id
+    ),
+    '其它队独立成绩和丢失 session 的 linked result 不得猜测归入当前队'
+  )
+  const archivedStats = buildTrainingTeamStats(
+    groupA,
+    afterSession.members,
+    [newerSession],
+    [linkedBySession, independentForGroup]
+  )
+  assert(
+    archivedStats.activeMemberCount === 0 &&
+      archivedStats.historicalMemberCount >= 1 &&
+      archivedStats.sessionCount === 1 &&
+      archivedStats.resultCount === 2,
+    'archived team 仍可读取成员、训练和成绩历史统计'
+  )
 }
 
 export function runTrainingTeamSelfCheckOrThrow(): string {

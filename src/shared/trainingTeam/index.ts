@@ -57,6 +57,8 @@ export {
   teamDisplayPath
 } from './roster'
 export {
+  buildTrainingTeamMemberStats,
+  buildTrainingTeamStats,
   compareToPreviousResult,
   firstResult,
   formatTrainingScore,
@@ -66,7 +68,13 @@ export {
   personalBest,
   summarizeAthleteSessions,
   summarizeTeam,
+  trainingResultsForTeam,
   validResultsForStudentItem
+} from './stats'
+export type {
+  TrainingTeamItemStats,
+  TrainingTeamMemberStats,
+  TrainingTeamStats
 } from './stats'
 export {
   applyTrainingTeamSafeDelete,

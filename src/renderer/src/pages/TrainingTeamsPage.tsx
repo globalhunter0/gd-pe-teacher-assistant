@@ -25,7 +25,7 @@ import {
   TRAINING_RESULT_KIND_LABELS,
   TRAINING_SPORT_LABELS,
   TRAINING_TEAM_STATUS_LABELS,
-  attentionFromLatestSession,
+  buildTrainingTeamStats,
   canMutateTrainingTeam,
   childTeams,
   classLabelOf,
@@ -46,12 +46,11 @@ import {
   isArchivedTrainingTeam,
   isListedTrainingTeam,
   latestResult,
-  latestSessionDateForStudent,
   latestSessionForTeam,
   personalBest,
-  summarizeAthleteSessions,
   summarizeTeam,
   teamDisplayPath,
+  trainingResultsForTeam,
   validResultsForStudentItem,
   type TrainingItem,
   type TrainingResult,
@@ -759,11 +758,18 @@ function TeamWorkspace({
   const training = useTraining()
   const [memberClassFilter, setMemberClassFilter] = useState('all')
   const teams = training.teams
-  const memberCount = currentMemberCount(team.id, training.members, students)
+  const teamStats = buildTrainingTeamStats(
+    team.id,
+    training.members,
+    training.sessions,
+    training.results
+  )
   const latest = latestSessionForTeam(training.sessions, team.id)
-  const attention = attentionFromLatestSession(latest)
-  const teamResults = training.results.filter((item) => item.teamId === team.id)
-  const latestResultRow = teamResults[0] ?? null
+  const teamResults = trainingResultsForTeam(
+    team.id,
+    training.sessions,
+    training.results
+  )
   const overview = summarizeTeam(
     team.id,
     training.members,
@@ -829,31 +835,30 @@ function TeamWorkspace({
         <div className="stat-grid">
           <article className="stat-card">
             <p className="stat-label">当前队员人数</p>
-            <p className="stat-value">{memberCount}</p>
-            <p className="stat-hint">有效在队且学生在读，不是班级学生人数</p>
+            <p className="stat-value">{teamStats.activeMemberCount}</p>
+            <p className="stat-hint">当前有效在队成员</p>
+          </article>
+          <article className="stat-card">
+            <p className="stat-label">历史队员</p>
+            <p className="stat-value">{teamStats.historicalMemberCount}</p>
+            <p className="stat-hint">已退出成员仍保留历史统计</p>
+          </article>
+          <article className="stat-card">
+            <p className="stat-label">训练次数</p>
+            <p className="stat-value">{teamStats.completedSessionCount}</p>
+            <p className="stat-hint">按已发生的训练记录统计</p>
+          </article>
+          <article className="stat-card">
+            <p className="stat-label">成绩记录</p>
+            <p className="stat-value">{teamStats.resultCount}</p>
+            <p className="stat-hint">
+              训练内 {teamStats.sessionLinkedResultCount} · 独立 {teamStats.independentResultCount}
+            </p>
           </article>
           <article className="stat-card">
             <p className="stat-label">最近训练</p>
-            <p className="stat-value">{latest ? latest.date : '暂无'}</p>
+            <p className="stat-value">{teamStats.latestSessionDate ?? '暂无'}</p>
             <p className="stat-hint">{latest ? latest.title : '还没有训练记录'}</p>
-          </article>
-          <article className="stat-card">
-            <p className="stat-label">最近成绩</p>
-            <p className="stat-value">{latestResultRow ? latestResultRow.studentNameSnapshot : '暂无'}</p>
-            <p className="stat-hint">
-              {latestResultRow
-                ? `${latestResultRow.itemNameSnapshot} ${formatTrainingScoreWithUnit(latestResultRow)}`
-                : '还没有训练成绩'}
-            </p>
-          </article>
-          <article className="stat-card">
-            <p className="stat-label">需要关注</p>
-            <p className="stat-value">{attention.length}</p>
-            <p className="stat-hint">
-              {attention.length === 0
-                ? '最近一次训练全员正常'
-                : attention.map((row) => `${row.nameSnapshot}（${TRAINING_PARTICIPATION_LABELS[row.participation]}）`).join('、')}
-            </p>
           </article>
         </div>
       ) : null}
@@ -1224,18 +1229,24 @@ function TeamWorkspace({
                   .filter((item) => isActiveMembership(item) || showLeftMembers)
                   .map((member) => {
                     const live = students.find((item) => item.id === member.studentId)
-                    const athlete = summarizeAthleteSessions(training.sessions, member.studentId, team.id)
+                    const athlete = teamStats.memberStats.find((item) => item.memberId === member.id)
                     const history = historyByStudent.get(member.studentId) ?? []
                     const last = latestResult(history)
                     const best = last ? personalBest(history.filter((row) => row.itemId === last.itemId)) : null
                     return (
                       <tr key={member.id}>
                         <td>{live?.name ?? member.nameSnapshot}</td>
-                        <td>{athlete.sessionCount}</td>
-                        <td>{athlete.presentCount}</td>
-                        <td>{athlete.absentCount}</td>
-                        <td>{percent(athlete.attendanceRate)}</td>
-                        <td>{latestSessionDateForStudent(training.sessions.filter((item) => item.teamId === team.id), member.studentId) ?? '—'}</td>
+                        <td>{athlete?.trainingSessionCount ?? 0}</td>
+                        <td>{athlete?.presentSessionCount ?? 0}</td>
+                        <td>{(athlete?.trainingSessionCount ?? 0) - (athlete?.presentSessionCount ?? 0)}</td>
+                        <td>
+                          {percent(
+                            athlete && athlete.trainingSessionCount > 0
+                              ? athlete.presentSessionCount / athlete.trainingSessionCount
+                              : null
+                          )}
+                        </td>
+                        <td>{athlete?.latestSessionDate ?? '—'}</td>
                         <td>{last ? `${last.itemNameSnapshot} ${formatTrainingScoreWithUnit(last)}` : '—'}</td>
                         <td>{best ? `${best.itemNameSnapshot} ${formatTrainingScoreWithUnit(best)}` : '数据不足'}</td>
                       </tr>
