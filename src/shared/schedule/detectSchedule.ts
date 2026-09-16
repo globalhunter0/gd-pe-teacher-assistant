@@ -4,7 +4,11 @@ import type { DetectConfidence } from '../student/detectTypes'
 import type { WorkbookSheetInput } from '../student/detectTypes'
 import { lookupScheduleHeaderAlias, SCHEDULE_SHEET_NAME_HINTS, SKIP_SCHEDULE_SHEET_PATTERN } from './detectAliases'
 import type { DetectedScheduleColumn, DetectedScheduleTable, DetectedScheduleWorkbook } from './detectTypes'
-import type { IncomingScheduleRow, ScheduleImportMapping } from './importTypes'
+import type {
+  IncomingScheduleRow,
+  ScheduleImportMapping,
+  ScheduleImportSummary
+} from './importTypes'
 import { getDefaultSlotTime } from './periodTimes'
 import type { CourseType, Period, Weekday } from './types'
 
@@ -57,7 +61,7 @@ export function parseWeekdayCell(raw: string): Weekday | null {
 
 export function parsePeriodCell(raw: string): Period | null {
   const text = raw.replace(/\s+/g, '')
-  const match = text.match(/第?\s*([1-8一二三四五六七八])\s*节?/)
+  const match = text.match(/^第?([1-8一二三四五六七八])节?$/)
   if (!match) {
     return null
   }
@@ -109,6 +113,21 @@ export function parseTimeCell(raw: string): string | null {
     return null
   }
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
+
+export function parseTimeRangeCell(raw: string): { startTime: string; endTime: string } | null {
+  const normalized = raw
+    .replace(/：/g, ':')
+    .replace(/[–—~～]/g, '-')
+    .replace(/\s*至\s*/g, '-')
+    .replace(/\s+/g, '')
+  const parts = normalized.split('-')
+  if (parts.length !== 2) {
+    return null
+  }
+  const startTime = parseTimeCell(parts[0])
+  const endTime = parseTimeCell(parts[1])
+  return startTime && endTime ? { startTime, endTime } : null
 }
 
 function detectColumns(headerCells: string[], dataRows: string[][]): {
@@ -204,13 +223,36 @@ function headerScore(cells: string[]): number {
   return score
 }
 
-function detectHeaderRow(rows: string[][]): { headerRowIndex: number; score: number } | null {
-  let best: { headerRowIndex: number; score: number } | null = null
+interface LocatedHeader {
+  headerRowIndex: number
+  score: number
+  layout: DetectedScheduleTable['layout']
+  grid?: NonNullable<DetectedScheduleTable['grid']>
+}
+
+function weeklyGridHeader(cells: string[]): NonNullable<DetectedScheduleTable['grid']> | null {
+  const periodColumn = cells.findIndex((cell) => lookupScheduleHeaderAlias(cell)?.field === 'period')
+  const timeColumn = cells.findIndex((cell) => /^(时间|上课时间|课程时间|时段)$/.test(cell.replace(/\s+/g, '')))
+  const weekdayColumns = cells.flatMap((cell, column) => {
+    const weekday = parseWeekdayCell(cell)
+    return weekday ? [{ weekday, column }] : []
+  })
+  if (periodColumn < 0 || timeColumn < 0 || weekdayColumns.length < 2) {
+    return null
+  }
+  return { periodColumn, timeColumn, weekdayColumns }
+}
+
+function detectHeaderRow(rows: string[][]): LocatedHeader | null {
+  let best: LocatedHeader | null = null
   const limit = Math.min(HEADER_SCAN_ROWS, rows.length)
   for (let index = 0; index < limit; index += 1) {
-    const score = headerScore(rows[index] ?? [])
+    const cells = rows[index] ?? []
+    const grid = weeklyGridHeader(cells)
+    const layout = grid ? 'weekly-grid' : 'row-list'
+    const score = grid ? 12 + grid.weekdayColumns.length : headerScore(cells)
     if (score >= 8 && (!best || score > best.score)) {
-      best = { headerRowIndex: index, score }
+      best = { headerRowIndex: index, score, layout, grid: grid ?? undefined }
     }
   }
   return best
@@ -226,7 +268,7 @@ function cellAt(cells: string[], index: number | null): string {
 export function detectScheduleWorkbook(fileName: string, sheets: WorkbookSheetInput[]): DetectedScheduleWorkbook {
   const warnings: string[] = []
   const skippedSheets: DetectedScheduleWorkbook['skippedSheets'] = []
-  const tables: DetectedScheduleTable[] = []
+  const candidates: Array<{ table: DetectedScheduleTable; score: number }> = []
 
   for (const sheet of sheets) {
     if (SKIP_SCHEDULE_SHEET_PATTERN.test(sheet.name) && !SCHEDULE_SHEET_NAME_HINTS.test(sheet.name)) {
@@ -250,32 +292,69 @@ export function detectScheduleWorkbook(fileName: string, sheets: WorkbookSheetIn
       if (isRowEmpty(cells)) {
         continue
       }
+      if (located.layout === 'weekly-grid') {
+        const periodRaw = cellAt(cells, located.grid?.periodColumn ?? null)
+        if (/本周合计/.test(periodRaw.replace(/\s+/g, ''))) {
+          break
+        }
+      }
       dataRows.push({ excelRow: index + 1, cells })
     }
     const detected = detectColumns(
       headerCells,
       dataRows.map((item) => item.cells)
     )
+    const effectiveRows =
+      located.layout === 'weekly-grid' || detected.mapping.period === null
+        ? dataRows
+        : dataRows.filter((row) => {
+            const periodRaw = cellAt(row.cells, detected.mapping.period)
+            return parsePeriodCell(periodRaw) !== null || isSpecialPeriod(periodRaw)
+          })
     const table: DetectedScheduleTable = {
       sheetName: sheet.name,
+      layout: located.layout,
       headerRowIndex: located.headerRowIndex,
       headerRowNumber: located.headerRowIndex + 1,
+      dataStartRowNumber: effectiveRows[0]?.excelRow ?? null,
+      dataEndRowNumber: effectiveRows.at(-1)?.excelRow ?? null,
       columns: detected.columns,
       mapping: detected.mapping,
+      grid: located.grid,
       dataRows,
       rowCount: dataRows.length,
-      confidence: lowestConfidence([
-        detected.mapping.weekday !== null ? 'high' : 'low',
-        detected.mapping.period !== null ? 'high' : 'low',
-        detected.mapping.team !== null ? 'high' : 'low'
-      ]),
+      confidence:
+        located.layout === 'weekly-grid'
+          ? 'high'
+          : lowestConfidence([
+              detected.mapping.weekday !== null ? 'high' : 'low',
+              detected.mapping.period !== null ? 'high' : 'low',
+              detected.mapping.team !== null ? 'high' : 'low'
+            ]),
       warnings: []
     }
-    tables.push(table)
+    const contentScore =
+      located.layout === 'weekly-grid'
+        ? dataRows.reduce(
+            (total, row) =>
+              total +
+              (located.grid?.weekdayColumns.filter(({ column }) => cellAt(row.cells, column) !== '').length ?? 0),
+            0
+          )
+        : dataRows.length
+    candidates.push({
+      table,
+      score: located.score * 100 + contentScore + (SCHEDULE_SHEET_NAME_HINTS.test(sheet.name) ? 20 : 0)
+    })
   }
 
-  if (tables.length > 1) {
-    warnings.push(`识别到 ${tables.length} 个课表工作表，将一次导入`)
+  candidates.sort((a, b) => b.score - a.score)
+  const tables = candidates.length > 0 ? [candidates[0].table] : []
+  for (const candidate of candidates.slice(1)) {
+    skippedSheets.push({ sheetName: candidate.table.sheetName, reason: '已选择更符合课表结构的工作表' })
+  }
+  if (candidates.length > 1) {
+    warnings.push(`识别到 ${candidates.length} 个候选工作表，已选择“${tables[0].sheetName}”`)
   }
 
   return {
@@ -284,16 +363,93 @@ export function detectScheduleWorkbook(fileName: string, sheets: WorkbookSheetIn
     skippedSheets,
     overallConfidence: tables.length === 0 ? 'low' : lowestConfidence(tables.map((item) => item.confidence)),
     warnings,
-    needsColumnMapping: tables.length === 0 || tables.some((item) => item.mapping.weekday === null || item.mapping.period === null || item.mapping.team === null)
+    needsColumnMapping:
+      tables.length === 0 ||
+      tables.some(
+        (item) =>
+          item.layout === 'row-list' &&
+          (item.mapping.weekday === null || item.mapping.period === null || item.mapping.team === null)
+      )
   }
 }
 
-export function buildIncomingScheduleRows(
+function isSpecialPeriod(raw: string): boolean {
+  return /^(大课间(?:[（(]?每天[）)]?)?|课间操|早读|午休|午间|活动)$/.test(raw.replace(/\s+/g, ''))
+}
+
+function isFooterOrNote(cells: string[]): boolean {
+  const text = cells.join(' ').replace(/\s+/g, '')
+  return /本周合计|常规体育课|^\d+节$|说明|备注|已纳入|黄色单元格/.test(text)
+}
+
+function isSpecialEventText(text: string): boolean {
+  return /升旗|仪式|大课间|课间操|值班|教研|会议|活动/.test(text)
+}
+
+export function extractScheduleWorkbook(
   detection: DetectedScheduleWorkbook,
   mappingOverride?: ScheduleImportMapping | null
-): IncomingScheduleRow[] {
+): { rows: IncomingScheduleRow[]; summary: ScheduleImportSummary } {
   const incoming: IncomingScheduleRow[] = []
+  const skipped: ScheduleImportSummary['skipped'] = []
+  let specialEventCount = 0
+
   for (const table of detection.tables) {
+    if (table.layout === 'weekly-grid' && table.grid) {
+      for (const row of table.dataRows) {
+        const periodRaw = cellAt(row.cells, table.grid.periodColumn)
+        const period = parsePeriodCell(periodRaw)
+        const courseCells = table.grid.weekdayColumns.filter(
+          ({ column }) => cellAt(row.cells, column) !== ''
+        )
+        if (!period) {
+          if (courseCells.length > 0) {
+            skipped.push({
+              sheetName: table.sheetName,
+              excelRow: row.excelRow,
+              label: periodRaw || courseCells[0]?.weekday.toString() || '特殊时段',
+              reason: isSpecialPeriod(periodRaw)
+                ? '该行未导入：暂不支持的特殊时段'
+                : '该行未导入：无法识别节次'
+            })
+          }
+          continue
+        }
+        const defaults = getDefaultSlotTime(period)
+        const timeRaw = cellAt(row.cells, table.grid.timeColumn)
+        const range = parseTimeRangeCell(timeRaw)
+        if (timeRaw && !range) {
+          skipped.push({
+            sheetName: table.sheetName,
+            excelRow: row.excelRow,
+            label: timeRaw,
+            reason: '该行未导入：无法识别时间范围'
+          })
+          continue
+        }
+        for (const { weekday, column } of courseCells) {
+          const teamRaw = cellAt(row.cells, column)
+          if (isSpecialEventText(teamRaw)) {
+            specialEventCount += 1
+          }
+          incoming.push({
+            sheetName: table.sheetName,
+            excelRow: row.excelRow,
+            weekdayRaw: `星期${'一二三四五'[weekday - 1]}`,
+            periodRaw,
+            teamRaw,
+            weekday,
+            period,
+            startTime: range?.startTime ?? defaults.startTime,
+            endTime: range?.endTime ?? defaults.endTime,
+            team: teamRaw,
+            courseType: parseCourseTypeCell(teamRaw)
+          })
+        }
+      }
+      continue
+    }
+
     const mapping: ScheduleImportMapping = {
       weekday: mappingOverride?.weekday ?? table.mapping.weekday,
       period: mappingOverride?.period ?? table.mapping.period,
@@ -314,22 +470,74 @@ export function buildIncomingScheduleRows(
       }
       const weekday = parseWeekdayCell(weekdayRaw)
       const period = parsePeriodCell(periodRaw)
-      const defaults = period ? getDefaultSlotTime(period) : { startTime: '', endTime: '' }
+      if ((!weekday || !period || !teamRaw) && isFooterOrNote(row.cells)) {
+        continue
+      }
+      if (!period && isSpecialPeriod(periodRaw)) {
+        skipped.push({
+          sheetName: table.sheetName,
+          excelRow: row.excelRow,
+          label: periodRaw || teamRaw || '特殊时段',
+          reason: '该行未导入：暂不支持的特殊时段'
+        })
+        continue
+      }
+      if (!weekday || !period || !teamRaw) {
+        skipped.push({
+          sheetName: table.sheetName,
+          excelRow: row.excelRow,
+          label: teamRaw || periodRaw || weekdayRaw || '无法识别的行',
+          reason: !period ? '无法识别节次' : !weekday ? '无法识别星期' : '课程内容为空'
+        })
+        continue
+      }
+      const defaults = getDefaultSlotTime(period)
+      const startRaw = cellAt(row.cells, mapping.startTime)
+      const range = parseTimeRangeCell(startRaw)
+      if (isSpecialEventText(teamRaw)) {
+        specialEventCount += 1
+      }
       incoming.push({
+        sheetName: table.sheetName,
         excelRow: row.excelRow,
         weekdayRaw,
         periodRaw,
         teamRaw,
         weekday,
         period,
-        startTime: parseTimeCell(cellAt(row.cells, mapping.startTime)) ?? defaults.startTime,
-        endTime: parseTimeCell(cellAt(row.cells, mapping.endTime)) ?? defaults.endTime,
+        startTime: range?.startTime ?? parseTimeCell(startRaw) ?? defaults.startTime,
+        endTime: range?.endTime ?? parseTimeCell(cellAt(row.cells, mapping.endTime)) ?? defaults.endTime,
         team: teamRaw.trim(),
-        courseType: parseCourseTypeCell(cellAt(row.cells, mapping.courseType))
+        courseType: parseCourseTypeCell(cellAt(row.cells, mapping.courseType) || teamRaw)
       })
     }
   }
-  return incoming
+
+  return {
+    rows: incoming,
+    summary: {
+      sheetNames: detection.tables.map((table) => table.sheetName),
+      headerRows: detection.tables.map((table) => ({
+        sheetName: table.sheetName,
+        rowNumber: table.headerRowNumber
+      })),
+      effectiveRanges: detection.tables.map((table) => ({
+        sheetName: table.sheetName,
+        startRow: table.dataStartRowNumber,
+        endRow: table.dataEndRowNumber
+      })),
+      recognizedCount: incoming.length,
+      specialEventCount,
+      skipped
+    }
+  }
+}
+
+export function buildIncomingScheduleRows(
+  detection: DetectedScheduleWorkbook,
+  mappingOverride?: ScheduleImportMapping | null
+): IncomingScheduleRow[] {
+  return extractScheduleWorkbook(detection, mappingOverride).rows
 }
 
 export function mappingFromSchedulePayload(input: unknown): ScheduleImportMapping {

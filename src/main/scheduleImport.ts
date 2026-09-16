@@ -6,8 +6,8 @@ import * as XLSX from 'xlsx'
 import { cellToDisplayString } from '../shared/student/importMapping'
 import type { ImportPickResult } from '../shared/student/importTypes'
 import {
-  buildIncomingScheduleRows,
   detectScheduleWorkbook,
+  extractScheduleWorkbook,
   mappingFromSchedulePayload
 } from '../shared/schedule/detectSchedule'
 import type { DetectedScheduleWorkbook } from '../shared/schedule/detectTypes'
@@ -166,15 +166,25 @@ export async function previewScheduleExcel(
 ) {
   const currentSession = await requireSession(sessionId)
   const mapping = optionalMapping(mappingInput)
-  const incoming = buildIncomingScheduleRows(currentSession.detection, mapping)
+  const extraction = extractScheduleWorkbook(currentSession.detection, mapping)
+  const incoming = extraction.rows
   if (incoming.length > MAX_DATA_ROWS) {
     throw new Error(`课表行超过 ${MAX_DATA_ROWS} 行，请拆分后再导入`)
   }
   const current = await loadSchedule()
-  return buildSchedulePreview(current, incoming, {
+  const preview = buildSchedulePreview(current, incoming, {
     fileName: currentSession.fileName,
     resolutions: parseResolutions(resolutionsInput)
   })
+  return {
+    ...preview,
+    canCommit: incoming.length > 0 && preview.canCommit,
+    blockingReasons:
+      incoming.length > 0
+        ? preview.blockingReasons
+        : [...preview.blockingReasons, '未识别到可导入课程；请查看工作表、表头与跳过原因'],
+    importSummary: extraction.summary
+  }
 }
 
 export async function commitScheduleExcel(
@@ -184,9 +194,16 @@ export async function commitScheduleExcel(
 ): Promise<ScheduleImportCommitResult> {
   const currentSession = await requireSession(sessionId)
   const mapping = optionalMapping(mappingInput)
-  const incoming = buildIncomingScheduleRows(currentSession.detection, mapping)
+  const extraction = extractScheduleWorkbook(currentSession.detection, mapping)
+  const incoming = extraction.rows
   if (incoming.length === 0) {
-    throw new Error('未能识别课表。请打开“识别有误？手动调整”后指定星期、节次和课程列')
+    const skipDetails = extraction.summary.skipped
+      .slice(0, 3)
+      .map((item) => `${item.sheetName} 第${item.excelRow}行：${item.reason}`)
+      .join('；')
+    throw new Error(
+      `未能识别可导入课程。${skipDetails || '请确认工作表中包含节次、时间和星期表头，或手动指定列。'}`
+    )
   }
   if (incoming.length > MAX_DATA_ROWS) {
     throw new Error(`课表行超过 ${MAX_DATA_ROWS} 行，请拆分后再导入`)
@@ -205,6 +222,9 @@ export async function commitScheduleExcel(
     keep: preview.totals.keep,
     create: preview.totals.create,
     update: preview.totals.update,
-    remove: preview.totals.remove
+    remove: preview.totals.remove,
+    recognized: extraction.summary.recognizedCount,
+    specialEventCount: extraction.summary.specialEventCount,
+    skipped: extraction.summary.skipped.length
   }
 }

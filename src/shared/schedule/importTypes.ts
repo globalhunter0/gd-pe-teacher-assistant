@@ -12,6 +12,7 @@ export interface ScheduleImportMapping {
 }
 
 export interface IncomingScheduleRow {
+  sheetName?: string
   excelRow: number
   weekdayRaw: string
   periodRaw: string
@@ -22,6 +23,26 @@ export interface IncomingScheduleRow {
   endTime: string
   team: string
   courseType: CourseType
+}
+
+export interface ScheduleImportSkippedItem {
+  sheetName: string
+  excelRow: number
+  label: string
+  reason: string
+}
+
+export interface ScheduleImportSummary {
+  sheetNames: string[]
+  headerRows: Array<{ sheetName: string; rowNumber: number }>
+  effectiveRanges: Array<{
+    sheetName: string
+    startRow: number | null
+    endRow: number | null
+  }>
+  recognizedCount: number
+  specialEventCount: number
+  skipped: ScheduleImportSkippedItem[]
 }
 
 export type ScheduleLineKind = 'keep' | 'create' | 'update' | 'remove' | 'conflict'
@@ -66,6 +87,7 @@ export interface SchedulePreviewResult {
   canCommit: boolean
   blockingReasons: string[]
   removeNotice: string | null
+  importSummary?: ScheduleImportSummary
   target?: import('./types').ScheduleItem[]
 }
 
@@ -75,4 +97,7 @@ export interface ScheduleImportCommitResult {
   create: number
   update: number
   remove: number
+  recognized: number
+  specialEventCount: number
+  skipped: number
 }

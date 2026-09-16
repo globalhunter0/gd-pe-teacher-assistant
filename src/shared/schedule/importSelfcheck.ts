@@ -3,7 +3,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readJsonItemsFile, writeJsonItemsAtomic } from '../persistence/jsonFile'
 import { DEFAULT_SCHEDULE } from './defaultSchedule'
-import { detectScheduleWorkbook, parsePeriodCell, parseWeekdayCell } from './detectSchedule'
+import {
+  detectScheduleWorkbook,
+  extractScheduleWorkbook,
+  parsePeriodCell,
+  parseTimeRangeCell,
+  parseWeekdayCell
+} from './detectSchedule'
 import type { IncomingScheduleRow } from './importTypes'
 import { applyScheduleSync, buildSchedulePreview, emptyScheduleResolutions } from './reconcile'
 import type { ScheduleItem } from './types'
@@ -41,6 +47,11 @@ export async function runScheduleImportSelfCheckOrThrow(): Promise<string> {
   const defaultSnapshot = JSON.stringify(DEFAULT_SCHEDULE)
   assert(DEFAULT_SCHEDULE.length === 17, 'defaultSchedule 必须保持 17 节')
   assert(parseWeekdayCell('星期一') === 1 && parsePeriodCell('第2节') === 2, '应能识别星期和节次')
+  assert(
+    parseTimeRangeCell('8:00–8:40')?.startTime === '08:00' &&
+      parseTimeRangeCell('8:00 至 8:40')?.endTime === '08:40',
+    '应兼容 Unicode 与中文时间连接符'
+  )
 
   const firstRows = [incoming(2, 1, 1, '团队1'), incoming(3, 1, 2, '团队2')]
   const firstPreview = buildSchedulePreview([], firstRows, {
@@ -155,6 +166,107 @@ export async function runScheduleImportSelfCheckOrThrow(): Promise<string> {
     }
   ])
   assert(!detected.needsColumnMapping, '标准课表 Excel 应自动识别列')
+  assert(extractScheduleWorkbook(detected).rows.length === 2, '旧的简单标准模板仍应识别全部课程')
+
+  const realWorkbenchRows = [
+    ['郁添睿 · 课程表工作台'],
+    ['2026学年第一学期七年级｜黄色单元格为体育与健康课'],
+    ['节次', '时间', '星期一', '星期二', '星期三', '星期四', '星期五'],
+    ['第1节', '8:00–8:40', '升旗仪式', '', '', '', ''],
+    ['第2节', '8:50–9:30', '', '', '团队5（初一4班） · 体育与健康', '', ''],
+    ['大课间', '9:30–10:00', '大课间（每天）', '', '', '', ''],
+    [
+      '第3节',
+      '10:00–10:40',
+      '',
+      '团队3（初一2班） · 体育与健康',
+      '团队3（初一2班） · 体育与健康',
+      '团队2（初一8班） · 体育与健康',
+      ''
+    ],
+    ['第4节', '10:50–11:30', '', '团队2（初一8班） · 体育与健康', '', '', '团队5（初一4班） · 体育与健康'],
+    [
+      '第5节',
+      '11:40–12:20',
+      '团队1 · 大体育课',
+      '团队5（初一4班） · 体育与健康',
+      '',
+      '团队5（初一4班） · 体育与健康',
+      '团队2（初一8班） · 体育与健康'
+    ],
+    ['第6节', '14:15–14:55', '', '', '团队2（初一8班） · 体育与健康', '', '团队4（初一9班） · 体育与健康'],
+    [
+      '第7节',
+      '15:10–15:50',
+      '',
+      '团队4（初一9班） · 体育与健康',
+      '团队4（初一9班） · 体育与健康',
+      '团队3（初一2班） · 体育与健康',
+      ''
+    ],
+    ['第8节', '16:05–16:45', '', '', '', '团队4（初一9班） · 体育与健康', '团队3（初一2班） · 体育与健康'],
+    [],
+    ['本周合计', '17 节', '常规体育课', '16 节', '大体育课', '1 节'],
+    [],
+    ['已纳入周一升旗仪式、每日大课间；周四团队5（初一4班）体育课为第5节。']
+  ]
+  const workbenchDetected = detectScheduleWorkbook('郁添睿课程表工作台.xlsx', [
+    {
+      name: '郁添睿课程表工作台',
+      rows: realWorkbenchRows,
+      merges: [{ s: { r: 5, c: 2 }, e: { r: 5, c: 6 } }]
+    }
+  ])
+  const workbenchTable = workbenchDetected.tables[0]
+  assert(workbenchTable?.headerRowNumber === 3, '工作台课表应自动找到第3行表头')
+  assert(workbenchTable?.layout === 'weekly-grid', '工作台课表应识别为星期矩阵')
+  assert(
+    workbenchTable?.dataStartRowNumber === 4 && workbenchTable.dataEndRowNumber === 12,
+    `有效范围应排除标题和表尾说明，布局 ${workbenchTable?.layout}，实际 ${workbenchTable?.dataStartRowNumber}–${workbenchTable?.dataEndRowNumber}`
+  )
+  const workbenchExtraction = extractScheduleWorkbook(workbenchDetected)
+  assert(workbenchExtraction.rows.length === 18, '真实周课表应识别 17 节体育课和 1 次升旗仪式')
+  assert(
+    workbenchExtraction.rows.filter((item) => /体育与健康|大体育课/.test(item.team)).length === 17,
+    '真实周课表体育课程数量必须为 17'
+  )
+  assert(workbenchExtraction.summary.specialEventCount === 1, '升旗仪式应识别为特殊事件')
+  assert(workbenchExtraction.rows.some((item) => item.team === '团队1 · 大体育课' && item.courseType === 'big'), '大体育课名称与类型应正常解析')
+  assert(
+    workbenchExtraction.rows.some((item) => item.team === '团队5（初一4班） · 体育与健康'),
+    '中文括号和间隔点课程名称不得被过滤'
+  )
+  assert(workbenchExtraction.summary.skipped.length === 1, '暂不支持的大课间行应明确跳过一次')
+  assert(workbenchExtraction.summary.skipped[0].reason.includes('暂不支持的特殊时段'), '大课间应给出明确跳过原因')
+  assert(workbenchExtraction.rows[0].startTime === '08:00' && workbenchExtraction.rows[0].endTime === '08:40', 'Unicode 时间范围应规范化')
+  assert(!workbenchExtraction.rows.some((item) => item.team.includes('本周合计') || item.team.includes('已纳入')), '汇总和备注不得成为课程')
+  assert(
+    workbenchExtraction.rows.every((item) => !('trainingTeamId' in item)),
+    '团队文本不得自动生成 trainingTeamId'
+  )
+
+  const badCellRows = realWorkbenchRows.map((row) => [...row])
+  badCellRows[6][1] = '无法识别的时间'
+  const badCellExtraction = extractScheduleWorkbook(
+    detectScheduleWorkbook('含坏单元格的课表.xlsx', [
+      {
+        name: '课表',
+        rows: badCellRows,
+        merges: [{ s: { r: 5, c: 2 }, e: { r: 5, c: 6 } }]
+      }
+    ])
+  )
+  assert(badCellExtraction.rows.length === 15, '一个坏时间单元格只能跳过所在行，不能清空整张课表')
+  assert(
+    badCellExtraction.summary.skipped.some((item) => item.reason.includes('无法识别时间范围')),
+    '坏时间行必须提供明确跳过原因'
+  )
+
+  const workbenchApplied = applyScheduleSync([], workbenchExtraction.rows, {
+    ...emptyScheduleResolutions(),
+    acknowledgeRemoves: true
+  })
+  assert(workbenchApplied.every((item) => item.trainingTeamId === undefined), '矩阵导入结果不得误绑训练队')
 
   const dir = mkdtempSync(join(tmpdir(), 'gdpe-schedule-import-'))
   const filePath = join(dir, 'schedule.json')
@@ -164,6 +276,9 @@ export async function runScheduleImportSelfCheckOrThrow(): Promise<string> {
     const reloaded = await readJsonItemsFile(filePath, parseScheduleItems)
     assert(reloaded.length === 3, '重载后同步结果存在')
     assert(reloaded.find((item) => item.id === scheduleSlotId(1, 1))?.classId, '重载后 classId 仍在')
+    await writeJsonItemsAtomic(filePath, workbenchApplied)
+    const workbenchReloaded = await readJsonItemsFile(filePath, parseScheduleItems)
+    assert(JSON.stringify(workbenchReloaded) === JSON.stringify(parseScheduleItems(workbenchApplied)), '工作台课表保存重读应一致')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
