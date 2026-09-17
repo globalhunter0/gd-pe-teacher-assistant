@@ -152,6 +152,161 @@ export function summarizeTeam(
 }
 
 export function latestSessionDateForStudent(sessions: ReadonlyArray<TrainingSession>, studentId: string): string | null {
-  const match = sessions.find((session) => session.attendance.some((row) => row.studentId === studentId))
-  return match?.date ?? null
+  const match = sessions
+    .filter((session) => session.attendance.some((row) => row.studentId === studentId))
+    .slice()
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.startTime || '').localeCompare(a.startTime || '') || b.updatedAt.localeCompare(a.updatedAt))
+  return match[0]?.date ?? null
+}
+
+export interface TrainingTeamItemStats {
+  itemId: string
+  itemName: string
+  resultCount: number
+  latestResult: TrainingResult | null
+}
+
+export interface TrainingTeamMemberStats {
+  memberId: string
+  teamId: string
+  studentId: string
+  isCurrentMember: boolean
+  joinedAt: string
+  leftAt: string | null
+  trainingSessionCount: number
+  presentSessionCount: number
+  latestSessionDate: string | null
+  scoredSessionCount: number
+  resultCount: number
+  sessionLinkedResultCount: number
+  independentResultCount: number
+  latestResult: TrainingResult | null
+}
+
+export interface TrainingTeamStats {
+  teamId: string
+  activeMemberCount: number
+  historicalMemberCount: number
+  totalMemberCount: number
+  sessionCount: number
+  /** TrainingSession 是已发生记录，不是课表计划，因此均视为已完成训练记录。 */
+  completedSessionCount: number
+  latestSessionDate: string | null
+  resultCount: number
+  sessionLinkedResultCount: number
+  independentResultCount: number
+  latestResult: TrainingResult | null
+  itemStats: TrainingTeamItemStats[]
+  memberStats: TrainingTeamMemberStats[]
+}
+
+/**
+ * 训练队成绩归属：
+ * - session-linked 只认 sessionId -> TrainingSession.teamId；
+ * - independent 只认结果自身显式 teamId；
+ * - 丢失 session 的 linked result 不猜测归属。
+ */
+export function trainingResultsForTeam(
+  teamId: string,
+  sessions: ReadonlyArray<TrainingSession>,
+  results: ReadonlyArray<TrainingResult>
+): TrainingResult[] {
+  const sessionTeamById = new Map(sessions.map((session) => [session.id, session.teamId]))
+  return results.filter((result) =>
+    result.sessionId === null
+      ? result.teamId === teamId
+      : sessionTeamById.get(result.sessionId) === teamId
+  )
+}
+
+function latestSessionDate(sessions: ReadonlyArray<TrainingSession>): string | null {
+  const latest = sessions
+    .slice()
+    .sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) ||
+        (b.startTime || '').localeCompare(a.startTime || '') ||
+        b.updatedAt.localeCompare(a.updatedAt) ||
+        b.id.localeCompare(a.id)
+    )[0]
+  return latest?.date ?? null
+}
+
+export function buildTrainingTeamMemberStats(
+  member: TrainingTeamMember,
+  sessions: ReadonlyArray<TrainingSession>,
+  results: ReadonlyArray<TrainingResult>
+): TrainingTeamMemberStats {
+  const teamSessions = sessions.filter((session) => session.teamId === member.teamId)
+  const attendedSessions = teamSessions.filter((session) =>
+    session.attendance.some((row) => row.studentId === member.studentId)
+  )
+  const presentSessionCount = attendedSessions.filter((session) => {
+    const attendance = session.attendance.find((row) => row.studentId === member.studentId)
+    return attendance ? isPresent(attendance) : false
+  }).length
+  const teamResults = trainingResultsForTeam(member.teamId, sessions, results).filter(
+    (result) => result.studentId === member.studentId
+  )
+  const linkedResults = teamResults.filter((result) => result.sessionId !== null)
+  const independentResults = teamResults.filter((result) => result.sessionId === null)
+  return {
+    memberId: member.id,
+    teamId: member.teamId,
+    studentId: member.studentId,
+    isCurrentMember: isActiveMembership(member),
+    joinedAt: member.joinedAt,
+    leftAt: member.leftAt,
+    trainingSessionCount: attendedSessions.length,
+    presentSessionCount,
+    latestSessionDate: latestSessionDate(attendedSessions),
+    scoredSessionCount: new Set(linkedResults.map((result) => result.sessionId)).size,
+    resultCount: teamResults.length,
+    sessionLinkedResultCount: linkedResults.length,
+    independentResultCount: independentResults.length,
+    latestResult: latestResult(teamResults)
+  }
+}
+
+export function buildTrainingTeamStats(
+  teamId: string,
+  members: ReadonlyArray<TrainingTeamMember>,
+  sessions: ReadonlyArray<TrainingSession>,
+  results: ReadonlyArray<TrainingResult>
+): TrainingTeamStats {
+  const teamMembers = members.filter((member) => member.teamId === teamId)
+  const teamSessions = sessions.filter((session) => session.teamId === teamId)
+  const teamResults = trainingResultsForTeam(teamId, sessions, results)
+  const linkedResults = teamResults.filter((result) => result.sessionId !== null)
+  const independentResults = teamResults.filter((result) => result.sessionId === null)
+  const byItem = new Map<string, TrainingResult[]>()
+  for (const result of teamResults) {
+    const rows = byItem.get(result.itemId) ?? []
+    rows.push(result)
+    byItem.set(result.itemId, rows)
+  }
+  return {
+    teamId,
+    activeMemberCount: teamMembers.filter(isActiveMembership).length,
+    historicalMemberCount: teamMembers.filter((member) => !isActiveMembership(member)).length,
+    totalMemberCount: teamMembers.length,
+    sessionCount: teamSessions.length,
+    completedSessionCount: teamSessions.length,
+    latestSessionDate: latestSessionDate(teamSessions),
+    resultCount: teamResults.length,
+    sessionLinkedResultCount: linkedResults.length,
+    independentResultCount: independentResults.length,
+    latestResult: latestResult(teamResults),
+    itemStats: [...byItem.entries()]
+      .map(([itemId, itemResults]) => ({
+        itemId,
+        itemName: itemResults[0]?.itemNameSnapshot ?? '',
+        resultCount: itemResults.length,
+        latestResult: latestResult(itemResults)
+      }))
+      .sort((a, b) => b.resultCount - a.resultCount || a.itemName.localeCompare(b.itemName)),
+    memberStats: teamMembers.map((member) =>
+      buildTrainingTeamMemberStats(member, sessions, results)
+    )
+  }
 }

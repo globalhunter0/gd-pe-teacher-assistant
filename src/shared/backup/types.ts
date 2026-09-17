@@ -1,8 +1,10 @@
+import { APP_VERSION } from '../appVersion'
+
 export const BACKUP_FORMAT_VERSION = 1
 
 export const BACKUP_FILE_EXTENSION = 'gdpebak'
 
-export const APP_RELEASE_VERSION = '0.13.1'
+export const APP_RELEASE_VERSION = APP_VERSION
 
 export const BUSINESS_JSON_FILES = [
   'schedule.json',
@@ -15,6 +17,7 @@ export const BUSINESS_JSON_FILES = [
   'resources.json',
   'training-teams.json',
   'training-members.json',
+  'training-plans.json',
   'training-sessions.json',
   'training-items.json',
   'training-results.json'

@@ -11,10 +11,18 @@ export interface DetectedScheduleColumn {
 
 export interface DetectedScheduleTable {
   sheetName: string
+  layout: 'row-list' | 'weekly-grid'
   headerRowIndex: number
   headerRowNumber: number
+  dataStartRowNumber: number | null
+  dataEndRowNumber: number | null
   columns: DetectedScheduleColumn[]
   mapping: ScheduleImportMapping
+  grid?: {
+    periodColumn: number
+    timeColumn: number | null
+    weekdayColumns: Array<{ weekday: import('./types').Weekday; column: number }>
+  }
   dataRows: Array<{ excelRow: number; cells: string[] }>
   rowCount: number
   confidence: DetectConfidence

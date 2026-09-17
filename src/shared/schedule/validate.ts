@@ -1,4 +1,5 @@
 import type { CourseType, Period, ScheduleItem, Weekday } from './types'
+import type { TrainingTeam } from '../trainingTeam/types'
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
 const CLASS_ID_PATTERN = /^class-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -165,6 +166,57 @@ export function assertScheduleLinksRoundTrip(
     }
     if (scheduleLinkSignature(item) !== scheduleLinkSignature(saved)) {
       throw new Error('课表班级或训练队关联没有保存成功')
+    }
+  }
+}
+
+export type ScheduleTrainingTeamLinkState = 'none' | 'active' | 'archived' | 'missing'
+
+export interface ScheduleTrainingTeamLinkDisplay {
+  state: ScheduleTrainingTeamLinkState
+  label: string | null
+  team: TrainingTeam | null
+}
+
+export function resolveScheduleTrainingTeamLink(
+  trainingTeamId: string | undefined,
+  teams: ReadonlyArray<TrainingTeam>
+): ScheduleTrainingTeamLinkDisplay {
+  if (!trainingTeamId) {
+    return { state: 'none', label: null, team: null }
+  }
+  const team = teams.find((item) => item.id === trainingTeamId)
+  if (!team || team.status === 'deleted') {
+    return { state: 'missing', label: '原训练队已不存在', team: null }
+  }
+  if (team.status === 'archived') {
+    return { state: 'archived', label: `${team.name}（已归档）`, team }
+  }
+  return { state: 'active', label: team.name, team }
+}
+
+/**
+ * 保存整份课表时，只校验新增/主动变更的训练队关联。
+ * 已存在的 archived 或 missing 历史关联可原样保存，但不能成为新的绑定目标。
+ */
+export function assertScheduleTrainingTeamSelections(
+  current: ReadonlyArray<ScheduleItem>,
+  submitted: ReadonlyArray<ScheduleItem>,
+  teams: ReadonlyArray<TrainingTeam>
+): void {
+  const currentById = new Map(current.map((item) => [item.id, item]))
+  for (const item of submitted) {
+    if (!item.trainingTeamId) {
+      continue
+    }
+    if (currentById.get(item.id)?.trainingTeamId === item.trainingTeamId) {
+      continue
+    }
+    const target = teams.find(
+      (team) => team.id === item.trainingTeamId && team.status === 'active'
+    )
+    if (!target) {
+      throw new Error('只能新关联当前启用的训练队')
     }
   }
 }

@@ -3,12 +3,38 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readJsonItemsFile, writeJsonItemsAtomic } from '../persistence/jsonFile'
 import { DEFAULT_SCHEDULE } from './defaultSchedule'
-import { assertScheduleLinksRoundTrip, parseScheduleItems } from './validate'
+import {
+  assertScheduleLinksRoundTrip,
+  assertScheduleTrainingTeamSelections,
+  parseScheduleItems,
+  resolveScheduleTrainingTeamLink
+} from './validate'
 import type { ScheduleItem } from './types'
+import type { TrainingTeam } from '../trainingTeam/types'
 import { workbenchBoundClassId, workbenchUsesTrainingTeam } from './workbench'
 
 const CLASS_ID = 'class-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
 const TRAINING_TEAM_ID = 'training-team-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+const TRAINING_TEAM_ID_2 = 'training-team-bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+const TRAINING_NOW = '2026-09-16T00:00:00.000Z'
+
+function trainingTeam(
+  id: string,
+  name: string,
+  status: TrainingTeam['status']
+): TrainingTeam {
+  return {
+    id,
+    parentTeamId: null,
+    name,
+    sport: 'track',
+    coach: '',
+    notes: '',
+    status,
+    createdAt: TRAINING_NOW,
+    updatedAt: TRAINING_NOW
+  }
+}
 
 function oldFormatItems(): Array<Omit<ScheduleItem, 'id' | 'classId' | 'trainingTeamId'>> {
   return DEFAULT_SCHEDULE.map((item) => ({
@@ -110,6 +136,44 @@ export async function runScheduleLinkageSelfCheckOrThrow(): Promise<string> {
   if (cleared[0].classId !== undefined || cleared[0].trainingTeamId !== undefined) {
     throw new Error('清除绑定后字段仍残留')
   }
+
+  const activeTeam = trainingTeam(TRAINING_TEAM_ID, '校田径队', 'active')
+  const secondActiveTeam = trainingTeam(TRAINING_TEAM_ID_2, '校篮球队', 'active')
+  const archivedTeam = trainingTeam(TRAINING_TEAM_ID, '校田径队', 'archived')
+
+  assertScheduleTrainingTeamSelections(parsedOld, teamOnly, [activeTeam])
+  assertScheduleTrainingTeamSelections(teamOnly, teamOnly, [archivedTeam])
+  if (resolveScheduleTrainingTeamLink(TRAINING_TEAM_ID, [archivedTeam]).label !== '校田径队（已归档）') {
+    throw new Error('历史课表关联 archived 训练队时必须显示名称与已归档状态')
+  }
+
+  let rejectedArchivedNewBinding = false
+  try {
+    assertScheduleTrainingTeamSelections(parsedOld, teamOnly, [archivedTeam])
+  } catch {
+    rejectedArchivedNewBinding = true
+  }
+  if (!rejectedArchivedNewBinding) {
+    throw new Error('archived 训练队不得成为新的课表绑定目标')
+  }
+
+  const switched = parseScheduleItems(
+    withLinks(teamOnly, { trainingTeamId: TRAINING_TEAM_ID_2 })
+  )
+  assertScheduleTrainingTeamSelections(teamOnly, switched, [activeTeam, secondActiveTeam])
+  if (switched[0].trainingTeamId !== TRAINING_TEAM_ID_2) {
+    throw new Error('编辑课表更换 active 训练队失败')
+  }
+  assertScheduleTrainingTeamSelections(switched, cleared, [activeTeam, secondActiveTeam])
+  if (cleared[0].trainingTeamId !== undefined) {
+    throw new Error('课表必须可从绑定状态改回不关联训练队')
+  }
+
+  const missingDisplay = resolveScheduleTrainingTeamLink(TRAINING_TEAM_ID, [])
+  if (missingDisplay.state !== 'missing' || missingDisplay.label !== '原训练队已不存在') {
+    throw new Error('不存在的 trainingTeamId 必须非破坏性显示缺失提示')
+  }
+  assertScheduleTrainingTeamSelections(teamOnly, teamOnly, [])
 
   let rejected = false
   try {

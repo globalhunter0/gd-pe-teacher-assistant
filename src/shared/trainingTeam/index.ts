@@ -6,13 +6,20 @@ export type {
   TrainingItem,
   TrainingMemberStatus,
   TrainingParticipation,
+  TrainingPlan,
+  TrainingPlanSessionResult,
+  TrainingPlanStatus,
   TrainingResult,
   TrainingResultKind,
   TrainingResultStatus,
   TrainingSession,
   TrainingSport,
   TrainingTeam,
+  TrainingTeamDeleteAction,
+  TrainingTeamDeleteCheck,
+  TrainingTeamDeleteCounts,
   TrainingTeamMember,
+  TrainingTeamSafeDeleteResult,
   TrainingTeamStatus
 } from './types'
 export {
@@ -24,6 +31,8 @@ export {
   TRAINING_MEMBER_STATUS_LABELS,
   TRAINING_PARTICIPATIONS,
   TRAINING_PARTICIPATION_LABELS,
+  TRAINING_PLAN_STATUSES,
+  TRAINING_PLAN_STATUS_LABELS,
   TRAINING_RESULT_KINDS,
   TRAINING_RESULT_KIND_LABELS,
   TRAINING_RESULT_STATUSES,
@@ -44,6 +53,8 @@ export {
   filterSchoolWideStudents,
   hasActiveMembership,
   isActiveMembership,
+  isActiveTrainingTeam,
+  isArchivedTrainingTeam,
   isListedTrainingTeam,
   canMutateTrainingTeam,
   latestSessionForTeam,
@@ -51,6 +62,8 @@ export {
   teamDisplayPath
 } from './roster'
 export {
+  buildTrainingTeamMemberStats,
+  buildTrainingTeamStats,
   compareToPreviousResult,
   firstResult,
   formatTrainingScore,
@@ -60,25 +73,39 @@ export {
   personalBest,
   summarizeAthleteSessions,
   summarizeTeam,
+  trainingResultsForTeam,
   validResultsForStudentItem
+} from './stats'
+export type {
+  TrainingTeamItemStats,
+  TrainingTeamMemberStats,
+  TrainingTeamStats
 } from './stats'
 export {
   applyTrainingTeamSafeDelete,
+  assertTrainingPlanChanges,
+  cancelPlannedTrainingPlansForTeams,
+  checkTrainingTeamSafeDelete,
   collectTrainingStudentDeleteBlockers,
   collectTrainingTeamDeleteImpact,
   createTrainingAttendanceId,
   createTrainingExerciseId,
   createTrainingItemId,
   createTrainingMemberId,
+  createTrainingPlanId,
   createTrainingResultId,
   createTrainingSessionId,
   createTrainingTeamId,
   formatTrainingDate,
+  completeTrainingPlanWithSession,
+  collectTrainingReferenceIssues,
   getTrainingItemDeleteBlockers,
   getTrainingTeamDeleteBlockers,
   hasTrainingTeamIdentityRefs,
   parseTrainingItems,
   parseTrainingMembers,
+  parseTrainingPlans,
+  linkedTrainingSessionForPlan,
   parseTrainingResults,
   parseTrainingSessions,
   parseTrainingTeams

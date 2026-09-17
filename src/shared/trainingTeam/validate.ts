@@ -7,6 +7,9 @@ import type {
   TrainingExerciseKind,
   TrainingItem,
   TrainingMemberStatus,
+  TrainingPlan,
+  TrainingPlanSessionResult,
+  TrainingPlanStatus,
   TrainingParticipation,
   TrainingCompletion,
   TrainingResult,
@@ -15,7 +18,10 @@ import type {
   TrainingSession,
   TrainingSport,
   TrainingTeam,
+  TrainingTeamDeleteCheck,
+  TrainingTeamDeleteCounts,
   TrainingTeamMember,
+  TrainingTeamSafeDeleteResult,
   TrainingTeamStatus
 } from './types'
 import {
@@ -23,6 +29,7 @@ import {
   TRAINING_EXERCISE_KINDS,
   TRAINING_MEMBER_STATUSES,
   TRAINING_PARTICIPATIONS,
+  TRAINING_PLAN_STATUSES,
   TRAINING_RESULT_KINDS,
   TRAINING_RESULT_STATUSES,
   TRAINING_SPORTS,
@@ -37,6 +44,7 @@ const ATTENDANCE_ID = /^training-attendance-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-
 const ITEM_CUSTOM_ID = /^training-item-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const ITEM_BUILTIN_ID = /^training-item-builtin-[a-z0-9-]+$/
 const RESULT_ID = /^training-result-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const PLAN_ID = /^training-plan-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const STUDENT_ID = /^student-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -51,6 +59,10 @@ export function createTrainingMemberId(): string {
 
 export function createTrainingSessionId(): string {
   return `training-session-${crypto.randomUUID()}`
+}
+
+export function createTrainingPlanId(): string {
+  return `training-plan-${crypto.randomUUID()}`
 }
 
 export function createTrainingExerciseId(): string {
@@ -152,6 +164,10 @@ function isResultStatus(value: unknown): value is TrainingResultStatus {
   return TRAINING_RESULT_STATUSES.includes(value as TrainingResultStatus)
 }
 
+function isPlanStatus(value: unknown): value is TrainingPlanStatus {
+  return TRAINING_PLAN_STATUSES.includes(value as TrainingPlanStatus)
+}
+
 function isGender(value: unknown): value is StudentGender {
   return STUDENT_GENDERS.includes(value as StudentGender)
 }
@@ -217,6 +233,259 @@ export function parseTrainingTeams(input: unknown): TrainingTeam[] {
   return teams.sort((a, b) => a.sport.localeCompare(b.sport) || a.name.localeCompare(b.name, 'zh-CN'))
 }
 
+export interface ParseTrainingPlanOptions {
+  knownTeamIds?: ReadonlySet<string>
+}
+
+export function parseTrainingPlans(
+  input: unknown,
+  options: ParseTrainingPlanOptions = {}
+): TrainingPlan[] {
+  if (!Array.isArray(input)) {
+    throw new Error('训练计划数据格式不正确')
+  }
+  const plans = input.map((entry) => {
+    const record = asRecord(entry, '训练计划')
+    if (typeof record.id !== 'string' || !PLAN_ID.test(record.id)) {
+      throw new Error('训练计划编号不正确')
+    }
+    if (
+      typeof record.trainingTeamId !== 'string' ||
+      !TEAM_ID.test(record.trainingTeamId)
+    ) {
+      throw new Error('训练计划所属队伍不正确')
+    }
+    if (
+      options.knownTeamIds &&
+      !options.knownTeamIds.has(record.trainingTeamId)
+    ) {
+      throw new Error('训练计划所属队伍不存在')
+    }
+    if (typeof record.date !== 'string' || !DATE_PATTERN.test(record.date)) {
+      throw new Error('训练计划日期不正确')
+    }
+    if (!isPlanStatus(record.status)) {
+      throw new Error('训练计划状态不正确')
+    }
+    if (
+      typeof record.createdAt !== 'string' ||
+      typeof record.updatedAt !== 'string'
+    ) {
+      throw new Error('训练计划时间字段不正确')
+    }
+    return {
+      id: record.id,
+      trainingTeamId: record.trainingTeamId,
+      date: record.date,
+      title: parseText(record.title, '训练主题', true, 80),
+      goal: parseText(record.goal, '训练目标', false, 1000),
+      content: parseText(record.content, '训练内容', true, 4000),
+      notes: parseText(record.notes, '训练计划备注', false, 1000),
+      status: record.status,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt
+    } satisfies TrainingPlan
+  })
+  const ids = new Set<string>()
+  for (const plan of plans) {
+    if (ids.has(plan.id)) {
+      throw new Error('训练计划编号不能重复')
+    }
+    ids.add(plan.id)
+  }
+  return plans.sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      a.createdAt.localeCompare(b.createdAt) ||
+      a.id.localeCompare(b.id)
+  )
+}
+
+export function assertTrainingPlanChanges(
+  current: ReadonlyArray<TrainingPlan>,
+  next: ReadonlyArray<TrainingPlan>,
+  teams: ReadonlyArray<TrainingTeam>,
+  sessions: ReadonlyArray<TrainingSession>
+): void {
+  const currentById = new Map(current.map((plan) => [plan.id, plan]))
+  const nextById = new Map(next.map((plan) => [plan.id, plan]))
+  const teamById = new Map(teams.map((team) => [team.id, team]))
+
+  for (const plan of next) {
+    const previous = currentById.get(plan.id)
+    const team = teamById.get(plan.trainingTeamId)
+    if (!previous) {
+      if (!team || team.status !== 'active' || plan.status !== 'planned') {
+        throw new Error('只能为启用中的训练队新建待执行计划')
+      }
+      continue
+    }
+    if (previous.trainingTeamId !== plan.trainingTeamId) {
+      throw new Error('训练计划创建后不能更换所属训练队')
+    }
+    if (previous.status === 'completed' || previous.status === 'cancelled') {
+      if (JSON.stringify(previous) !== JSON.stringify(plan)) {
+        throw new Error('已完成或已取消的训练计划不能修改')
+      }
+      continue
+    }
+    if (!team || team.status !== 'active') {
+      throw new Error('已停用训练队的待执行计划不能修改')
+    }
+    if (plan.status === 'completed') {
+      throw new Error('训练计划只能在保存关联训练记录后完成')
+    }
+    if (
+      plan.status === 'cancelled' &&
+      sessions.some((session) => session.planId === plan.id)
+    ) {
+      throw new Error('已有训练记录的计划不能取消')
+    }
+  }
+
+  for (const plan of current) {
+    if (nextById.has(plan.id)) {
+      continue
+    }
+    if (
+      plan.status === 'completed' ||
+      sessions.some((session) => session.planId === plan.id)
+    ) {
+      throw new Error('已有训练记录的计划不能删除')
+    }
+  }
+}
+
+export function cancelPlannedTrainingPlansForTeams(
+  plans: ReadonlyArray<TrainingPlan>,
+  teamIds: ReadonlySet<string>,
+  now: string
+): TrainingPlan[] {
+  return plans.map((plan) =>
+    teamIds.has(plan.trainingTeamId) && plan.status === 'planned'
+      ? { ...plan, status: 'cancelled', updatedAt: now }
+      : plan
+  )
+}
+
+export function completeTrainingPlanWithSession(
+  plans: ReadonlyArray<TrainingPlan>,
+  sessions: ReadonlyArray<TrainingSession>,
+  planId: string,
+  session: TrainingSession,
+  now: string
+): TrainingPlanSessionResult {
+  const plan = plans.find((item) => item.id === planId)
+  if (!plan) {
+    throw new Error('训练计划不存在')
+  }
+  if (plan.status !== 'planned') {
+    throw new Error('该训练计划已经完成或取消，不能重复开始训练')
+  }
+  if (sessions.some((item) => item.planId === planId)) {
+    throw new Error('该训练计划已经生成训练记录')
+  }
+  if (session.planId !== planId || session.teamId !== plan.trainingTeamId) {
+    throw new Error('训练记录与训练计划归属不一致')
+  }
+  if (sessions.some((item) => item.id === session.id)) {
+    throw new Error('训练记录编号已存在')
+  }
+  return {
+    plans: plans.map((item) =>
+      item.id === planId
+        ? { ...item, status: 'completed', updatedAt: now }
+        : item
+    ),
+    sessions: [...sessions, session]
+  }
+}
+
+export function linkedTrainingSessionForPlan(
+  sessions: ReadonlyArray<TrainingSession>,
+  planId: string
+): TrainingSession | undefined {
+  return sessions.find((item) => item.planId === planId)
+}
+
+export function collectTrainingReferenceIssues(input: {
+  teams: ReadonlyArray<Pick<TrainingTeam, 'id' | 'status'>>
+  members?: ReadonlyArray<Pick<TrainingTeamMember, 'id' | 'teamId'>>
+  sessions?: ReadonlyArray<Pick<TrainingSession, 'id' | 'teamId' | 'planId'>>
+  plans?: ReadonlyArray<Pick<TrainingPlan, 'id' | 'trainingTeamId' | 'status'>>
+  results?: ReadonlyArray<Pick<TrainingResult, 'id' | 'teamId' | 'sessionId'>>
+  scheduleItems?: ReadonlyArray<{ trainingTeamId?: string }>
+}): string[] {
+  const issues: string[] = []
+  const teamIds = new Set(input.teams.map((item) => item.id))
+  const teamStatus = new Map(input.teams.map((item) => [item.id, item.status]))
+  const sessionIds = new Set((input.sessions ?? []).map((item) => item.id))
+  const planIds = new Set((input.plans ?? []).map((item) => item.id))
+  const sessionsByPlan = new Map<string, Array<Pick<TrainingSession, 'id' | 'teamId' | 'planId'>>>()
+
+  for (const member of input.members ?? []) {
+    if (!teamIds.has(member.teamId)) {
+      issues.push(`孤立队员引用 ${member.id}`)
+    }
+  }
+
+  for (const session of input.sessions ?? []) {
+    if (!teamIds.has(session.teamId)) {
+      issues.push(`孤立训练记录 ${session.id}`)
+    }
+    if (session.planId) {
+      if (!planIds.has(session.planId)) {
+        issues.push(`训练记录 ${session.id} 的 planId 不存在`)
+      }
+      const list = sessionsByPlan.get(session.planId) ?? []
+      list.push(session)
+      sessionsByPlan.set(session.planId, list)
+    }
+  }
+
+  for (const [planId, linked] of sessionsByPlan) {
+    if (linked.length > 1) {
+      issues.push(`训练计划 ${planId} 关联了多条正式训练记录`)
+    }
+  }
+
+  for (const plan of input.plans ?? []) {
+    if (!teamIds.has(plan.trainingTeamId)) {
+      issues.push(`孤立训练计划 ${plan.id}`)
+    }
+    const linked = sessionsByPlan.get(plan.id) ?? []
+    if (plan.status === 'completed' && linked.length === 0) {
+      issues.push(`已完成计划 ${plan.id} 没有关联训练记录`)
+    }
+    if (plan.status === 'planned' && linked.length > 0) {
+      issues.push(`待执行计划 ${plan.id} 已有关联训练记录`)
+    }
+    if (teamStatus.get(plan.trainingTeamId) === 'archived' && plan.status === 'planned') {
+      issues.push(`已停用训练队仍有待执行计划 ${plan.id}`)
+    }
+    if (linked[0] && linked[0].teamId !== plan.trainingTeamId) {
+      issues.push(`计划 ${plan.id} 与训练记录队伍不一致`)
+    }
+  }
+
+  for (const result of input.results ?? []) {
+    if (!teamIds.has(result.teamId)) {
+      issues.push(`孤立成绩 ${result.id}`)
+    }
+    if (result.sessionId && !sessionIds.has(result.sessionId)) {
+      issues.push(`成绩 ${result.id} 的 sessionId 不存在`)
+    }
+  }
+
+  for (const item of input.scheduleItems ?? []) {
+    if (item.trainingTeamId && !teamIds.has(item.trainingTeamId)) {
+      issues.push(`课表 trainingTeamId ${item.trainingTeamId} 指向不存在的训练队`)
+    }
+  }
+
+  return issues
+}
+
 export interface ParseMemberOptions {
   knownTeamIds?: ReadonlySet<string>
   knownStudentIds?: ReadonlySet<string>
@@ -268,6 +537,10 @@ export function parseTrainingMembers(input: unknown, options: ParseMemberOptions
       studentNoSnapshot: parseText(record.studentNoSnapshot, '学号快照', false, 40),
       classNameSnapshot: parseText(record.classNameSnapshot, '班级快照', false, 40),
       genderSnapshot: record.genderSnapshot,
+      specialty: parseText(record.specialty ?? '', '专项/主项', false, 40),
+      position: parseText(record.position ?? '', '位置', false, 40),
+      trainingGroup: parseText(record.trainingGroup ?? '', '训练分组', false, 40),
+      trainingNotes: parseText(record.trainingNotes ?? '', '训练备注', false, 500),
       notes: parseText(record.notes, '队员备注', false, 500),
       createdAt: record.createdAt,
       updatedAt: record.updatedAt
@@ -348,6 +621,7 @@ function parseAttendance(value: unknown): TrainingAttendance {
 
 export interface ParseSessionOptions {
   knownTeamIds?: ReadonlySet<string>
+  knownPlanIds?: ReadonlySet<string>
 }
 
 export function parseTrainingSessions(input: unknown, options: ParseSessionOptions = {}): TrainingSession[] {
@@ -376,6 +650,16 @@ export function parseTrainingSessions(input: unknown, options: ParseSessionOptio
     if (typeof record.createdAt !== 'string' || typeof record.updatedAt !== 'string') {
       throw new Error('训练记录时间字段不正确')
     }
+    const planId =
+      record.planId === undefined || record.planId === null || record.planId === ''
+        ? undefined
+        : parseText(record.planId, '来源训练计划', true, 80)
+    if (planId && !PLAN_ID.test(planId)) {
+      throw new Error('来源训练计划编号不正确')
+    }
+    if (planId && options.knownPlanIds && !options.knownPlanIds.has(planId)) {
+      throw new Error('来源训练计划不存在')
+    }
     if (!Array.isArray(record.exercises) || !Array.isArray(record.attendance)) {
       throw new Error('训练内容或出勤名单格式不正确')
     }
@@ -388,7 +672,7 @@ export function parseTrainingSessions(input: unknown, options: ParseSessionOptio
       }
       seenStudents.add(row.studentId)
     }
-    return {
+    const session: TrainingSession = {
       id: record.id,
       teamId: record.teamId,
       date: record.date,
@@ -402,15 +686,26 @@ export function parseTrainingSessions(input: unknown, options: ParseSessionOptio
       updatedAt: record.updatedAt,
       exercises,
       attendance
-    } satisfies TrainingSession
+    }
+    if (planId) {
+      session.planId = planId
+    }
+    return session
   })
 
   const ids = new Set<string>()
+  const usedPlanIds = new Set<string>()
   for (const session of sessions) {
     if (ids.has(session.id)) {
       throw new Error('训练记录编号不能重复')
     }
     ids.add(session.id)
+    if (session.planId) {
+      if (usedPlanIds.has(session.planId)) {
+        throw new Error('同一训练计划不能关联多次训练记录')
+      }
+      usedPlanIds.add(session.planId)
+    }
   }
 
   return sessions.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
@@ -613,13 +908,17 @@ export function hasTrainingTeamIdentityRefs(
   teams: ReadonlyArray<Pick<TrainingTeam, 'id' | 'parentTeamId'>>,
   members: ReadonlyArray<Pick<TrainingTeamMember, 'teamId'>>,
   sessions: ReadonlyArray<Pick<TrainingSession, 'teamId'>>,
-  results: ReadonlyArray<Pick<TrainingResult, 'teamId'>>
+  results: ReadonlyArray<Pick<TrainingResult, 'teamId'>>,
+  scheduleItems: ReadonlyArray<TrainingScheduleReference> = [],
+  plans: ReadonlyArray<TrainingPlanReference> = []
 ): boolean {
   return (
     teams.some((item) => item.parentTeamId === teamId) ||
     members.some((item) => item.teamId === teamId) ||
     sessions.some((item) => item.teamId === teamId) ||
-    results.some((item) => item.teamId === teamId)
+    results.some((item) => item.teamId === teamId) ||
+    scheduleItems.some((item) => item.trainingTeamId === teamId) ||
+    plans.some((item) => item.trainingTeamId === teamId)
   )
 }
 
@@ -637,49 +936,173 @@ export function tombstoneTrainingTeam(team: TrainingTeam, now: string): Training
   return { ...team, status: 'deleted', updatedAt: now }
 }
 
+type TrainingScheduleReference = { trainingTeamId?: string }
+type TrainingPlanReference = { trainingTeamId: string }
+
+function affectedTrainingTeamIds(teams: ReadonlyArray<TrainingTeam>, teamId: string): string[] {
+  const affected = new Set<string>([teamId])
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const team of teams) {
+      if (
+        team.status !== 'deleted' &&
+        team.parentTeamId &&
+        affected.has(team.parentTeamId) &&
+        !affected.has(team.id)
+      ) {
+        affected.add(team.id)
+        changed = true
+      }
+    }
+  }
+  return [...affected]
+}
+
+function trainingDeleteCounts(
+  teamIds: ReadonlySet<string>,
+  members: ReadonlyArray<TrainingTeamMember>,
+  sessions: ReadonlyArray<TrainingSession>,
+  results: ReadonlyArray<TrainingResult>,
+  scheduleItems: ReadonlyArray<TrainingScheduleReference>,
+  plans: ReadonlyArray<TrainingPlanReference>
+): TrainingTeamDeleteCounts {
+  const scopedMembers = members.filter((item) => teamIds.has(item.teamId))
+  const scopedSessions = sessions.filter((item) => teamIds.has(item.teamId))
+  const scopedSessionIds = new Set(scopedSessions.map((item) => item.id))
+  const directTeamResults = results.filter((item) => teamIds.has(item.teamId))
+  const sessionLinkedResults = results.filter(
+    (item) => item.sessionId !== null && scopedSessionIds.has(item.sessionId)
+  )
+  const scopedResultIds = new Set([
+    ...directTeamResults.map((item) => item.id),
+    ...sessionLinkedResults.map((item) => item.id)
+  ])
+  return {
+    activeMemberCount: scopedMembers.filter(
+      (item) => item.status === 'active' && item.leftAt === null
+    ).length,
+    historicalMemberCount: scopedMembers.filter(
+      (item) => item.status === 'left' || item.leftAt !== null
+    ).length,
+    sessionCount: scopedSessions.length,
+    sessionLinkedResultCount: sessionLinkedResults.length,
+    independentResultCount: directTeamResults.filter((item) => item.sessionId === null).length,
+    resultCount: scopedResultIds.size,
+    planCount: plans.filter((item) => teamIds.has(item.trainingTeamId)).length,
+    scheduleLinkCount: scheduleItems.filter(
+      (item) => item.trainingTeamId && teamIds.has(item.trainingTeamId)
+    ).length
+  }
+}
+
+export function checkTrainingTeamSafeDelete(
+  teams: ReadonlyArray<TrainingTeam>,
+  members: ReadonlyArray<TrainingTeamMember>,
+  teamId: string,
+  sessions: ReadonlyArray<TrainingSession> = [],
+  results: ReadonlyArray<TrainingResult> = [],
+  scheduleItems: ReadonlyArray<TrainingScheduleReference> = [],
+  plans: ReadonlyArray<TrainingPlanReference> = []
+): TrainingTeamDeleteCheck {
+  const team = teams.find((item) => item.id === teamId)
+  if (!team || team.status === 'deleted') {
+    throw new Error('训练队不存在或已删除')
+  }
+
+  const affectedTeamIds = affectedTrainingTeamIds(teams, teamId)
+  const affectedSet = new Set(affectedTeamIds)
+  const direct = trainingDeleteCounts(
+    new Set([teamId]),
+    members,
+    sessions,
+    results,
+    scheduleItems,
+    plans
+  )
+  const total = trainingDeleteCounts(
+    affectedSet,
+    members,
+    sessions,
+    results,
+    scheduleItems,
+    plans
+  )
+  const blockingReasons: string[] = []
+  if (total.activeMemberCount > 0) {
+    blockingReasons.push(`仍有 ${total.activeMemberCount} 名当前队员`)
+  }
+  if (total.historicalMemberCount > 0) {
+    blockingReasons.push(`存在 ${total.historicalMemberCount} 条历史队员关系`)
+  }
+  if (total.sessionCount > 0) {
+    blockingReasons.push(`存在 ${total.sessionCount} 次训练记录`)
+  }
+  if (total.resultCount > 0) {
+    blockingReasons.push(`存在 ${total.resultCount} 条训练/比赛成绩`)
+  }
+  if (total.planCount > 0) {
+    blockingReasons.push(`存在 ${total.planCount} 条训练计划`)
+  }
+  if (total.scheduleLinkCount > 0) {
+    blockingReasons.push(`存在 ${total.scheduleLinkCount} 条课表关联`)
+  }
+  const canPhysicallyDelete = blockingReasons.length === 0
+
+  return {
+    team: { ...team },
+    action: canPhysicallyDelete ? 'physical_delete' : 'archive',
+    canPhysicallyDelete,
+    blockingReasons,
+    directChildCount: teams.filter(
+      (item) => item.parentTeamId === teamId && item.status !== 'deleted'
+    ).length,
+    descendantCount: affectedTeamIds.length - 1,
+    affectedTeamIds,
+    direct,
+    total
+  }
+}
+
 export function applyTrainingTeamSafeDelete(
   teams: ReadonlyArray<TrainingTeam>,
   members: ReadonlyArray<TrainingTeamMember>,
   teamId: string,
   now: string,
   sessions: ReadonlyArray<TrainingSession> = [],
-  results: ReadonlyArray<TrainingResult> = []
-): { teams: TrainingTeam[]; members: TrainingTeamMember[] } {
-  let nextTeams = [...teams]
-  let nextMembers = [...members]
+  results: ReadonlyArray<TrainingResult> = [],
+  scheduleItems: ReadonlyArray<TrainingScheduleReference> = [],
+  plans: ReadonlyArray<TrainingPlanReference> = []
+): TrainingTeamSafeDeleteResult {
+  const check = checkTrainingTeamSafeDelete(
+    teams,
+    members,
+    teamId,
+    sessions,
+    results,
+    scheduleItems,
+    plans
+  )
+  const affectedSet = new Set(check.affectedTeamIds)
 
-  const children = nextTeams.filter((item) => item.parentTeamId === teamId && item.status !== 'deleted')
-  for (const child of children) {
-    const inner = applyTrainingTeamSafeDelete(nextTeams, nextMembers, child.id, now, sessions, results)
-    nextTeams = inner.teams
-    nextMembers = inner.members
-  }
-
-  nextMembers = leaveActiveMembershipsForTeams(nextMembers, new Set([teamId]), now)
-
-  const current = nextTeams.find((item) => item.id === teamId)
-  if (!current || current.status === 'deleted') {
-    return { teams: nextTeams, members: nextMembers }
-  }
-
-  if (
-    hasTrainingTeamIdentityRefs(
-      teamId,
-      nextTeams.filter((item) => item.id !== teamId),
-      nextMembers,
-      sessions,
-      results
-    )
-  ) {
+  if (check.action === 'physical_delete') {
     return {
-      members: nextMembers,
-      teams: nextTeams.map((item) => (item.id === teamId ? tombstoneTrainingTeam(item, now) : item))
+      action: check.action,
+      check,
+      members: members.filter((item) => !affectedSet.has(item.teamId)),
+      teams: teams.filter((item) => !affectedSet.has(item.id))
     }
   }
 
   return {
-    members: nextMembers,
-    teams: nextTeams.filter((item) => item.id !== teamId)
+    action: check.action,
+    check,
+    members: leaveActiveMembershipsForTeams(members, affectedSet, now),
+    teams: teams.map((item) =>
+      affectedSet.has(item.id) && item.status !== 'deleted'
+        ? { ...item, status: 'archived', updatedAt: now }
+        : item
+    )
   }
 }
 
@@ -691,24 +1114,13 @@ export function getTrainingTeamDeleteBlockers(
   sessions: ReadonlyArray<TrainingSession>,
   results: ReadonlyArray<TrainingResult>
 ): string[] {
-  const blockers: string[] = []
-  const childCount = teams.filter((item) => item.parentTeamId === teamId).length
-  if (childCount > 0) {
-    blockers.push(`该队伍下仍有 ${childCount} 个训练组身份，必须保留队伍记录`)
-  }
-  const memberCount = members.filter((item) => item.teamId === teamId).length
-  if (memberCount > 0) {
-    blockers.push(`该队伍存在 ${memberCount} 条队员关系记录，必须保留队伍身份`)
-  }
-  const sessionCount = sessions.filter((item) => item.teamId === teamId).length
-  if (sessionCount > 0) {
-    blockers.push(`该队伍存在 ${sessionCount} 次训练记录，必须保留队伍身份`)
-  }
-  const resultCount = results.filter((item) => item.teamId === teamId).length
-  if (resultCount > 0) {
-    blockers.push(`该队伍存在 ${resultCount} 条训练成绩，必须保留队伍身份`)
-  }
-  return blockers
+  return checkTrainingTeamSafeDelete(
+    teams,
+    members,
+    teamId,
+    sessions,
+    results
+  ).blockingReasons
 }
 
 export function getTrainingItemDeleteBlockers(itemId: string, results: ReadonlyArray<TrainingResult>): string[] {

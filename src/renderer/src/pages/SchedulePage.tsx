@@ -3,9 +3,14 @@ import LessonEditorDialog from '../components/LessonEditorDialog'
 import PageLayout, { PageHeader } from '../components/PageLayout'
 import ScheduleImportDialog from '../components/ScheduleImportDialog'
 import { isListedClass } from '@shared/class'
-import { applyScheduleBulkDelete, formatScheduleBulkDeleteConfirm } from '@shared/schedule'
+import {
+  applyScheduleBulkDelete,
+  formatScheduleBulkDeleteConfirm,
+  resolveScheduleTrainingTeamLink
+} from '@shared/schedule'
 import { useClasses } from '../context/ClassContext'
 import { useSchedule, useScheduleService } from '../context/ScheduleContext'
+import { useTraining } from '../context/TrainingContext'
 import {
   COURSE_TYPE_LABELS,
   PERIODS,
@@ -25,6 +30,7 @@ interface EditingSlot {
 export default function SchedulePage(): React.JSX.Element {
   const { items, loading, error, saveItems, restoreDefault, applyLoadedItems } = useSchedule()
   const { classes } = useClasses()
+  const training = useTraining()
   const scheduleService = useScheduleService()
   const summary = scheduleService.getWeeklySummary()
   const todayWeekday = scheduleService.getTodayOverview().weekday
@@ -226,6 +232,9 @@ export default function SchedulePage(): React.JSX.Element {
                 const boundClass = lesson?.classId
                   ? classes.find((item) => item.id === lesson.classId && isListedClass(item))
                   : undefined
+                const trainingLink = training.loading
+                  ? { label: null }
+                  : resolveScheduleTrainingTeamLink(lesson?.trainingTeamId, training.teams)
                 return (
                   <div
                     key={`${weekday}-${period}`}
@@ -240,6 +249,7 @@ export default function SchedulePage(): React.JSX.Element {
                       classLabel={
                         lesson?.classId ? (boundClass ? `${boundClass.grade} ${boundClass.className}` : '已删除班级') : null
                       }
+                      trainingTeamLabel={trainingLink.label}
                       onSelect={() => setSlot({ weekday, period })}
                       onToggle={() => {
                         if (lesson) {
@@ -308,6 +318,7 @@ function ScheduleCell({
   selecting,
   selected,
   classLabel,
+  trainingTeamLabel,
   onSelect,
   onToggle
 }: {
@@ -316,6 +327,7 @@ function ScheduleCell({
   selecting: boolean
   selected: boolean
   classLabel: string | null
+  trainingTeamLabel: string | null
   onSelect: () => void
   onToggle: () => void
 }): React.JSX.Element {
@@ -345,6 +357,7 @@ function ScheduleCell({
         <span className="lesson-team">{lesson.team}</span>
         <span className="lesson-type">{COURSE_TYPE_LABELS[lesson.courseType]}</span>
         {classLabel ? <span className="lesson-link">班：{classLabel}</span> : null}
+        {trainingTeamLabel ? <span className="lesson-link">队：{trainingTeamLabel}</span> : null}
       </label>
     )
   }
@@ -359,6 +372,7 @@ function ScheduleCell({
       <span className="lesson-team">{lesson.team}</span>
       <span className="lesson-type">{COURSE_TYPE_LABELS[lesson.courseType]}</span>
       {classLabel ? <span className="lesson-link">班：{classLabel}</span> : null}
+      {trainingTeamLabel ? <span className="lesson-link">队：{trainingTeamLabel}</span> : null}
     </button>
   )
 }

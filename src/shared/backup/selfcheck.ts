@@ -7,6 +7,12 @@ import { parseBackupManifest } from './manifest'
 import { parseZip, buildZip } from './zip'
 import { ARCHIVE_FILES_PREFIX, ARCHIVE_MANIFEST_NAME, BACKUP_FORMAT_VERSION, BUSINESS_JSON_FILES } from './types'
 import { loadJsonItemsFile, pathExists, readJsonItemsFile, writeJsonItemsAtomic } from '../persistence/jsonFile'
+import {
+  buildTrainingTeamStats,
+  type TrainingResult,
+  type TrainingSession,
+  type TrainingTeamMember
+} from '../trainingTeam'
 
 function parseAnyItems(input: unknown): unknown[] {
   if (!Array.isArray(input)) {
@@ -26,6 +32,7 @@ async function seedUserData(root: string): Promise<void> {
   await writeJsonItemsAtomic(join(root, 'resources.json'), [{ id: 'res-1', storedFileName: 'res-1.bin' }])
   await writeJsonItemsAtomic(join(root, 'training-teams.json'), [{ id: 'team-1', name: '田径队' }])
   await writeJsonItemsAtomic(join(root, 'training-members.json'), [])
+  await writeJsonItemsAtomic(join(root, 'training-plans.json'), [])
   await writeJsonItemsAtomic(join(root, 'training-sessions.json'), [])
   await writeJsonItemsAtomic(join(root, 'training-items.json'), [])
   await writeJsonItemsAtomic(join(root, 'training-results.json'), [])
@@ -457,6 +464,281 @@ export async function runBackupRestoreSelfCheckOrThrow(): Promise<string> {
       if ((await readFirstName(join(root, 'training-teams.json'))) !== '损坏包恢复前的训练队') {
         throw new Error(`非法备份恢复破坏了现有训练队：${badPath}`)
       }
+    }
+
+    await seedUserData(root)
+    const profileTeamId = 'training-team-a0240aaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const profileMemberId = 'training-member-a0240aaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const profileSessionId = 'training-session-a0240aaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const profileResultId = 'training-result-a0240aaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const profilePlanId = 'training-plan-a0240aaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const profileCancelledPlanId = 'training-plan-b0240bbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    await writeJsonItemsAtomic(join(root, 'training-teams.json'), [
+      {
+        id: profileTeamId,
+        parentTeamId: null,
+        name: 'P0档案队',
+        sport: 'track',
+        coach: '',
+        notes: '',
+        status: 'active',
+        createdAt: '2026-09-15T00:00:00.000Z',
+        updatedAt: '2026-09-15T00:00:00.000Z'
+      }
+    ])
+    await writeJsonItemsAtomic(join(root, 'training-members.json'), [
+      {
+        id: profileMemberId,
+        teamId: profileTeamId,
+        studentId: 'student-1',
+        joinedAt: '2026-09-01T00:00:00.000Z',
+        leftAt: null,
+        status: 'active',
+        nameSnapshot: '张三',
+        studentNoSnapshot: 'A01',
+        classNameSnapshot: '初一1班',
+        genderSnapshot: 'male',
+        specialty: '100米',
+        position: '',
+        trainingGroup: '短跑一组',
+        trainingNotes: '注意热身',
+        notes: '',
+        createdAt: '2026-09-01T00:00:00.000Z',
+        updatedAt: '2026-09-01T00:00:00.000Z'
+      }
+    ])
+    await writeJsonItemsAtomic(join(root, 'training-sessions.json'), [
+      {
+        id: profileSessionId,
+        teamId: profileTeamId,
+        date: '2026-09-10',
+        startTime: '16:00',
+        title: '速度课',
+        place: '田径场',
+        durationMinutes: 90,
+        notes: '',
+        teamNameSnapshot: 'P0档案队',
+        createdAt: '2026-09-10T00:00:00.000Z',
+        updatedAt: '2026-09-10T00:00:00.000Z',
+        exercises: [],
+        attendance: [],
+        planId: profilePlanId
+      }
+    ])
+    await writeJsonItemsAtomic(join(root, 'training-plans.json'), [
+      {
+        id: profilePlanId,
+        trainingTeamId: profileTeamId,
+        date: '2026-09-10',
+        title: '速度课计划',
+        goal: '提高加速能力',
+        content: '1. 热身\n2. 加速跑',
+        notes: '观察起跑',
+        status: 'completed',
+        createdAt: '2026-09-09T00:00:00.000Z',
+        updatedAt: '2026-09-10T00:00:00.000Z'
+      },
+      {
+        id: profileCancelledPlanId,
+        trainingTeamId: profileTeamId,
+        date: '2026-09-20',
+        title: '未执行力量课',
+        goal: '',
+        content: '力量循环',
+        notes: '',
+        status: 'cancelled',
+        createdAt: '2026-09-09T00:00:00.000Z',
+        updatedAt: '2026-09-16T00:00:00.000Z'
+      }
+    ])
+    await writeJsonItemsAtomic(join(root, 'training-results.json'), [
+      {
+        id: profileResultId,
+        teamId: profileTeamId,
+        studentId: 'student-1',
+        studentNameSnapshot: '张三',
+        studentNoSnapshot: 'A01',
+        classNameSnapshot: '初一1班',
+        genderSnapshot: 'male',
+        date: '2026-09-10',
+        itemId: 'training-item-builtin-run-1000m',
+        itemNameSnapshot: '1000米',
+        unitSnapshot: 's',
+        customUnitLabelSnapshot: '',
+        directionSnapshot: 'lowerBetter',
+        valueTypeSnapshot: 'time',
+        timeInputModeSnapshot: 'minutesSeconds',
+        decimalPlacesSnapshot: 1,
+        rawInput: '3.39',
+        rawValue: 219,
+        kind: 'training',
+        sessionId: profileSessionId,
+        status: 'valid',
+        note: '',
+        createdAt: '2026-09-10T00:00:00.000Z',
+        updatedAt: '2026-09-10T00:00:00.000Z'
+      }
+    ])
+    await writeJsonItemsAtomic(join(root, 'schedule.json'), [
+      {
+        id: 'w1-p8',
+        weekday: 1,
+        period: 8,
+        startTime: '16:30',
+        endTime: '18:00',
+        team: '校田径队训练',
+        courseType: 'other',
+        trainingTeamId: profileTeamId
+      }
+    ])
+    const profileArchive = join(outside, 'training-profile.gdpebak')
+    await createDataBackup(root, profileArchive, '0.24.0-selfcheck')
+    await writeJsonItemsAtomic(join(root, 'training-members.json'), [])
+    await writeJsonItemsAtomic(join(root, 'training-results.json'), [])
+    await writeJsonItemsAtomic(join(root, 'schedule.json'), [])
+    await writeJsonItemsAtomic(join(root, 'training-plans.json'), [])
+    await writeJsonItemsAtomic(join(root, 'training-sessions.json'), [])
+    await restoreDataBackup(root, profileArchive, { appVersion: '0.24.0-selfcheck' })
+    const restoredMembers = await readJsonItemsFile(join(root, 'training-members.json'), parseAnyItems)
+    const restoredMember = restoredMembers[0] as {
+      specialty?: string
+      trainingGroup?: string
+      trainingNotes?: string
+    }
+    if (restoredMember.specialty !== '100米' || restoredMember.trainingGroup !== '短跑一组') {
+      throw new Error('backup/restore 后运动员档案字段丢失')
+    }
+    if (restoredMember.trainingNotes !== '注意热身') {
+      throw new Error('backup/restore 后训练备注丢失')
+    }
+    const restoredResults = await readJsonItemsFile(join(root, 'training-results.json'), parseAnyItems)
+    const restoredResult = restoredResults[0] as { sessionId?: string | null }
+    if (restoredResult.sessionId !== profileSessionId) {
+      throw new Error('backup/restore 后 sessionId 绑定丢失')
+    }
+    const restoredSchedule = await readJsonItemsFile(join(root, 'schedule.json'), parseAnyItems)
+    if ((restoredSchedule[0] as { trainingTeamId?: string }).trainingTeamId !== profileTeamId) {
+      throw new Error('backup/restore 后课表 trainingTeamId 关联丢失')
+    }
+    const restoredPlans = await readJsonItemsFile(join(root, 'training-plans.json'), parseAnyItems)
+    const restoredCompletedPlan = restoredPlans.find((item) => (item as { id?: string }).id === profilePlanId) as {
+      trainingTeamId?: string
+      status?: string
+    }
+    const restoredCancelledPlan = restoredPlans.find(
+      (item) => (item as { id?: string }).id === profileCancelledPlanId
+    ) as { status?: string }
+    if (restoredCompletedPlan?.trainingTeamId !== profileTeamId || restoredCompletedPlan.status !== 'completed') {
+      throw new Error('backup/restore 后训练计划归属或 completed 状态丢失')
+    }
+    if (restoredCancelledPlan?.status !== 'cancelled') {
+      throw new Error('backup/restore 后已取消训练计划丢失')
+    }
+    const restoredSessions = await readJsonItemsFile(join(root, 'training-sessions.json'), parseAnyItems)
+    if ((restoredSessions[0] as { planId?: string }).planId !== profilePlanId) {
+      throw new Error('backup/restore 后 session.planId 关联丢失')
+    }
+
+    const archivedAt = '2026-09-16T00:00:00.000Z'
+    await writeJsonItemsAtomic(join(root, 'training-teams.json'), [
+      {
+        id: profileTeamId,
+        parentTeamId: null,
+        name: 'P0档案队',
+        sport: 'track',
+        coach: '',
+        notes: '',
+        status: 'archived',
+        createdAt: '2026-09-15T00:00:00.000Z',
+        updatedAt: archivedAt
+      }
+    ])
+    await writeJsonItemsAtomic(join(root, 'training-members.json'), [
+      {
+        ...(restoredMembers[0] as Record<string, unknown>),
+        status: 'left',
+        leftAt: archivedAt,
+        updatedAt: archivedAt
+      }
+    ])
+    const statsMembersBefore = await readJsonItemsFile(join(root, 'training-members.json'), parseAnyItems)
+    const statsSessionsBefore = await readJsonItemsFile(join(root, 'training-sessions.json'), parseAnyItems)
+    const statsResultsBefore = await readJsonItemsFile(join(root, 'training-results.json'), parseAnyItems)
+    const lifecycleStatsBefore = buildTrainingTeamStats(
+      profileTeamId,
+      statsMembersBefore as TrainingTeamMember[],
+      statsSessionsBefore as TrainingSession[],
+      statsResultsBefore as TrainingResult[]
+    )
+    const safeDeleteArchive = join(outside, 'training-safe-delete.gdpebak')
+    await createDataBackup(root, safeDeleteArchive, '0.24.0-selfcheck')
+    for (const fileName of [
+      'training-teams.json',
+      'training-members.json',
+      'training-sessions.json',
+      'training-results.json',
+      'training-plans.json',
+      'schedule.json'
+    ]) {
+      await writeJsonItemsAtomic(join(root, fileName), [])
+    }
+    await restoreDataBackup(root, safeDeleteArchive, { appVersion: '0.24.0-selfcheck' })
+    const lifecycleTeams = await readJsonItemsFile(join(root, 'training-teams.json'), parseAnyItems)
+    const lifecycleMembers = await readJsonItemsFile(join(root, 'training-members.json'), parseAnyItems)
+    const lifecycleSessions = await readJsonItemsFile(join(root, 'training-sessions.json'), parseAnyItems)
+    const lifecycleResults = await readJsonItemsFile(join(root, 'training-results.json'), parseAnyItems)
+    const lifecycleSchedule = await readJsonItemsFile(join(root, 'schedule.json'), parseAnyItems)
+    if ((lifecycleTeams[0] as { status?: string }).status !== 'archived') {
+      throw new Error('backup/restore 后安全删除的 archived 状态丢失')
+    }
+    if (
+      (lifecycleMembers[0] as { status?: string; leftAt?: string | null }).status !== 'left' ||
+      (lifecycleMembers[0] as { leftAt?: string | null }).leftAt !== archivedAt
+    ) {
+      throw new Error('backup/restore 后安全删除的历史队籍丢失')
+    }
+    if ((lifecycleSessions[0] as { id?: string }).id !== profileSessionId) {
+      throw new Error('backup/restore 后安全删除的训练场次丢失')
+    }
+    if (
+      (lifecycleResults[0] as { sessionId?: string | null }).sessionId !== profileSessionId
+    ) {
+      throw new Error('backup/restore 后安全删除的成绩课次关联丢失')
+    }
+    if ((lifecycleSchedule[0] as { trainingTeamId?: string }).trainingTeamId !== profileTeamId) {
+      throw new Error('backup/restore 后 archived 训练队的课表关联丢失')
+    }
+    const lifecyclePlans = await readJsonItemsFile(join(root, 'training-plans.json'), parseAnyItems)
+    const lifecycleCompleted = lifecyclePlans.find((item) => (item as { id?: string }).id === profilePlanId) as {
+      trainingTeamId?: string
+      status?: string
+    }
+    const lifecycleCancelled = lifecyclePlans.find(
+      (item) => (item as { id?: string }).id === profileCancelledPlanId
+    ) as { status?: string }
+    if (lifecycleCompleted?.trainingTeamId !== profileTeamId || lifecycleCompleted.status !== 'completed') {
+      throw new Error('backup/restore 后 archived team 的历史训练计划丢失')
+    }
+    if (lifecycleCancelled?.status !== 'cancelled') {
+      throw new Error('backup/restore 后 archived team 的已取消计划丢失')
+    }
+    if ((lifecycleSessions[0] as { planId?: string }).planId !== profilePlanId) {
+      throw new Error('backup/restore 后 archived team 的 plan → session 关联丢失')
+    }
+    const lifecycleStatsAfter = buildTrainingTeamStats(
+      profileTeamId,
+      lifecycleMembers as TrainingTeamMember[],
+      lifecycleSessions as TrainingSession[],
+      lifecycleResults as TrainingResult[]
+    )
+    if (
+      lifecycleStatsAfter.activeMemberCount !== lifecycleStatsBefore.activeMemberCount ||
+      lifecycleStatsAfter.historicalMemberCount !== lifecycleStatsBefore.historicalMemberCount ||
+      lifecycleStatsAfter.sessionCount !== lifecycleStatsBefore.sessionCount ||
+      lifecycleStatsAfter.resultCount !== lifecycleStatsBefore.resultCount ||
+      lifecycleStatsAfter.latestSessionDate !== lifecycleStatsBefore.latestSessionDate
+    ) {
+      throw new Error('backup/restore 后训练队统一统计结果不一致')
     }
 
     const leftovers = (await readdir(root)).filter(

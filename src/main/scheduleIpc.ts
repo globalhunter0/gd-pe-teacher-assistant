@@ -7,6 +7,11 @@ import {
   previewScheduleExcel
 } from './scheduleImport'
 import { loadSchedule, saveSchedule } from './scheduleStore'
+import {
+  assertScheduleTrainingTeamSelections,
+  parseScheduleItems
+} from '../shared/schedule/validate'
+import { loadTrainingTeams } from './trainingStore'
 
 export function registerScheduleIpc(): void {
   ipcMain.handle('schedule:get', async () => {
@@ -14,7 +19,13 @@ export function registerScheduleIpc(): void {
   })
 
   ipcMain.handle('schedule:save', async (_event, items: unknown) => {
-    return saveSchedule(items)
+    const submitted = parseScheduleItems(items)
+    const [current, trainingTeams] = await Promise.all([
+      loadSchedule(),
+      loadTrainingTeams()
+    ])
+    assertScheduleTrainingTeamSelections(current, submitted, trainingTeams)
+    return saveSchedule(submitted)
   })
 
   ipcMain.handle('schedule:importPick', async () => pickScheduleExcel())

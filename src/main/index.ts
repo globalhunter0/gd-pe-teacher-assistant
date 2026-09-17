@@ -23,11 +23,13 @@ import { registerUserPreferencesIpc } from './userPreferencesIpc'
 import {
   getTrainingItemFilePath,
   getTrainingMemberFilePath,
+  getTrainingPlanFilePath,
   getTrainingResultFilePath,
   getTrainingSessionFilePath,
   getTrainingTeamFilePath,
   loadTrainingItems,
   loadTrainingMembers,
+  loadTrainingPlans,
   loadTrainingResults,
   loadTrainingSessions,
   loadTrainingTeams
@@ -118,6 +120,9 @@ app.whenReady().then(() => {
   })
   void loadTrainingMembers().then((items) => {
     console.log(`[training-members] ${items.length} 条队员关系，文件：${getTrainingMemberFilePath()}`)
+  })
+  void loadTrainingPlans().then((items) => {
+    console.log(`[training-plans] ${items.length} 条训练计划，文件：${getTrainingPlanFilePath()}`)
   })
   void loadTrainingSessions().then((items) => {
     console.log(`[training-sessions] ${items.length} 次训练，文件：${getTrainingSessionFilePath()}`)

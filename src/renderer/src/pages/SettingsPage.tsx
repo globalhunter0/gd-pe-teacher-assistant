@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { APP_VERSION_DISPLAY } from '@shared/appVersion'
 import PageLayout, { PageHeader } from '../components/PageLayout'
 import { useUserPreferences } from '../context/UserPreferencesContext'
 
@@ -113,7 +114,7 @@ export default function SettingsPage(): React.JSX.Element {
           <h3>界面 / 应用信息</h3>
           <p className="settings-copy">本软件为本地优先桌面应用。当前版本不提供账号系统。</p>
           <ul>
-            <li>应用版本：0.14.0</li>
+            <li>应用版本：{APP_VERSION_DISPLAY}</li>
             <li>数据保存在本机应用目录，业务 JSON 与偏好文件分开存储。</li>
             <li>备份包格式仍为 .gdpebak。</li>
           </ul>

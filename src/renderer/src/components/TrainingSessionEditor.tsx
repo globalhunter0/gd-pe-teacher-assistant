@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { PageHeader } from './PageLayout'
+import { parseScoreInput } from '@shared/peTest'
 import {
   TRAINING_COMPLETIONS,
   TRAINING_COMPLETION_LABELS,
@@ -7,29 +8,57 @@ import {
   TRAINING_EXERCISE_KIND_LABELS,
   TRAINING_PARTICIPATIONS,
   TRAINING_PARTICIPATION_LABELS,
+  TRAINING_RESULT_KIND_LABELS,
+  classNameOf,
   createTrainingAttendanceId,
   createTrainingExerciseId,
+  createTrainingResultId,
   createTrainingSessionId,
   formatTrainingDate,
+  formatTrainingScoreWithUnit,
   type TrainingAttendance,
   type TrainingCompletion,
   type TrainingExercise,
   type TrainingExerciseKind,
+  type TrainingItem,
   type TrainingParticipation,
+  type TrainingPlan,
+  type TrainingResult,
+  type TrainingResultKind,
   type TrainingSession,
   type TrainingTeam
 } from '@shared/trainingTeam'
 import type { StudentRecord } from '@shared/student'
-import { classNameOf } from '@shared/trainingTeam'
 import type { ClassRecord } from '@shared/class'
+
+interface DraftSessionResult {
+  localId: string
+  studentId: string
+  itemId: string
+  rawInput: string
+  kind: TrainingResultKind
+  note: string
+}
 
 interface TrainingSessionEditorProps {
   team: TrainingTeam
   roster: StudentRecord[]
   classes: ClassRecord[]
+  items: TrainingItem[]
+  /** 编辑既有课次时，已绑定本 sessionId 的成绩（独立成绩不在此列） */
+  existingSessionResults?: TrainingResult[]
   record: TrainingSession | null
+  sourcePlan?: TrainingPlan | null
   onCancel: () => void
-  onSave: (session: TrainingSession) => Promise<void>
+  onSave: (session: TrainingSession, sessionResults: TrainingResult[]) => Promise<void>
+}
+
+function notesFromPlan(plan: TrainingPlan | null | undefined): string {
+  if (!plan) {
+    return ''
+  }
+  const text = [plan.goal ? `训练目标：${plan.goal}` : '', plan.notes].filter(Boolean).join('\n')
+  return text.length <= 1000 ? text : text.slice(0, 1000)
 }
 
 function emptyExercise(sortOrder: number): TrainingExercise {
@@ -50,19 +79,32 @@ export default function TrainingSessionEditor({
   team,
   roster,
   classes,
+  items,
+  existingSessionResults = [],
   record,
+  sourcePlan = null,
   onCancel,
   onSave
 }: TrainingSessionEditorProps): React.JSX.Element {
-  const [date, setDate] = useState(record?.date ?? formatTrainingDate(new Date()))
+  const [date, setDate] = useState(record?.date ?? sourcePlan?.date ?? formatTrainingDate(new Date()))
   const [startTime, setStartTime] = useState(record?.startTime ?? '')
-  const [title, setTitle] = useState(record?.title ?? '')
+  const [title, setTitle] = useState(record?.title ?? sourcePlan?.title ?? '')
   const [place, setPlace] = useState(record?.place ?? '')
   const [duration, setDuration] = useState(record?.durationMinutes != null ? String(record.durationMinutes) : '90')
-  const [notes, setNotes] = useState(record?.notes ?? '')
+  const [notes, setNotes] = useState(record?.notes ?? notesFromPlan(sourcePlan))
   const [exercises, setExercises] = useState<TrainingExercise[]>(
     record?.exercises.length
       ? record.exercises
+      : sourcePlan
+        ? sourcePlan.content
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .map((name, sortOrder) => ({
+              ...emptyExercise(sortOrder),
+              name,
+              kind: 'drill'
+            }))
       : [
           emptyExercise(0),
           { ...emptyExercise(1), name: '专项练习', kind: 'drill' },
@@ -86,8 +128,26 @@ export default function TrainingSessionEditor({
     }))
   }, [classes, record, roster])
   const [attendance, setAttendance] = useState<TrainingAttendance[]>(initialAttendance)
+  const [draftResults, setDraftResults] = useState<DraftSessionResult[]>(() =>
+    existingSessionResults.map((item) => ({
+      localId: item.id,
+      studentId: item.studentId,
+      itemId: item.itemId,
+      rawInput: item.rawInput,
+      kind: item.kind,
+      note: item.note
+    }))
+  )
+  const [testStudentId, setTestStudentId] = useState('')
+  const [testItemId, setTestItemId] = useState('')
+  const [testInput, setTestInput] = useState('')
+  const [testKind, setTestKind] = useState<TrainingResultKind>('training')
+  const [testNote, setTestNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const activeItems = items.filter((item) => item.isActive)
+  const presentRoster = attendance.filter((row) => row.participation !== 'absent')
 
   function updateAttendance(studentId: string, patch: Partial<TrainingAttendance>): void {
     setAttendance((current) => current.map((row) => (row.studentId === studentId ? { ...row, ...patch } : row)))
@@ -102,6 +162,42 @@ export default function TrainingSessionEditor({
     const [item] = next.splice(index, 1)
     next.splice(nextIndex, 0, item)
     setExercises(next.map((row, sortOrder) => ({ ...row, sortOrder })))
+  }
+
+  function handleAddSessionTest(): void {
+    if (testStudentId === '' || testItemId === '') {
+      setError('请选择当堂测试的队员和项目')
+      return
+    }
+    if (testInput.trim() === '') {
+      setError('请填写当堂测试成绩')
+      return
+    }
+    const item = items.find((entry) => entry.id === testItemId)
+    if (!item) {
+      setError('训练项目不存在')
+      return
+    }
+    try {
+      parseScoreInput(testInput, item.valueType, item.timeInputMode)
+    } catch (parseError) {
+      setError(parseError instanceof Error ? parseError.message : '成绩无法识别')
+      return
+    }
+    setDraftResults((current) => [
+      ...current,
+      {
+        localId: `draft-${createTrainingResultId()}`,
+        studentId: testStudentId,
+        itemId: testItemId,
+        rawInput: testInput.trim(),
+        kind: testKind,
+        note: testNote.trim()
+      }
+    ])
+    setTestInput('')
+    setTestNote('')
+    setError(null)
   }
 
   async function handleSave(): Promise<void> {
@@ -122,9 +218,10 @@ export default function TrainingSessionEditor({
     setSaving(true)
     setError(null)
     const now = new Date().toISOString()
+    const sessionId = record?.id ?? createTrainingSessionId()
     try {
-      await onSave({
-        id: record?.id ?? createTrainingSessionId(),
+      const session: TrainingSession = {
+        id: sessionId,
         teamId: team.id,
         date,
         startTime: startTime.trim(),
@@ -137,7 +234,51 @@ export default function TrainingSessionEditor({
         updatedAt: now,
         exercises: namedExercises.map((item, sortOrder) => ({ ...item, name: item.name.trim(), sortOrder })),
         attendance
-      })
+      }
+      if (record?.planId || sourcePlan?.id) {
+        session.planId = record?.planId ?? sourcePlan!.id
+      }
+
+      const sessionResults: TrainingResult[] = []
+      for (const draft of draftResults) {
+        const student = roster.find((entry) => entry.id === draft.studentId)
+        const attendanceRow = attendance.find((row) => row.studentId === draft.studentId)
+        const item = items.find((entry) => entry.id === draft.itemId)
+        if (!item) {
+          throw new Error('当堂测试项目不存在')
+        }
+        const rawValue = parseScoreInput(draft.rawInput, item.valueType, item.timeInputMode)
+        const existing = existingSessionResults.find((entry) => entry.id === draft.localId)
+        sessionResults.push({
+          id: existing?.id ?? createTrainingResultId(),
+          teamId: team.id,
+          studentId: draft.studentId,
+          studentNameSnapshot: student?.name ?? attendanceRow?.nameSnapshot ?? '未知',
+          studentNoSnapshot: student?.studentNo ?? attendanceRow?.studentNoSnapshot ?? '',
+          classNameSnapshot:
+            student != null ? classNameOf(classes, student.classId) : (attendanceRow?.classNameSnapshot ?? ''),
+          genderSnapshot: student?.gender ?? 'male',
+          date,
+          itemId: item.id,
+          itemNameSnapshot: item.name,
+          unitSnapshot: item.unit,
+          customUnitLabelSnapshot: item.customUnitLabel,
+          directionSnapshot: item.direction,
+          valueTypeSnapshot: item.valueType,
+          timeInputModeSnapshot: item.timeInputMode,
+          decimalPlacesSnapshot: item.decimalPlaces,
+          rawInput: draft.rawInput,
+          rawValue,
+          kind: draft.kind,
+          sessionId,
+          status: 'valid',
+          note: draft.note,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now
+        })
+      }
+
+      await onSave(session, sessionResults)
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '保存失败')
       setSaving(false)
@@ -148,8 +289,8 @@ export default function TrainingSessionEditor({
     <div className="exam-detail">
       <PageHeader
         icon="training"
-        title={record ? '编辑训练' : '开始训练'}
-        description={`${team.name}。默认全员正常参加，只改异常人员。RPE 为 0–10 主观强度，不是体检指标。`}
+        title={record ? '编辑训练' : sourcePlan ? '从计划开始训练' : '开始训练'}
+        description={`${team.name}。默认全员正常参加，只改异常人员。可在本课记录当堂测试，成绩会绑定本次训练。RPE 为 0–10 主观强度，不是体检指标。`}
         actions={
           <>
             <button type="button" className="btn" onClick={onCancel} disabled={saving}>
@@ -223,7 +364,9 @@ export default function TrainingSessionEditor({
                     value={item.kind}
                     onChange={(event) =>
                       setExercises((current) =>
-                        current.map((row) => (row.id === item.id ? { ...row, kind: event.target.value as TrainingExerciseKind } : row))
+                        current.map((row) =>
+                          row.id === item.id ? { ...row, kind: event.target.value as TrainingExerciseKind } : row
+                        )
                       )
                     }
                   >
@@ -264,7 +407,9 @@ export default function TrainingSessionEditor({
                     onChange={(event) =>
                       setExercises((current) =>
                         current.map((row) =>
-                          row.id === item.id ? { ...row, distanceM: event.target.value === '' ? null : Number(event.target.value) } : row
+                          row.id === item.id
+                            ? { ...row, distanceM: event.target.value === '' ? null : Number(event.target.value) }
+                            : row
                         )
                       )
                     }
@@ -304,7 +449,11 @@ export default function TrainingSessionEditor({
                   <button
                     type="button"
                     className="btn"
-                    onClick={() => setExercises((current) => current.filter((row) => row.id !== item.id).map((row, sortOrder) => ({ ...row, sortOrder })))}
+                    onClick={() =>
+                      setExercises((current) =>
+                        current.filter((row) => row.id !== item.id).map((row, sortOrder) => ({ ...row, sortOrder }))
+                      )
+                    }
                   >
                     删
                   </button>
@@ -315,11 +464,7 @@ export default function TrainingSessionEditor({
         </table>
       </div>
       <p>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => setExercises((current) => [...current, emptyExercise(current.length)])}
-        >
+        <button type="button" className="btn" onClick={() => setExercises((current) => [...current, emptyExercise(current.length)])}>
           新增训练内容
         </button>
       </p>
@@ -395,6 +540,108 @@ export default function TrainingSessionEditor({
                   </td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h3>当堂测试</h3>
+      <p className="exam-notes">在本课录入的成绩会绑定本次训练（sessionId）。独立成绩请到「成绩」页录入，不挂课次。</p>
+      <div className="toolbar">
+        <label className="toolbar-field">
+          队员
+          <select value={testStudentId} onChange={(event) => setTestStudentId(event.target.value)}>
+            <option value="">选择队员</option>
+            {(presentRoster.length > 0 ? presentRoster : attendance).map((row) => (
+              <option key={row.studentId} value={row.studentId}>
+                {row.nameSnapshot}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="toolbar-field">
+          项目
+          <select value={testItemId} onChange={(event) => setTestItemId(event.target.value)}>
+            <option value="">选择项目</option>
+            {activeItems.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="toolbar-field">
+          成绩
+          <input value={testInput} onChange={(event) => setTestInput(event.target.value)} placeholder="3.39 或 12.84" />
+        </label>
+        <label className="toolbar-field">
+          类型
+          <select value={testKind} onChange={(event) => setTestKind(event.target.value as TrainingResultKind)}>
+            <option value="training">{TRAINING_RESULT_KIND_LABELS.training}</option>
+            <option value="competition">{TRAINING_RESULT_KIND_LABELS.competition}</option>
+          </select>
+        </label>
+        <button type="button" className="btn" onClick={handleAddSessionTest}>
+          加入本课成绩
+        </button>
+      </div>
+      {draftResults.length === 0 ? (
+        <p className="exam-notes">本课尚未加入测试成绩。</p>
+      ) : (
+        <div className="import-preview-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>队员</th>
+                <th>项目</th>
+                <th>输入</th>
+                <th>类型</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {draftResults.map((draft) => {
+                const name =
+                  attendance.find((row) => row.studentId === draft.studentId)?.nameSnapshot ??
+                  roster.find((student) => student.id === draft.studentId)?.name ??
+                  '—'
+                const item = items.find((entry) => entry.id === draft.itemId)
+                return (
+                  <tr key={draft.localId}>
+                    <td>{name}</td>
+                    <td>{item?.name ?? '—'}</td>
+                    <td>
+                      {item
+                        ? (() => {
+                            try {
+                              const rawValue = parseScoreInput(draft.rawInput, item.valueType, item.timeInputMode)
+                              return formatTrainingScoreWithUnit({
+                                rawValue,
+                                valueTypeSnapshot: item.valueType,
+                                timeInputModeSnapshot: item.timeInputMode,
+                                decimalPlacesSnapshot: item.decimalPlaces,
+                                unitSnapshot: item.unit,
+                                customUnitLabelSnapshot: item.customUnitLabel
+                              })
+                            } catch {
+                              return draft.rawInput
+                            }
+                          })()
+                        : draft.rawInput}
+                    </td>
+                    <td>{TRAINING_RESULT_KIND_LABELS[draft.kind]}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => setDraftResults((current) => current.filter((row) => row.localId !== draft.localId))}
+                      >
+                        移除
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

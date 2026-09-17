@@ -1,6 +1,14 @@
 import { useEffect, useId, useState } from 'react'
 import { listedClassRecords } from '@shared/class'
+import {
+  resolveScheduleTrainingTeamLink
+} from '@shared/schedule'
+import {
+  isActiveTrainingTeam,
+  teamDisplayPath
+} from '@shared/trainingTeam'
 import { useClasses } from '../context/ClassContext'
+import { useTraining } from '../context/TrainingContext'
 import {
   COURSE_TYPE_LABELS,
   WEEKDAY_LABELS,
@@ -33,12 +41,18 @@ export default function LessonEditorDialog({
   const [team, setTeam] = useState(lesson?.team ?? '')
   const [courseType, setCourseType] = useState<CourseType>(lesson?.courseType ?? 'regular')
   const [classId, setClassId] = useState(lesson?.classId ?? '')
+  const [trainingTeamId, setTrainingTeamId] = useState(lesson?.trainingTeamId ?? '')
   const [startTime, setStartTime] = useState(lesson?.startTime ?? defaultTime.startTime)
   const [endTime, setEndTime] = useState(lesson?.endTime ?? defaultTime.endTime)
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const { classes } = useClasses()
+  const training = useTraining()
   const listedClasses = listedClassRecords(classes)
+  const activeTrainingTeams = training.teams.filter(isActiveTrainingTeam)
+  const currentTrainingLink = training.loading
+    ? { state: 'none' as const, label: null, team: null }
+    : resolveScheduleTrainingTeamLink(lesson?.trainingTeamId, training.teams)
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -74,8 +88,8 @@ export default function LessonEditorDialog({
       if (classId) {
         payload.classId = classId
       }
-      if (lesson?.trainingTeamId) {
-        payload.trainingTeamId = lesson.trainingTeamId
+      if (trainingTeamId) {
+        payload.trainingTeamId = trainingTeamId
       }
       await onSave(payload)
     } catch (error) {
@@ -148,7 +162,37 @@ export default function LessonEditorDialog({
               ))}
             </select>
           </label>
-          <p className="dialog-slot dialog-span">行政班用于工作台课堂记录。训练队请在「训练队」模块独立管理，不在课表中绑定。</p>
+          <label>
+            关联训练队（可选）
+            <select
+              value={trainingTeamId}
+              disabled={training.loading}
+              onChange={(event) => setTrainingTeamId(event.target.value)}
+            >
+              <option value="">不关联训练队</option>
+              {training.loading ? <option value={trainingTeamId}>正在读取训练队…</option> : null}
+              {lesson?.trainingTeamId &&
+              currentTrainingLink.state !== 'active' &&
+              !activeTrainingTeams.some((item) => item.id === lesson.trainingTeamId) ? (
+                <option value={lesson.trainingTeamId} disabled>
+                  {currentTrainingLink.label ?? '原训练队已不存在'}（当前历史关联）
+                </option>
+              ) : null}
+              {activeTrainingTeams.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {teamDisplayPath(training.teams, item)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="dialog-slot dialog-span">
+            行政班用于工作台课堂记录；训练队关联仅表示课表安排，不会自动创建训练记录、签到或成绩。
+            {currentTrainingLink.state === 'archived'
+              ? ' 当前关联队伍已归档，保留该值用于历史显示；如主动更换，只能选择启用中的队伍。'
+              : currentTrainingLink.state === 'missing'
+                ? ' 当前关联的原训练队已不存在，关联值会保留；可改为不关联或选择启用中的队伍。'
+                : ''}
+          </p>
           <label>
             开始时间
             <input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} />

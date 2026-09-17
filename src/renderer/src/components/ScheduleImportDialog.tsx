@@ -111,7 +111,7 @@ export default function ScheduleImportDialog({ onClose, onImported }: ScheduleIm
       const committed = await window.electronAPI.schedule.importCommit(sessionId, mappingDirty ? mapping : null, resolutions)
       onImported(committed.items)
       setResult(
-        `已同步课表：保留 ${committed.keep}，新增 ${committed.create}，更新 ${committed.update}，移除 ${committed.remove}`
+        `已识别普通课程 ${committed.recognized - committed.specialEventCount} 项、特殊事件 ${committed.specialEventCount} 项，跳过 ${committed.skipped} 项；已同步课表：保留 ${committed.keep}，新增 ${committed.create}，更新 ${committed.update}，移除 ${committed.remove}`
       )
       setSessionId(null)
     } catch (commitError) {
@@ -179,11 +179,43 @@ export default function ScheduleImportDialog({ onClose, onImported }: ScheduleIm
             ) : null}
 
             {preview ? (
-              <p className="import-summary">
-                {preview.mode === 'first' ? '首次导入' : '二次同步'}预览：保留 {preview.totals.keep}，新增 {preview.totals.create}
-                ，更新 {preview.totals.update}，待移除 {preview.totals.remove}，冲突 {preview.totals.conflict}
-                {preview.canCommit ? '' : `。${preview.blockingReasons.join('；')}`}
-              </p>
+              <>
+                {preview.importSummary ? (
+                  <div className="import-summary">
+                    <div>
+                      工作表：{preview.importSummary.sheetNames.join('、') || '未识别'}；
+                      表头：
+                      {preview.importSummary.headerRows
+                        .map((item) => `${item.sheetName} 第${item.rowNumber}行`)
+                        .join('、') || '未识别'}
+                    </div>
+                    <div>
+                      有效范围：
+                      {preview.importSummary.effectiveRanges
+                        .map((item) =>
+                          item.startRow && item.endRow
+                            ? `${item.sheetName} 第${item.startRow}–${item.endRow}行`
+                            : `${item.sheetName} 无有效数据行`
+                        )
+                        .join('、')}
+                      ；识别普通课程{' '}
+                      {preview.importSummary.recognizedCount - preview.importSummary.specialEventCount} 项、特殊事件{' '}
+                      {preview.importSummary.specialEventCount} 项；跳过 {preview.importSummary.skipped.length} 项。
+                    </div>
+                    {preview.importSummary.skipped.map((item) => (
+                      <div key={`${item.sheetName}-${item.excelRow}-${item.label}`}>
+                        跳过 {item.sheetName} 第{item.excelRow}行“{item.label}”：{item.reason}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <p className="import-summary">
+                  {preview.mode === 'first' ? '首次导入' : '二次同步'}预览：保留 {preview.totals.keep}，新增{' '}
+                  {preview.totals.create}，更新 {preview.totals.update}，待移除 {preview.totals.remove}，冲突{' '}
+                  {preview.totals.conflict}
+                  {preview.canCommit ? '' : `。${preview.blockingReasons.join('；')}`}
+                </p>
+              </>
             ) : null}
 
             {preview && preview.totals.remove > 0 ? (

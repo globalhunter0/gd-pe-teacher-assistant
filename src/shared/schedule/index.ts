@@ -8,9 +8,15 @@ export {
   dropMissingScheduleClassLinks,
   dropMissingScheduleTrainingTeamLinks,
   assertScheduleLinksRoundTrip,
+  assertScheduleTrainingTeamSelections,
   applyScheduleBulkDelete,
   formatScheduleBulkDeleteConfirm,
+  resolveScheduleTrainingTeamLink,
   scheduleSlotId
+} from './validate'
+export type {
+  ScheduleTrainingTeamLinkDisplay,
+  ScheduleTrainingTeamLinkState
 } from './validate'
 export { workbenchBoundClassId, workbenchListedClass, workbenchUsesTrainingTeam } from './workbench'
 export { applyScheduleSync, buildSchedulePreview, emptyScheduleResolutions } from './reconcile'

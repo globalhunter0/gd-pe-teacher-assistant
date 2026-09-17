@@ -3,7 +3,7 @@ import { listedClassRecords, type ClassRecord } from '@shared/class'
 import { countTestRecords } from '@shared/peTest'
 import { ATTENDANCE_LABELS, formatLocalDate, mapScheduleCourseType, type PeSessionPrefill } from '@shared/peSession'
 import { workbenchListedClass } from '@shared/schedule'
-import { isListedTrainingTeam } from '@shared/trainingTeam'
+import { isActiveTrainingTeam } from '@shared/trainingTeam'
 import heroSportsTech from '@assets/dashboard/hero-sports-tech.png'
 import EmptyState from '../components/EmptyState'
 import PageLayout from '../components/PageLayout'
@@ -176,7 +176,7 @@ export default function DashboardPage({
   const { teams } = useTraining()
   const { preferences } = useUserPreferences()
   const listedClasses = listedClassRecords(classes)
-  const listedTeams = teams.filter(isListedTrainingTeam)
+  const listedTeams = teams.filter(isActiveTrainingTeam)
   const pendingTestRecords = useMemo(
     () => testSessions.reduce((total, session) => total + countTestRecords(session.records).pending, 0),
     [testSessions]

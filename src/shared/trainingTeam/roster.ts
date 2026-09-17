@@ -69,8 +69,17 @@ export function isListedTrainingTeam(team: Pick<TrainingTeam, 'status'>): boolea
   return team.status !== 'deleted'
 }
 
+/** 默认训练列表：仅正常启用队伍。停用队进入「已停用」区，不等于 deleted。 */
+export function isActiveTrainingTeam(team: Pick<TrainingTeam, 'status'>): boolean {
+  return team.status === 'active'
+}
+
+export function isArchivedTrainingTeam(team: Pick<TrainingTeam, 'status'>): boolean {
+  return team.status === 'archived'
+}
+
 export function canMutateTrainingTeam(team: Pick<TrainingTeam, 'status'>): boolean {
-  return team.status !== 'deleted'
+  return team.status === 'active'
 }
 
 export function teamDisplayPath(teams: ReadonlyArray<TrainingTeam>, team: TrainingTeam): string {
@@ -90,7 +99,21 @@ export function needsAttention(row: TrainingAttendance): boolean {
 }
 
 export function latestSessionForTeam(sessions: ReadonlyArray<TrainingSession>, teamId: string): TrainingSession | null {
-  return sessions.find((item) => item.teamId === teamId) ?? null
+  const scoped = sessions.filter((item) => item.teamId === teamId)
+  if (scoped.length === 0) {
+    return null
+  }
+  return scoped.slice().sort((a, b) => {
+    const byDate = b.date.localeCompare(a.date)
+    if (byDate !== 0) {
+      return byDate
+    }
+    const byStart = (b.startTime || '').localeCompare(a.startTime || '')
+    if (byStart !== 0) {
+      return byStart
+    }
+    return b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id)
+  })[0]
 }
 
 export function attentionFromLatestSession(session: TrainingSession | null): TrainingAttendance[] {

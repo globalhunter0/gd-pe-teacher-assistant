@@ -17,6 +17,8 @@ export type TrainingResultKind = 'training' | 'competition'
 
 export type TrainingResultStatus = 'valid' | 'invalid'
 
+export type TrainingPlanStatus = 'planned' | 'completed' | 'cancelled'
+
 export interface TrainingTeam {
   id: string
   parentTeamId: string | null
@@ -40,6 +42,14 @@ export interface TrainingTeamMember {
   studentNoSnapshot: string
   classNameSnapshot: string
   genderSnapshot: StudentGender
+  /** 专项/主项，如 100米、后卫；旧数据可缺省为空串 */
+  specialty: string
+  /** 场上位置（球类等）；不适用时留空 */
+  position: string
+  /** 队内训练分组标签，如「短跑一组」；可与 parentTeamId 子组并存 */
+  trainingGroup: string
+  /** 训练备注（非医疗诊断）；旧数据可缺省为空串 */
+  trainingNotes: string
   notes: string
   createdAt: string
   updatedAt: string
@@ -83,6 +93,21 @@ export interface TrainingSession {
   updatedAt: string
   exercises: TrainingExercise[]
   attendance: TrainingAttendance[]
+  /** 来源训练计划；旧数据和独立创建训练可缺省 */
+  planId?: string
+}
+
+export interface TrainingPlan {
+  id: string
+  trainingTeamId: string
+  date: string
+  title: string
+  goal: string
+  content: string
+  notes: string
+  status: TrainingPlanStatus
+  createdAt: string
+  updatedAt: string
 }
 
 export interface TrainingItem {
@@ -129,6 +154,43 @@ export interface TrainingResult {
   updatedAt: string
 }
 
+export type TrainingTeamDeleteAction = 'physical_delete' | 'archive'
+
+export interface TrainingTeamDeleteCounts {
+  activeMemberCount: number
+  historicalMemberCount: number
+  sessionCount: number
+  sessionLinkedResultCount: number
+  independentResultCount: number
+  resultCount: number
+  planCount: number
+  scheduleLinkCount: number
+}
+
+export interface TrainingTeamDeleteCheck {
+  team: TrainingTeam
+  action: TrainingTeamDeleteAction
+  canPhysicallyDelete: boolean
+  blockingReasons: string[]
+  directChildCount: number
+  descendantCount: number
+  affectedTeamIds: string[]
+  direct: TrainingTeamDeleteCounts
+  total: TrainingTeamDeleteCounts
+}
+
+export interface TrainingTeamSafeDeleteResult {
+  action: TrainingTeamDeleteAction
+  check: TrainingTeamDeleteCheck
+  teams: TrainingTeam[]
+  members: TrainingTeamMember[]
+}
+
+export interface TrainingPlanSessionResult {
+  plans: TrainingPlan[]
+  sessions: TrainingSession[]
+}
+
 export const TRAINING_SPORTS: TrainingSport[] = ['track', 'basketball', 'football', 'other']
 export const TRAINING_TEAM_STATUSES: TrainingTeamStatus[] = ['active', 'archived', 'deleted']
 export const TRAINING_MEMBER_STATUSES: TrainingMemberStatus[] = ['active', 'left']
@@ -150,6 +212,7 @@ export const TRAINING_EXERCISE_KINDS: TrainingExerciseKind[] = [
 ]
 export const TRAINING_RESULT_KINDS: TrainingResultKind[] = ['training', 'competition']
 export const TRAINING_RESULT_STATUSES: TrainingResultStatus[] = ['valid', 'invalid']
+export const TRAINING_PLAN_STATUSES: TrainingPlanStatus[] = ['planned', 'completed', 'cancelled']
 
 export const TRAINING_SPORT_LABELS: Record<TrainingSport, string> = {
   track: '田径',
@@ -195,4 +258,10 @@ export const TRAINING_EXERCISE_KIND_LABELS: Record<TrainingExerciseKind, string>
 export const TRAINING_RESULT_KIND_LABELS: Record<TrainingResultKind, string> = {
   training: '训练测试',
   competition: '比赛'
+}
+
+export const TRAINING_PLAN_STATUS_LABELS: Record<TrainingPlanStatus, string> = {
+  planned: '待执行',
+  completed: '已完成',
+  cancelled: '已取消'
 }
