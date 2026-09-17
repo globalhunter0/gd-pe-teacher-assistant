@@ -1,3 +1,4 @@
+import { APP_VERSION_DISPLAY } from '@shared/appVersion'
 import { NAV_ITEMS, type NavKey } from '../navigation'
 
 interface SidebarProps {
@@ -131,7 +132,7 @@ export default function Sidebar({ activeKey, onNavigate }: SidebarProps): React.
         <div>
           <p className="sidebar-brand-kicker">广东省初中</p>
           <p className="sidebar-brand-title">体育教师管理助手</p>
-          <p className="sidebar-brand-sub">v0.14.0-dev</p>
+          <p className="sidebar-brand-sub">{APP_VERSION_DISPLAY}</p>
         </div>
       </div>
 

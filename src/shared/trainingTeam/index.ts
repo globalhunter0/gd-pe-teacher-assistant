@@ -19,7 +19,6 @@ export type {
   TrainingTeamDeleteCheck,
   TrainingTeamDeleteCounts,
   TrainingTeamMember,
-  TrainingTeamPlanLifecycleResult,
   TrainingTeamSafeDeleteResult,
   TrainingTeamStatus
 } from './types'
@@ -99,6 +98,7 @@ export {
   createTrainingTeamId,
   formatTrainingDate,
   completeTrainingPlanWithSession,
+  collectTrainingReferenceIssues,
   getTrainingItemDeleteBlockers,
   getTrainingTeamDeleteBlockers,
   hasTrainingTeamIdentityRefs,

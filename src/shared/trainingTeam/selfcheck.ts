@@ -16,6 +16,7 @@ import {
   cancelPlannedTrainingPlansForTeams,
   checkTrainingTeamSafeDelete,
   collectTrainingStudentDeleteBlockers,
+  collectTrainingReferenceIssues,
   completeTrainingPlanWithSession,
   hasTrainingTeamIdentityRefs,
   linkedTrainingSessionForPlan,
@@ -925,6 +926,66 @@ export function runTrainingTeamSelfCheck(): void {
       statsAfterPlans.resultCount === 2 &&
       statsAfterPlans.latestSessionDate === '2026-09-10',
     'P0-4 统计仍然正确，训练计划不改写统一统计'
+  )
+
+  // ---- v0.24.0 P0-6 reference integrity ----
+  const consistentIssues = collectTrainingReferenceIssues({
+    teams,
+    members,
+    sessions: completed.sessions,
+    plans: completed.plans,
+    results: attributionResults.filter((item) => item.teamId === teamA || item.sessionId === planSessionId)
+  })
+  assert(consistentIssues.length === 0, `一致数据不应有引用问题：${consistentIssues.join('；')}`)
+
+  const independentIssues = collectTrainingReferenceIssues({
+    teams,
+    sessions: [loadedSession],
+    plans: []
+  })
+  assert(independentIssues.length === 0, '无 planId 的旧 TrainingSession 引用应保持正常')
+
+  const missingSessionIssues = collectTrainingReferenceIssues({
+    teams,
+    sessions: [],
+    plans: completed.plans
+  })
+  assert(
+    missingSessionIssues.some((item) => item.includes('没有关联训练记录')),
+    'completed 计划缺少关联 session 必须被检出'
+  )
+
+  const duplicateSessionIssues = collectTrainingReferenceIssues({
+    teams,
+    sessions: [
+      planSession,
+      { ...planSession, id: 'training-session-cccccccc-cccc-4ccc-8ccc-cccccccccccc' }
+    ],
+    plans: completed.plans
+  })
+  assert(
+    duplicateSessionIssues.some((item) => item.includes('多条正式训练记录')),
+    '同一 plan 多条正式 session 必须被检出'
+  )
+
+  const archivedPlannedIssues = collectTrainingReferenceIssues({
+    teams: teams.map((item) => (item.id === teamA ? { ...item, status: 'archived' as const } : item)),
+    sessions: [],
+    plans: [futurePlan]
+  })
+  assert(
+    archivedPlannedIssues.some((item) => item.includes('已停用训练队仍有待执行计划')),
+    '归档后仍残留 planned 计划必须被检出'
+  )
+
+  const orphanPlanIssues = collectTrainingReferenceIssues({
+    teams: teams.filter((item) => item.id !== teamA),
+    sessions: [],
+    plans: [futurePlan]
+  })
+  assert(
+    orphanPlanIssues.some((item) => item.includes('孤立训练计划')),
+    '删除队伍后悬空计划必须被检出'
   )
 }
 

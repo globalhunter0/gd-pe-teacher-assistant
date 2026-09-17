@@ -408,6 +408,84 @@ export function linkedTrainingSessionForPlan(
   return sessions.find((item) => item.planId === planId)
 }
 
+export function collectTrainingReferenceIssues(input: {
+  teams: ReadonlyArray<Pick<TrainingTeam, 'id' | 'status'>>
+  members?: ReadonlyArray<Pick<TrainingTeamMember, 'id' | 'teamId'>>
+  sessions?: ReadonlyArray<Pick<TrainingSession, 'id' | 'teamId' | 'planId'>>
+  plans?: ReadonlyArray<Pick<TrainingPlan, 'id' | 'trainingTeamId' | 'status'>>
+  results?: ReadonlyArray<Pick<TrainingResult, 'id' | 'teamId' | 'sessionId'>>
+  scheduleItems?: ReadonlyArray<{ trainingTeamId?: string }>
+}): string[] {
+  const issues: string[] = []
+  const teamIds = new Set(input.teams.map((item) => item.id))
+  const teamStatus = new Map(input.teams.map((item) => [item.id, item.status]))
+  const sessionIds = new Set((input.sessions ?? []).map((item) => item.id))
+  const planIds = new Set((input.plans ?? []).map((item) => item.id))
+  const sessionsByPlan = new Map<string, Array<Pick<TrainingSession, 'id' | 'teamId' | 'planId'>>>()
+
+  for (const member of input.members ?? []) {
+    if (!teamIds.has(member.teamId)) {
+      issues.push(`孤立队员引用 ${member.id}`)
+    }
+  }
+
+  for (const session of input.sessions ?? []) {
+    if (!teamIds.has(session.teamId)) {
+      issues.push(`孤立训练记录 ${session.id}`)
+    }
+    if (session.planId) {
+      if (!planIds.has(session.planId)) {
+        issues.push(`训练记录 ${session.id} 的 planId 不存在`)
+      }
+      const list = sessionsByPlan.get(session.planId) ?? []
+      list.push(session)
+      sessionsByPlan.set(session.planId, list)
+    }
+  }
+
+  for (const [planId, linked] of sessionsByPlan) {
+    if (linked.length > 1) {
+      issues.push(`训练计划 ${planId} 关联了多条正式训练记录`)
+    }
+  }
+
+  for (const plan of input.plans ?? []) {
+    if (!teamIds.has(plan.trainingTeamId)) {
+      issues.push(`孤立训练计划 ${plan.id}`)
+    }
+    const linked = sessionsByPlan.get(plan.id) ?? []
+    if (plan.status === 'completed' && linked.length === 0) {
+      issues.push(`已完成计划 ${plan.id} 没有关联训练记录`)
+    }
+    if (plan.status === 'planned' && linked.length > 0) {
+      issues.push(`待执行计划 ${plan.id} 已有关联训练记录`)
+    }
+    if (teamStatus.get(plan.trainingTeamId) === 'archived' && plan.status === 'planned') {
+      issues.push(`已停用训练队仍有待执行计划 ${plan.id}`)
+    }
+    if (linked[0] && linked[0].teamId !== plan.trainingTeamId) {
+      issues.push(`计划 ${plan.id} 与训练记录队伍不一致`)
+    }
+  }
+
+  for (const result of input.results ?? []) {
+    if (!teamIds.has(result.teamId)) {
+      issues.push(`孤立成绩 ${result.id}`)
+    }
+    if (result.sessionId && !sessionIds.has(result.sessionId)) {
+      issues.push(`成绩 ${result.id} 的 sessionId 不存在`)
+    }
+  }
+
+  for (const item of input.scheduleItems ?? []) {
+    if (item.trainingTeamId && !teamIds.has(item.trainingTeamId)) {
+      issues.push(`课表 trainingTeamId ${item.trainingTeamId} 指向不存在的训练队`)
+    }
+  }
+
+  return issues
+}
+
 export interface ParseMemberOptions {
   knownTeamIds?: ReadonlySet<string>
   knownStudentIds?: ReadonlySet<string>

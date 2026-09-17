@@ -1,3 +1,4 @@
+import { runAppVersionSelfCheckOrThrow } from '../appVersionSelfcheck'
 import { runBackupRestoreSelfCheckOrThrow } from '../backup/selfcheck'
 import { runUserPreferencesSelfCheckOrThrow } from '../userPreferences/selfcheck'
 import { runExamBatchSelfCheckOrThrow } from '../examBatch/selfcheck'
@@ -50,6 +51,7 @@ import { runNationalFitnessPhaseD1SelfCheckOrThrow } from '../peTest/phaseD1Self
 import { runPeTestBusinessClosureSelfCheckOrThrow } from '../peTest/closureSelfcheck'
 
 async function main(): Promise<void> {
+  console.log(runAppVersionSelfCheckOrThrow())
   console.log(runExamScoreEngineSelfCheckOrThrow())
   console.log(runExamTableIntegritySelfCheckOrThrow(listBuiltinExamStandards()))
   console.log(runCityScoringStandardsSelfCheckOrThrow())
