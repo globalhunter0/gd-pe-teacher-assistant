@@ -29,6 +29,8 @@ import type {
 } from '../shared/examBatch/types'
 import type {
   TrainingItem,
+  TrainingPlan,
+  TrainingPlanSessionResult,
   TrainingResult,
   TrainingSession,
   TrainingTeam,
@@ -145,10 +147,21 @@ const electronAPI = {
   trainingTeams: {
     get: (): Promise<TrainingTeam[]> => ipcRenderer.invoke('trainingTeams:get'),
     save: (items: TrainingTeam[]): Promise<TrainingTeam[]> => ipcRenderer.invoke('trainingTeams:save', items),
+    archive: (teamId: string): Promise<{ teams: TrainingTeam[]; plans: TrainingPlan[] }> =>
+      ipcRenderer.invoke('trainingTeams:archive', teamId),
     deleteCheck: (teamId: string): Promise<TrainingTeamDeleteCheck> =>
       ipcRenderer.invoke('trainingTeams:deleteCheck', teamId),
-    safeDelete: (teamId: string): Promise<TrainingTeamSafeDeleteResult> =>
+    safeDelete: (teamId: string): Promise<TrainingTeamSafeDeleteResult & { plans: TrainingPlan[] }> =>
       ipcRenderer.invoke('trainingTeams:safeDelete', teamId)
+  },
+  trainingPlans: {
+    get: (): Promise<TrainingPlan[]> => ipcRenderer.invoke('trainingPlans:get'),
+    save: (items: TrainingPlan[]): Promise<TrainingPlan[]> => ipcRenderer.invoke('trainingPlans:save', items),
+    completeWithSession: (
+      planId: string,
+      session: TrainingSession
+    ): Promise<TrainingPlanSessionResult> =>
+      ipcRenderer.invoke('trainingPlans:completeWithSession', planId, session)
   },
   trainingMembers: {
     get: (): Promise<TrainingTeamMember[]> => ipcRenderer.invoke('trainingMembers:get'),

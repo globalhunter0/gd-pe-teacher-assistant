@@ -17,6 +17,8 @@ export type TrainingResultKind = 'training' | 'competition'
 
 export type TrainingResultStatus = 'valid' | 'invalid'
 
+export type TrainingPlanStatus = 'planned' | 'completed' | 'cancelled'
+
 export interface TrainingTeam {
   id: string
   parentTeamId: string | null
@@ -91,6 +93,21 @@ export interface TrainingSession {
   updatedAt: string
   exercises: TrainingExercise[]
   attendance: TrainingAttendance[]
+  /** 来源训练计划；旧数据和独立创建训练可缺省 */
+  planId?: string
+}
+
+export interface TrainingPlan {
+  id: string
+  trainingTeamId: string
+  date: string
+  title: string
+  goal: string
+  content: string
+  notes: string
+  status: TrainingPlanStatus
+  createdAt: string
+  updatedAt: string
 }
 
 export interface TrainingItem {
@@ -146,6 +163,7 @@ export interface TrainingTeamDeleteCounts {
   sessionLinkedResultCount: number
   independentResultCount: number
   resultCount: number
+  planCount: number
   scheduleLinkCount: number
 }
 
@@ -166,6 +184,19 @@ export interface TrainingTeamSafeDeleteResult {
   check: TrainingTeamDeleteCheck
   teams: TrainingTeam[]
   members: TrainingTeamMember[]
+}
+
+export interface TrainingPlanSessionResult {
+  plans: TrainingPlan[]
+  sessions: TrainingSession[]
+}
+
+export interface TrainingTeamPlanLifecycleResult {
+  teams: TrainingTeam[]
+  members?: TrainingTeamMember[]
+  plans: TrainingPlan[]
+  action?: TrainingTeamDeleteAction
+  check?: TrainingTeamDeleteCheck
 }
 
 export const TRAINING_SPORTS: TrainingSport[] = ['track', 'basketball', 'football', 'other']
@@ -189,6 +220,7 @@ export const TRAINING_EXERCISE_KINDS: TrainingExerciseKind[] = [
 ]
 export const TRAINING_RESULT_KINDS: TrainingResultKind[] = ['training', 'competition']
 export const TRAINING_RESULT_STATUSES: TrainingResultStatus[] = ['valid', 'invalid']
+export const TRAINING_PLAN_STATUSES: TrainingPlanStatus[] = ['planned', 'completed', 'cancelled']
 
 export const TRAINING_SPORT_LABELS: Record<TrainingSport, string> = {
   track: '田径',
@@ -234,4 +266,10 @@ export const TRAINING_EXERCISE_KIND_LABELS: Record<TrainingExerciseKind, string>
 export const TRAINING_RESULT_KIND_LABELS: Record<TrainingResultKind, string> = {
   training: '训练测试',
   competition: '比赛'
+}
+
+export const TRAINING_PLAN_STATUS_LABELS: Record<TrainingPlanStatus, string> = {
+  planned: '待执行',
+  completed: '已完成',
+  cancelled: '已取消'
 }

@@ -12,16 +12,21 @@ import {
 import { mergeBuiltinTrainingItems, BUILTIN_TRAINING_ITEMS } from './builtinItems'
 import {
   applyTrainingTeamSafeDelete,
+  assertTrainingPlanChanges,
+  cancelPlannedTrainingPlansForTeams,
   checkTrainingTeamSafeDelete,
   collectTrainingStudentDeleteBlockers,
+  completeTrainingPlanWithSession,
   hasTrainingTeamIdentityRefs,
+  linkedTrainingSessionForPlan,
   parseTrainingItems,
   parseTrainingMembers,
+  parseTrainingPlans,
   parseTrainingResults,
   parseTrainingSessions,
   parseTrainingTeams
 } from './validate'
-import type { TrainingResult, TrainingSession, TrainingTeam, TrainingTeamMember } from './types'
+import type { TrainingPlan, TrainingResult, TrainingSession, TrainingTeam, TrainingTeamMember } from './types'
 import type { StudentRecord } from '../student/types'
 
 function assert(condition: unknown, message: string): void {
@@ -722,6 +727,204 @@ export function runTrainingTeamSelfCheck(): void {
       archivedStats.sessionCount === 1 &&
       archivedStats.resultCount === 2,
     'archived team 仍可读取成员、训练和成绩历史统计'
+  )
+
+  // ---- v0.24.0 P0-5 training plan → session ----
+  assert(parseTrainingPlans([]).length === 0, '旧 JSON 无 TrainingPlan 时应视为空列表')
+  assert(loadedSession.planId === undefined, '独立 TrainingSession 无 planId 仍正常')
+
+  const planId = 'training-plan-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const futurePlanId = 'training-plan-cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+  const cancelledPlanId = 'training-plan-dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  const planSessionId = 'training-session-bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  const knownTeamIds = new Set([teamA, teamB, groupA])
+  const plannedPlan: TrainingPlan = {
+    id: planId,
+    trainingTeamId: teamA,
+    date: '2026-09-16',
+    title: '篮球基础进攻',
+    goal: '提高行进间传接球稳定性',
+    content: '1. 动态热身\n2. 两人移动传接球\n3. 三人快攻',
+    notes: '重点观察无球队员跑位',
+    status: 'planned',
+    createdAt: now,
+    updatedAt: now
+  }
+  const parsedPlans = parseTrainingPlans([plannedPlan], { knownTeamIds })
+  assert(parsedPlans[0].trainingTeamId === teamA, '训练计划必须绑定 trainingTeamId')
+  assertTrainingPlanChanges([], parsedPlans, teams, [])
+
+  let archivedCreateFailed = false
+  try {
+    assertTrainingPlanChanges(
+      [],
+      parsedPlans,
+      teams.map((item) => (item.id === teamA ? { ...item, status: 'archived' as const } : item)),
+      []
+    )
+  } catch {
+    archivedCreateFailed = true
+  }
+  assert(archivedCreateFailed, 'archived team 不可新建计划')
+
+  let missingTeamFailed = false
+  try {
+    parseTrainingPlans([plannedPlan], { knownTeamIds: new Set() })
+  } catch {
+    missingTeamFailed = true
+  }
+  assert(missingTeamFailed, 'deleted/missing team 不得新建计划')
+
+  const editedPlan = {
+    ...parsedPlans[0],
+    title: '篮球基础进攻（修订）',
+    updatedAt: '2026-09-16T11:00:00.000Z'
+  }
+  assertTrainingPlanChanges(parsedPlans, [editedPlan], teams, [])
+
+  const cancelledPlan = {
+    ...parsedPlans[0],
+    status: 'cancelled' as const,
+    updatedAt: '2026-09-16T12:00:00.000Z'
+  }
+  assertTrainingPlanChanges(parsedPlans, [cancelledPlan], teams, [])
+
+  let completeViaSaveFailed = false
+  try {
+    assertTrainingPlanChanges(
+      parsedPlans,
+      [{ ...parsedPlans[0], status: 'completed' as const }],
+      teams,
+      []
+    )
+  } catch {
+    completeViaSaveFailed = true
+  }
+  assert(completeViaSaveFailed, 'planned 计划不能通过普通保存改成 completed')
+
+  const planSession: TrainingSession = {
+    ...sessionPayload,
+    id: planSessionId,
+    teamId: teamA,
+    title: plannedPlan.title,
+    notes: plannedPlan.notes,
+    planId
+  }
+  const completed = completeTrainingPlanWithSession(parsedPlans, [], planId, planSession, now)
+  assert(completed.sessions[0].teamId === teamA, '从计划创建的 session.trainingTeamId 必须正确')
+  assert(completed.sessions[0].planId === planId, '从计划创建的 session.planId 必须正确')
+  assert(completed.plans[0].status === 'completed', '保存关联 session 后计划应变 completed')
+  assert(
+    linkedTrainingSessionForPlan(completed.sessions, planId)?.id === planSessionId,
+    'completed plan 应能定位到唯一关联训练记录'
+  )
+
+  let duplicateStartFailed = false
+  try {
+    completeTrainingPlanWithSession(
+      completed.plans,
+      completed.sessions,
+      planId,
+      {
+        ...planSession,
+        id: 'training-session-cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+      },
+      now
+    )
+  } catch {
+    duplicateStartFailed = true
+  }
+  assert(duplicateStartFailed, 'completed plan 不能重复生成第二个 session')
+
+  let duplicatePlanIdFailed = false
+  try {
+    parseTrainingSessions(
+      [
+        planSession,
+        {
+          ...planSession,
+          id: 'training-session-cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+        }
+      ],
+      { knownTeamIds, knownPlanIds: new Set([planId]) }
+    )
+  } catch {
+    duplicatePlanIdFailed = true
+  }
+  assert(duplicatePlanIdFailed, '同一 planId 不能绑定两次训练记录')
+
+  const editedLinkedSession = {
+    ...completed.sessions[0],
+    title: '现场改为防守对抗',
+    notes: '根据当天情况调整'
+  }
+  assert(completed.plans[0].title === '篮球基础进攻', '修改 session 不得重写原计划内容')
+  assert(editedLinkedSession.planId === planId, '编辑 session 后 plan → session 历史关联仍保留')
+
+  let deleteCompletedFailed = false
+  try {
+    assertTrainingPlanChanges(completed.plans, [], teams, completed.sessions)
+  } catch {
+    deleteCompletedFailed = true
+  }
+  assert(deleteCompletedFailed, '已有训练记录的计划不能删除')
+
+  const leftoverCancelled: TrainingPlan = {
+    ...plannedPlan,
+    id: cancelledPlanId,
+    status: 'cancelled',
+    title: '未执行计划'
+  }
+  assertTrainingPlanChanges([leftoverCancelled], [], teams, completed.sessions)
+  assert(completed.sessions[0].id === planSessionId, '删除/取消计划不得破坏 TrainingSession')
+
+  const futurePlan: TrainingPlan = {
+    ...plannedPlan,
+    id: futurePlanId,
+    date: '2026-09-20',
+    title: '未来力量课'
+  }
+  const afterArchivePlans = cancelPlannedTrainingPlansForTeams(
+    [...completed.plans, futurePlan],
+    new Set([teamA]),
+    now
+  )
+  assert(
+    afterArchivePlans.find((item) => item.id === futurePlanId)?.status === 'cancelled',
+    '归档时未执行 planned 计划应转为 cancelled'
+  )
+  assert(
+    afterArchivePlans.find((item) => item.id === planId)?.status === 'completed',
+    '归档后历史已完成计划必须保留'
+  )
+
+  const planOnEmpty: TrainingPlan = { ...futurePlan, trainingTeamId: emptyId }
+  const planOnlyCheck = checkTrainingTeamSafeDelete(
+    [emptyTeam],
+    [],
+    emptyId,
+    [],
+    [],
+    [],
+    [planOnEmpty]
+  )
+  assert(planOnlyCheck.action === 'archive' && planOnlyCheck.total.planCount === 1, '有训练计划的空队不得物理删除')
+  assert(
+    hasTrainingTeamIdentityRefs(teamA, teams, [], [], [], [], [futurePlan]),
+    '训练计划 trainingTeamId 视为训练队身份引用'
+  )
+
+  const statsAfterPlans = buildTrainingTeamStats(
+    groupA,
+    members,
+    [olderSession, newerSession],
+    attributionResults
+  )
+  assert(
+    statsAfterPlans.sessionCount === 2 &&
+      statsAfterPlans.resultCount === 2 &&
+      statsAfterPlans.latestSessionDate === '2026-09-10',
+    'P0-4 统计仍然正确，训练计划不改写统一统计'
   )
 }
 

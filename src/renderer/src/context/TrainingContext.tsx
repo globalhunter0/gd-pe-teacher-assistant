@@ -3,10 +3,12 @@ import {
   getTrainingItemDeleteBlockers,
   parseTrainingItems,
   parseTrainingMembers,
+  parseTrainingPlans,
   parseTrainingResults,
   parseTrainingSessions,
   parseTrainingTeams,
   type TrainingItem,
+  type TrainingPlan,
   type TrainingResult,
   type TrainingSession,
   type TrainingTeam,
@@ -18,6 +20,7 @@ interface TrainingContextValue {
   teams: TrainingTeam[]
   members: TrainingTeamMember[]
   sessions: TrainingSession[]
+  plans: TrainingPlan[]
   items: TrainingItem[]
   results: TrainingResult[]
   loading: boolean
@@ -25,6 +28,7 @@ interface TrainingContextValue {
   saveTeams: (items: TrainingTeam[]) => Promise<void>
   saveMembers: (items: TrainingTeamMember[]) => Promise<void>
   saveSessions: (items: TrainingSession[]) => Promise<void>
+  savePlans: (items: TrainingPlan[]) => Promise<void>
   saveItems: (items: TrainingItem[]) => Promise<void>
   saveResults: (items: TrainingResult[]) => Promise<void>
   upsertTeam: (item: TrainingTeam) => Promise<void>
@@ -32,6 +36,9 @@ interface TrainingContextValue {
   checkDeleteTeam: (id: string) => Promise<TrainingTeamDeleteCheck>
   deleteTeam: (id: string) => Promise<'physical_delete' | 'archive'>
   upsertSession: (item: TrainingSession) => Promise<void>
+  upsertPlan: (item: TrainingPlan) => Promise<void>
+  deletePlan: (id: string) => Promise<void>
+  completePlanWithSession: (planId: string, session: TrainingSession) => Promise<void>
   upsertResult: (item: TrainingResult) => Promise<void>
   upsertItem: (item: TrainingItem) => Promise<void>
   deleteItem: (id: string) => Promise<void>
@@ -41,7 +48,7 @@ const TrainingContext = createContext<TrainingContextValue | null>(null)
 
 function trainingBridge(): Window['electronAPI'] {
   const api = window.electronAPI
-  if (!api || !api.trainingTeams || !api.trainingMembers || !api.trainingSessions || !api.trainingItems || !api.trainingResults) {
+  if (!api || !api.trainingTeams || !api.trainingPlans || !api.trainingMembers || !api.trainingSessions || !api.trainingItems || !api.trainingResults) {
     const keys = api ? Object.keys(api).join(', ') : '(无 electronAPI)'
     throw new Error(`训练队接口未加载。请完全退出应用后重新打开，不要只刷新页面。当前接口：${keys}`)
   }
@@ -52,6 +59,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
   const [teams, setTeams] = useState<TrainingTeam[]>([])
   const [members, setMembers] = useState<TrainingTeamMember[]>([])
   const [sessions, setSessions] = useState<TrainingSession[]>([])
+  const [plans, setPlans] = useState<TrainingPlan[]>([])
   const [items, setItems] = useState<TrainingItem[]>([])
   const [results, setResults] = useState<TrainingResult[]>([])
   const [loading, setLoading] = useState(true)
@@ -62,8 +70,9 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
     async function load(): Promise<void> {
       try {
         const api = trainingBridge()
-        const [nextTeams, nextMembers, nextSessions, nextItems, nextResults] = await Promise.all([
+        const [nextTeams, nextPlans, nextMembers, nextSessions, nextItems, nextResults] = await Promise.all([
           api.trainingTeams.get(),
+          api.trainingPlans.get(),
           api.trainingMembers.get(),
           api.trainingSessions.get(),
           api.trainingItems.get(),
@@ -71,6 +80,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
         ])
         if (!cancelled) {
           setTeams(nextTeams)
+          setPlans(nextPlans)
           setMembers(nextMembers)
           setSessions(nextSessions)
           setItems(nextItems)
@@ -108,6 +118,11 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
     setSessions(saved)
   }, [])
 
+  const savePlans = useCallback(async (next: TrainingPlan[]) => {
+    const saved = await trainingBridge().trainingPlans.save(parseTrainingPlans(next))
+    setPlans(saved)
+  }, [])
+
   const saveItems = useCallback(async (next: TrainingItem[]) => {
     const saved = await trainingBridge().trainingItems.save(parseTrainingItems(next))
     setItems(saved)
@@ -127,10 +142,11 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
 
   const archiveTeam = useCallback(
     async (id: string) => {
-      const now = new Date().toISOString()
-      await saveTeams(teams.map((item) => (item.id === id ? { ...item, status: 'archived', updatedAt: now } : item)))
+      const result = await trainingBridge().trainingTeams.archive(id)
+      setTeams(result.teams)
+      setPlans(result.plans)
     },
-    [saveTeams, teams]
+    []
   )
 
   const deleteTeam = useCallback(
@@ -138,6 +154,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
       const result = await trainingBridge().trainingTeams.safeDelete(id)
       setTeams(result.teams)
       setMembers(result.members)
+      setPlans(result.plans)
       return result.action
     },
     []
@@ -153,6 +170,29 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
       await saveSessions([...sessions.filter((entry) => entry.id !== item.id), item])
     },
     [saveSessions, sessions]
+  )
+
+  const upsertPlan = useCallback(
+    async (item: TrainingPlan) => {
+      await savePlans([...plans.filter((entry) => entry.id !== item.id), item])
+    },
+    [plans, savePlans]
+  )
+
+  const deletePlan = useCallback(
+    async (id: string) => {
+      await savePlans(plans.filter((item) => item.id !== id))
+    },
+    [plans, savePlans]
+  )
+
+  const completePlanWithSession = useCallback(
+    async (planId: string, session: TrainingSession) => {
+      const result = await trainingBridge().trainingPlans.completeWithSession(planId, session)
+      setPlans(result.plans)
+      setSessions(result.sessions)
+    },
+    []
   )
 
   const upsertResult = useCallback(
@@ -185,6 +225,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
       teams,
       members,
       sessions,
+      plans,
       items,
       results,
       loading,
@@ -192,6 +233,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
       saveTeams,
       saveMembers,
       saveSessions,
+      savePlans,
       saveItems,
       saveResults,
       upsertTeam,
@@ -199,6 +241,9 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
       checkDeleteTeam,
       deleteTeam,
       upsertSession,
+      upsertPlan,
+      deletePlan,
+      completePlanWithSession,
       upsertResult,
       upsertItem,
       deleteItem
@@ -207,22 +252,27 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
       archiveTeam,
       checkDeleteTeam,
       deleteItem,
+      deletePlan,
       deleteTeam,
       error,
       items,
       loading,
       members,
+      plans,
       results,
       saveItems,
       saveMembers,
       saveResults,
       saveSessions,
+      savePlans,
       saveTeams,
       sessions,
       teams,
       upsertItem,
       upsertResult,
       upsertSession,
+      upsertPlan,
+      completePlanWithSession,
       upsertTeam
     ]
   )

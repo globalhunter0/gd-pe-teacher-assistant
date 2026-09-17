@@ -7,6 +7,9 @@ import type {
   TrainingExerciseKind,
   TrainingItem,
   TrainingMemberStatus,
+  TrainingPlan,
+  TrainingPlanSessionResult,
+  TrainingPlanStatus,
   TrainingParticipation,
   TrainingCompletion,
   TrainingResult,
@@ -26,6 +29,7 @@ import {
   TRAINING_EXERCISE_KINDS,
   TRAINING_MEMBER_STATUSES,
   TRAINING_PARTICIPATIONS,
+  TRAINING_PLAN_STATUSES,
   TRAINING_RESULT_KINDS,
   TRAINING_RESULT_STATUSES,
   TRAINING_SPORTS,
@@ -40,6 +44,7 @@ const ATTENDANCE_ID = /^training-attendance-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-
 const ITEM_CUSTOM_ID = /^training-item-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const ITEM_BUILTIN_ID = /^training-item-builtin-[a-z0-9-]+$/
 const RESULT_ID = /^training-result-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const PLAN_ID = /^training-plan-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const STUDENT_ID = /^student-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
@@ -54,6 +59,10 @@ export function createTrainingMemberId(): string {
 
 export function createTrainingSessionId(): string {
   return `training-session-${crypto.randomUUID()}`
+}
+
+export function createTrainingPlanId(): string {
+  return `training-plan-${crypto.randomUUID()}`
 }
 
 export function createTrainingExerciseId(): string {
@@ -155,6 +164,10 @@ function isResultStatus(value: unknown): value is TrainingResultStatus {
   return TRAINING_RESULT_STATUSES.includes(value as TrainingResultStatus)
 }
 
+function isPlanStatus(value: unknown): value is TrainingPlanStatus {
+  return TRAINING_PLAN_STATUSES.includes(value as TrainingPlanStatus)
+}
+
 function isGender(value: unknown): value is StudentGender {
   return STUDENT_GENDERS.includes(value as StudentGender)
 }
@@ -218,6 +231,181 @@ export function parseTrainingTeams(input: unknown): TrainingTeam[] {
   }
 
   return teams.sort((a, b) => a.sport.localeCompare(b.sport) || a.name.localeCompare(b.name, 'zh-CN'))
+}
+
+export interface ParseTrainingPlanOptions {
+  knownTeamIds?: ReadonlySet<string>
+}
+
+export function parseTrainingPlans(
+  input: unknown,
+  options: ParseTrainingPlanOptions = {}
+): TrainingPlan[] {
+  if (!Array.isArray(input)) {
+    throw new Error('训练计划数据格式不正确')
+  }
+  const plans = input.map((entry) => {
+    const record = asRecord(entry, '训练计划')
+    if (typeof record.id !== 'string' || !PLAN_ID.test(record.id)) {
+      throw new Error('训练计划编号不正确')
+    }
+    if (
+      typeof record.trainingTeamId !== 'string' ||
+      !TEAM_ID.test(record.trainingTeamId)
+    ) {
+      throw new Error('训练计划所属队伍不正确')
+    }
+    if (
+      options.knownTeamIds &&
+      !options.knownTeamIds.has(record.trainingTeamId)
+    ) {
+      throw new Error('训练计划所属队伍不存在')
+    }
+    if (typeof record.date !== 'string' || !DATE_PATTERN.test(record.date)) {
+      throw new Error('训练计划日期不正确')
+    }
+    if (!isPlanStatus(record.status)) {
+      throw new Error('训练计划状态不正确')
+    }
+    if (
+      typeof record.createdAt !== 'string' ||
+      typeof record.updatedAt !== 'string'
+    ) {
+      throw new Error('训练计划时间字段不正确')
+    }
+    return {
+      id: record.id,
+      trainingTeamId: record.trainingTeamId,
+      date: record.date,
+      title: parseText(record.title, '训练主题', true, 80),
+      goal: parseText(record.goal, '训练目标', false, 1000),
+      content: parseText(record.content, '训练内容', true, 4000),
+      notes: parseText(record.notes, '训练计划备注', false, 1000),
+      status: record.status,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt
+    } satisfies TrainingPlan
+  })
+  const ids = new Set<string>()
+  for (const plan of plans) {
+    if (ids.has(plan.id)) {
+      throw new Error('训练计划编号不能重复')
+    }
+    ids.add(plan.id)
+  }
+  return plans.sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      a.createdAt.localeCompare(b.createdAt) ||
+      a.id.localeCompare(b.id)
+  )
+}
+
+export function assertTrainingPlanChanges(
+  current: ReadonlyArray<TrainingPlan>,
+  next: ReadonlyArray<TrainingPlan>,
+  teams: ReadonlyArray<TrainingTeam>,
+  sessions: ReadonlyArray<TrainingSession>
+): void {
+  const currentById = new Map(current.map((plan) => [plan.id, plan]))
+  const nextById = new Map(next.map((plan) => [plan.id, plan]))
+  const teamById = new Map(teams.map((team) => [team.id, team]))
+
+  for (const plan of next) {
+    const previous = currentById.get(plan.id)
+    const team = teamById.get(plan.trainingTeamId)
+    if (!previous) {
+      if (!team || team.status !== 'active' || plan.status !== 'planned') {
+        throw new Error('只能为启用中的训练队新建待执行计划')
+      }
+      continue
+    }
+    if (previous.trainingTeamId !== plan.trainingTeamId) {
+      throw new Error('训练计划创建后不能更换所属训练队')
+    }
+    if (previous.status === 'completed' || previous.status === 'cancelled') {
+      if (JSON.stringify(previous) !== JSON.stringify(plan)) {
+        throw new Error('已完成或已取消的训练计划不能修改')
+      }
+      continue
+    }
+    if (!team || team.status !== 'active') {
+      throw new Error('已停用训练队的待执行计划不能修改')
+    }
+    if (plan.status === 'completed') {
+      throw new Error('训练计划只能在保存关联训练记录后完成')
+    }
+    if (
+      plan.status === 'cancelled' &&
+      sessions.some((session) => session.planId === plan.id)
+    ) {
+      throw new Error('已有训练记录的计划不能取消')
+    }
+  }
+
+  for (const plan of current) {
+    if (nextById.has(plan.id)) {
+      continue
+    }
+    if (
+      plan.status === 'completed' ||
+      sessions.some((session) => session.planId === plan.id)
+    ) {
+      throw new Error('已有训练记录的计划不能删除')
+    }
+  }
+}
+
+export function cancelPlannedTrainingPlansForTeams(
+  plans: ReadonlyArray<TrainingPlan>,
+  teamIds: ReadonlySet<string>,
+  now: string
+): TrainingPlan[] {
+  return plans.map((plan) =>
+    teamIds.has(plan.trainingTeamId) && plan.status === 'planned'
+      ? { ...plan, status: 'cancelled', updatedAt: now }
+      : plan
+  )
+}
+
+export function completeTrainingPlanWithSession(
+  plans: ReadonlyArray<TrainingPlan>,
+  sessions: ReadonlyArray<TrainingSession>,
+  planId: string,
+  session: TrainingSession,
+  now: string
+): TrainingPlanSessionResult {
+  const plan = plans.find((item) => item.id === planId)
+  if (!plan) {
+    throw new Error('训练计划不存在')
+  }
+  if (plan.status !== 'planned') {
+    throw new Error('该训练计划已经完成或取消，不能重复开始训练')
+  }
+  if (sessions.some((item) => item.planId === planId)) {
+    throw new Error('该训练计划已经生成训练记录')
+  }
+  if (session.planId !== planId || session.teamId !== plan.trainingTeamId) {
+    throw new Error('训练记录与训练计划归属不一致')
+  }
+  if (sessions.some((item) => item.id === session.id)) {
+    throw new Error('训练记录编号已存在')
+  }
+  return {
+    plans: plans.map((item) =>
+      item.id === planId
+        ? { ...item, status: 'completed', updatedAt: now }
+        : item
+    ),
+    sessions: [...sessions, session]
+  }
+}
+
+export function linkedTrainingSessionForPlan(
+  sessions: ReadonlyArray<TrainingSession>,
+  planId: string
+): TrainingSession | undefined {
+  return sessions.find((item) => item.planId === planId)
 }
 
 export interface ParseMemberOptions {
@@ -355,6 +543,7 @@ function parseAttendance(value: unknown): TrainingAttendance {
 
 export interface ParseSessionOptions {
   knownTeamIds?: ReadonlySet<string>
+  knownPlanIds?: ReadonlySet<string>
 }
 
 export function parseTrainingSessions(input: unknown, options: ParseSessionOptions = {}): TrainingSession[] {
@@ -383,6 +572,16 @@ export function parseTrainingSessions(input: unknown, options: ParseSessionOptio
     if (typeof record.createdAt !== 'string' || typeof record.updatedAt !== 'string') {
       throw new Error('训练记录时间字段不正确')
     }
+    const planId =
+      record.planId === undefined || record.planId === null || record.planId === ''
+        ? undefined
+        : parseText(record.planId, '来源训练计划', true, 80)
+    if (planId && !PLAN_ID.test(planId)) {
+      throw new Error('来源训练计划编号不正确')
+    }
+    if (planId && options.knownPlanIds && !options.knownPlanIds.has(planId)) {
+      throw new Error('来源训练计划不存在')
+    }
     if (!Array.isArray(record.exercises) || !Array.isArray(record.attendance)) {
       throw new Error('训练内容或出勤名单格式不正确')
     }
@@ -395,7 +594,7 @@ export function parseTrainingSessions(input: unknown, options: ParseSessionOptio
       }
       seenStudents.add(row.studentId)
     }
-    return {
+    const session: TrainingSession = {
       id: record.id,
       teamId: record.teamId,
       date: record.date,
@@ -409,15 +608,26 @@ export function parseTrainingSessions(input: unknown, options: ParseSessionOptio
       updatedAt: record.updatedAt,
       exercises,
       attendance
-    } satisfies TrainingSession
+    }
+    if (planId) {
+      session.planId = planId
+    }
+    return session
   })
 
   const ids = new Set<string>()
+  const usedPlanIds = new Set<string>()
   for (const session of sessions) {
     if (ids.has(session.id)) {
       throw new Error('训练记录编号不能重复')
     }
     ids.add(session.id)
+    if (session.planId) {
+      if (usedPlanIds.has(session.planId)) {
+        throw new Error('同一训练计划不能关联多次训练记录')
+      }
+      usedPlanIds.add(session.planId)
+    }
   }
 
   return sessions.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
@@ -621,14 +831,16 @@ export function hasTrainingTeamIdentityRefs(
   members: ReadonlyArray<Pick<TrainingTeamMember, 'teamId'>>,
   sessions: ReadonlyArray<Pick<TrainingSession, 'teamId'>>,
   results: ReadonlyArray<Pick<TrainingResult, 'teamId'>>,
-  scheduleItems: ReadonlyArray<TrainingScheduleReference> = []
+  scheduleItems: ReadonlyArray<TrainingScheduleReference> = [],
+  plans: ReadonlyArray<TrainingPlanReference> = []
 ): boolean {
   return (
     teams.some((item) => item.parentTeamId === teamId) ||
     members.some((item) => item.teamId === teamId) ||
     sessions.some((item) => item.teamId === teamId) ||
     results.some((item) => item.teamId === teamId) ||
-    scheduleItems.some((item) => item.trainingTeamId === teamId)
+    scheduleItems.some((item) => item.trainingTeamId === teamId) ||
+    plans.some((item) => item.trainingTeamId === teamId)
   )
 }
 
@@ -647,6 +859,7 @@ export function tombstoneTrainingTeam(team: TrainingTeam, now: string): Training
 }
 
 type TrainingScheduleReference = { trainingTeamId?: string }
+type TrainingPlanReference = { trainingTeamId: string }
 
 function affectedTrainingTeamIds(teams: ReadonlyArray<TrainingTeam>, teamId: string): string[] {
   const affected = new Set<string>([teamId])
@@ -673,7 +886,8 @@ function trainingDeleteCounts(
   members: ReadonlyArray<TrainingTeamMember>,
   sessions: ReadonlyArray<TrainingSession>,
   results: ReadonlyArray<TrainingResult>,
-  scheduleItems: ReadonlyArray<TrainingScheduleReference>
+  scheduleItems: ReadonlyArray<TrainingScheduleReference>,
+  plans: ReadonlyArray<TrainingPlanReference>
 ): TrainingTeamDeleteCounts {
   const scopedMembers = members.filter((item) => teamIds.has(item.teamId))
   const scopedSessions = sessions.filter((item) => teamIds.has(item.teamId))
@@ -697,6 +911,7 @@ function trainingDeleteCounts(
     sessionLinkedResultCount: sessionLinkedResults.length,
     independentResultCount: directTeamResults.filter((item) => item.sessionId === null).length,
     resultCount: scopedResultIds.size,
+    planCount: plans.filter((item) => teamIds.has(item.trainingTeamId)).length,
     scheduleLinkCount: scheduleItems.filter(
       (item) => item.trainingTeamId && teamIds.has(item.trainingTeamId)
     ).length
@@ -709,7 +924,8 @@ export function checkTrainingTeamSafeDelete(
   teamId: string,
   sessions: ReadonlyArray<TrainingSession> = [],
   results: ReadonlyArray<TrainingResult> = [],
-  scheduleItems: ReadonlyArray<TrainingScheduleReference> = []
+  scheduleItems: ReadonlyArray<TrainingScheduleReference> = [],
+  plans: ReadonlyArray<TrainingPlanReference> = []
 ): TrainingTeamDeleteCheck {
   const team = teams.find((item) => item.id === teamId)
   if (!team || team.status === 'deleted') {
@@ -723,14 +939,16 @@ export function checkTrainingTeamSafeDelete(
     members,
     sessions,
     results,
-    scheduleItems
+    scheduleItems,
+    plans
   )
   const total = trainingDeleteCounts(
     affectedSet,
     members,
     sessions,
     results,
-    scheduleItems
+    scheduleItems,
+    plans
   )
   const blockingReasons: string[] = []
   if (total.activeMemberCount > 0) {
@@ -744,6 +962,9 @@ export function checkTrainingTeamSafeDelete(
   }
   if (total.resultCount > 0) {
     blockingReasons.push(`存在 ${total.resultCount} 条训练/比赛成绩`)
+  }
+  if (total.planCount > 0) {
+    blockingReasons.push(`存在 ${total.planCount} 条训练计划`)
   }
   if (total.scheduleLinkCount > 0) {
     blockingReasons.push(`存在 ${total.scheduleLinkCount} 条课表关联`)
@@ -772,7 +993,8 @@ export function applyTrainingTeamSafeDelete(
   now: string,
   sessions: ReadonlyArray<TrainingSession> = [],
   results: ReadonlyArray<TrainingResult> = [],
-  scheduleItems: ReadonlyArray<TrainingScheduleReference> = []
+  scheduleItems: ReadonlyArray<TrainingScheduleReference> = [],
+  plans: ReadonlyArray<TrainingPlanReference> = []
 ): TrainingTeamSafeDeleteResult {
   const check = checkTrainingTeamSafeDelete(
     teams,
@@ -780,7 +1002,8 @@ export function applyTrainingTeamSafeDelete(
     teamId,
     sessions,
     results,
-    scheduleItems
+    scheduleItems,
+    plans
   )
   const affectedSet = new Set(check.affectedTeamIds)
 

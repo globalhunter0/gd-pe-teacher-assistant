@@ -23,6 +23,7 @@ import {
   TRAINING_MEMBER_STATUS_LABELS,
   TRAINING_PARTICIPATION_LABELS,
   TRAINING_RESULT_KIND_LABELS,
+  TRAINING_PLAN_STATUS_LABELS,
   TRAINING_SPORT_LABELS,
   TRAINING_TEAM_STATUS_LABELS,
   buildTrainingTeamStats,
@@ -47,12 +48,14 @@ import {
   isListedTrainingTeam,
   latestResult,
   latestSessionForTeam,
+  linkedTrainingSessionForPlan,
   personalBest,
   summarizeTeam,
   teamDisplayPath,
   trainingResultsForTeam,
   validResultsForStudentItem,
   type TrainingItem,
+  type TrainingPlan,
   type TrainingResult,
   type TrainingResultKind,
   type TrainingSession,
@@ -62,6 +65,7 @@ import {
 } from '@shared/trainingTeam'
 import AthleteDetailPanel from '../components/AthleteDetailPanel'
 import MemberProfileDialog from '../components/MemberProfileDialog'
+import TrainingPlanDialog from '../components/TrainingPlanDialog'
 import TrainingSessionEditor from '../components/TrainingSessionEditor'
 import TrainingTeamDialog from '../components/TrainingTeamDialog'
 import { useClasses } from '../context/ClassContext'
@@ -69,7 +73,7 @@ import { useStudents } from '../context/StudentContext'
 import { useTraining } from '../context/TrainingContext'
 
 const LAST_TEAM_KEY = 'gd-pe-last-training-team-id'
-type HomeTab = 'home' | 'members' | 'sessions' | 'results' | 'stats'
+type HomeTab = 'home' | 'plans' | 'members' | 'sessions' | 'results' | 'stats'
 
 function rememberTeam(id: string): void {
   try {
@@ -101,6 +105,7 @@ function trainingTeamDeleteConfirmText(check: TrainingTeamDeleteCheck): string {
     `当前队员：${total.activeMemberCount} 名`,
     `已退出/历史队员：${total.historicalMemberCount} 名`,
     `训练场次：${total.sessionCount} 次`,
+    `训练计划：${total.planCount} 条`,
     `成绩：${total.resultCount} 条（其中绑定训练课 ${total.sessionLinkedResultCount} 条，独立成绩 ${total.independentResultCount} 条）`
   ]
   if (check.descendantCount > 0) {
@@ -114,10 +119,26 @@ function trainingTeamDeleteConfirmText(check: TrainingTeamDeleteCheck): string {
   } else {
     lines.push(
       `保护原因：${check.blockingReasons.join('；')}。`,
-      '为保护历史数据，本操作只会停用/归档相关队伍，并结束当前队籍；不会删除成员历史、训练场次或成绩，也不会破坏 sessionId 关联。'
+      '为保护历史数据，本操作只会停用/归档相关队伍，并结束当前队籍；不会删除成员历史、训练场次、训练计划或成绩，也不会破坏 sessionId 关联。'
     )
   }
   return lines.join('\n')
+}
+
+function planHorizonLabel(date: string, today: string): string {
+  if (date === today) {
+    return '今天'
+  }
+  const todayDate = new Date(`${today}T00:00:00`)
+  const weekday = todayDate.getDay()
+  const monday = new Date(todayDate)
+  monday.setDate(todayDate.getDate() + (weekday === 0 ? -6 : 1 - weekday))
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  if (date >= formatTrainingDate(monday) && date <= formatTrainingDate(sunday)) {
+    return '本周'
+  }
+  return date > today ? '未来' : '历史'
 }
 
 export default function TrainingTeamsPage({
@@ -135,6 +156,8 @@ export default function TrainingTeamsPage({
   const [selectedId, setSelectedId] = useState(rememberedTeamId)
   const [tab, setTab] = useState<HomeTab>('home')
   const [sessionRecord, setSessionRecord] = useState<TrainingSession | null | undefined>(undefined)
+  const [sourcePlan, setSourcePlan] = useState<TrainingPlan | null>(null)
+  const [planDialog, setPlanDialog] = useState<TrainingPlan | null | undefined>(undefined)
   const [teamDialog, setTeamDialog] = useState<{ record: TrainingTeam | null; parent: TrainingTeam | null } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<TrainingTeamDeleteCheck | null>(null)
 
@@ -146,6 +169,8 @@ export default function TrainingTeamsPage({
     rememberTeam(openTeamId)
     setTab('home')
     setSessionRecord(startSessionOnOpen ? null : undefined)
+    setSourcePlan(null)
+    setPlanDialog(undefined)
     onOpenTeamConsumed?.()
   }, [openTeamId, startSessionOnOpen, onOpenTeamConsumed])
   const [memberQuery, setMemberQuery] = useState('')
@@ -190,6 +215,8 @@ export default function TrainingTeamsPage({
     setSelectedId(id)
     setTab('home')
     setSessionRecord(undefined)
+    setSourcePlan(null)
+    setPlanDialog(undefined)
     setActionError(null)
   }
 
@@ -254,11 +281,16 @@ export default function TrainingTeamsPage({
       setActionError('该训练队已停用或已删除，不能再保存训练')
       return
     }
-    await training.upsertSession(session)
+    if (session.planId && !sessionRecord?.id) {
+      await training.completePlanWithSession(session.planId, session)
+    } else {
+      await training.upsertSession(session)
+    }
     const retained = training.results.filter((item) => item.sessionId !== session.id)
     await training.saveResults([...retained, ...sessionResults])
     setSessionRecord(undefined)
-    setTab('sessions')
+    setSourcePlan(null)
+    setTab(session.planId ? 'plans' : 'sessions')
     setMessage(
       sessionResults.length > 0
         ? `训练已保存，并绑定 ${sessionResults.length} 条当堂测试成绩。`
@@ -325,6 +357,74 @@ export default function TrainingTeamsPage({
     }
   }
 
+  async function handleSavePlan(plan: TrainingPlan): Promise<void> {
+    await training.upsertPlan(plan)
+    setPlanDialog(undefined)
+    setTab('plans')
+    setMessage(planDialog ? '训练计划已更新' : '训练计划已保存')
+    setActionError(null)
+  }
+
+  async function handleCancelPlan(plan: TrainingPlan): Promise<void> {
+    if (plan.status !== 'planned') {
+      setActionError('只有待执行计划可以取消')
+      return
+    }
+    if (linkedTrainingSessionForPlan(training.sessions, plan.id)) {
+      setActionError('该计划已有训练记录，不能取消')
+      return
+    }
+    if (!window.confirm(`确定取消「${plan.title}」？取消后不再执行，历史训练记录不会被删除。`)) {
+      return
+    }
+    await training.upsertPlan({ ...plan, status: 'cancelled', updatedAt: new Date().toISOString() })
+    setMessage('训练计划已取消')
+  }
+
+  async function handleDeletePlan(plan: TrainingPlan): Promise<void> {
+    if (plan.status === 'completed' || linkedTrainingSessionForPlan(training.sessions, plan.id)) {
+      setActionError('已有训练记录的计划不能删除')
+      return
+    }
+    if (!window.confirm(`确定删除「${plan.title}」？此操作不可撤销。`)) {
+      return
+    }
+    await training.deletePlan(plan.id)
+    setMessage('训练计划已删除')
+  }
+
+  function handleStartFromPlan(plan: TrainingPlan): void {
+    if (!selected) {
+      return
+    }
+    if (!canMutateTrainingTeam(selected)) {
+      setActionError('该训练队已停用或已删除，不能再开始训练')
+      return
+    }
+    const linked = linkedTrainingSessionForPlan(training.sessions, plan.id)
+    if (linked) {
+      setSourcePlan(null)
+      setSessionRecord(linked)
+      return
+    }
+    if (plan.status !== 'planned') {
+      setActionError('只有待执行计划可以开始训练')
+      return
+    }
+    setSourcePlan(plan)
+    setSessionRecord(null)
+  }
+
+  function handleViewPlanSession(plan: TrainingPlan): void {
+    const linked = linkedTrainingSessionForPlan(training.sessions, plan.id)
+    if (!linked) {
+      setActionError('未找到该计划对应的训练记录')
+      return
+    }
+    setSourcePlan(null)
+    setSessionRecord(linked)
+  }
+
   async function handleAddCustomItem(): Promise<void> {
     const name = customItemName.trim()
     if (name === '') {
@@ -379,7 +479,11 @@ export default function TrainingTeamsPage({
           items={training.items}
           existingSessionResults={existingSessionResults}
           record={sessionRecord}
-          onCancel={() => setSessionRecord(undefined)}
+          sourcePlan={sessionRecord ? null : sourcePlan}
+          onCancel={() => {
+            setSessionRecord(undefined)
+            setSourcePlan(null)
+          }}
           onSave={handleSaveSession}
         />
       </PageLayout>
@@ -533,22 +637,40 @@ export default function TrainingTeamsPage({
                   setActionError('该训练队已停用或已删除，不能再开始训练')
                   return
                 }
+                setSourcePlan(null)
                 setSessionRecord(null)
               }}
               onEditSession={(session) => {
-                if (!canMutateTrainingTeam(selected)) {
-                  setActionError('该训练队已停用或已删除，不能再编辑训练')
-                  return
-                }
+                setSourcePlan(null)
                 setSessionRecord(session)
               }}
+              onCreatePlan={() => {
+                if (!canMutateTrainingTeam(selected)) {
+                  setActionError('该训练队已停用或已删除，不能再新建训练计划')
+                  return
+                }
+                setPlanDialog(null)
+              }}
+              onEditPlan={(plan) => {
+                if (!canMutateTrainingTeam(selected) || plan.status !== 'planned') {
+                  setActionError('只有启用中训练队的待执行计划可以编辑')
+                  return
+                }
+                setPlanDialog(plan)
+              }}
+              onCancelPlan={(plan) => void handleCancelPlan(plan)}
+              onDeletePlan={(plan) => void handleDeletePlan(plan)}
+              onStartPlan={handleStartFromPlan}
+              onViewPlanSession={handleViewPlanSession}
               onAddGroup={() => setTeamDialog({ record: null, parent: selected.parentTeamId ? listedTeams.find((item) => item.id === selected.parentTeamId) ?? null : selected })}
               onEditTeam={() => setTeamDialog({ record: selected, parent: null })}
               onJoin={handleJoin}
               onLeave={(member) => void handleLeave(member)}
               onOpenAthlete={(member) => setAthleteMemberId(member.id)}
               onEditAthlete={(member) => setProfileMember(member)}
-              onArchive={() => void training.archiveTeam(selected.id).then(() => setMessage('已停用。历史训练和成绩仍保留。'))}
+              onArchive={() =>
+                void training.archiveTeam(selected.id).then(() => setMessage('已停用。未执行计划已取消，历史训练、计划和成绩仍保留。'))
+              }
               onDelete={() => {
                 setActionError(null)
                 void training
@@ -619,6 +741,15 @@ export default function TrainingTeamsPage({
         />
       ) : null}
 
+      {planDialog !== undefined && selected ? (
+        <TrainingPlanDialog
+          trainingTeamId={selected.id}
+          record={planDialog}
+          onClose={() => setPlanDialog(undefined)}
+          onSave={handleSavePlan}
+        />
+      ) : null}
+
       {pendingDelete ? (
         <div className="dialog-backdrop" onMouseDown={() => setPendingDelete(null)}>
           <div className="dialog" role="dialog" onMouseDown={(event) => event.stopPropagation()}>
@@ -647,7 +778,7 @@ export default function TrainingTeamsPage({
                         setMessage(
                           action === 'physical_delete'
                             ? '空训练队已永久删除。'
-                            : '训练队已安全停用；队员、训练场次、成绩和课次关联均已保留。'
+                            : '训练队已安全停用；队员、训练场次、训练计划和成绩均已保留，未执行计划已取消。'
                         )
                       } catch (deleteError) {
                         setActionError(deleteError instanceof Error ? deleteError.message : '无法删除')
@@ -678,6 +809,12 @@ function TeamWorkspace({
   setShowLeftMembers,
   onStartTraining,
   onEditSession,
+  onCreatePlan,
+  onEditPlan,
+  onCancelPlan,
+  onDeletePlan,
+  onStartPlan,
+  onViewPlanSession,
   onAddGroup,
   onEditTeam,
   onJoin,
@@ -722,6 +859,12 @@ function TeamWorkspace({
   setShowLeftMembers: (value: boolean) => void
   onStartTraining: () => void
   onEditSession: (session: TrainingSession) => void
+  onCreatePlan: () => void
+  onEditPlan: (plan: TrainingPlan) => void
+  onCancelPlan: (plan: TrainingPlan) => void
+  onDeletePlan: (plan: TrainingPlan) => void
+  onStartPlan: (plan: TrainingPlan) => void
+  onViewPlanSession: (plan: TrainingPlan) => void
   onAddGroup: () => void
   onEditTeam: () => void
   onJoin: (student: StudentRecord) => void
@@ -765,6 +908,22 @@ function TeamWorkspace({
     training.results
   )
   const latest = latestSessionForTeam(training.sessions, team.id)
+  const today = formatTrainingDate(new Date())
+  const teamPlans = training.plans
+    .filter((item) => item.trainingTeamId === team.id)
+    .slice()
+    .sort((a, b) => {
+      const aPlanned = a.status === 'planned' ? 0 : 1
+      const bPlanned = b.status === 'planned' ? 0 : 1
+      if (aPlanned !== bPlanned) {
+        return aPlanned - bPlanned
+      }
+      if (a.status === 'planned') {
+        return a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt)
+      }
+      return b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)
+    })
+  const canEditPlans = canMutateTrainingTeam(team)
   const teamResults = trainingResultsForTeam(
     team.id,
     training.sessions,
@@ -824,9 +983,19 @@ function TeamWorkspace({
       </div>
 
       <div className="toolbar">
-        {(['home', 'members', 'sessions', 'results', 'stats'] as const).map((item) => (
+        {(['home', 'plans', 'members', 'sessions', 'results', 'stats'] as const).map((item) => (
           <button key={item} type="button" className={tab === item ? 'btn btn-primary' : 'btn'} onClick={() => onTab(item)}>
-            {item === 'home' ? '主页' : item === 'members' ? '队员' : item === 'sessions' ? '训练记录' : item === 'results' ? '成绩' : '统计'}
+            {item === 'home'
+              ? '主页'
+              : item === 'plans'
+                ? '训练计划'
+                : item === 'members'
+                  ? '队员'
+                  : item === 'sessions'
+                    ? '训练记录'
+                    : item === 'results'
+                      ? '成绩'
+                      : '统计'}
           </button>
         ))}
       </div>
@@ -861,6 +1030,84 @@ function TeamWorkspace({
             <p className="stat-hint">{latest ? latest.title : '还没有训练记录'}</p>
           </article>
         </div>
+      ) : null}
+
+      {tab === 'plans' ? (
+        <>
+          <div className="toolbar">
+            {canEditPlans ? (
+              <button type="button" className="btn btn-primary" onClick={onCreatePlan}>
+                新建计划
+              </button>
+            ) : (
+              <p className="exam-notes">该训练队已停用，仅可查看历史训练计划，不能再新增未来计划。</p>
+            )}
+          </div>
+          {teamPlans.length === 0 ? (
+            <TechEmptyState
+              title="还没有训练计划"
+              description="先写下今天或本周要练什么，再从计划一键开始训练。"
+              kind="training"
+            />
+          ) : (
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>训练日期</th>
+                    <th>范围</th>
+                    <th>训练主题</th>
+                    <th>训练目标</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamPlans.map((plan) => {
+                    const linked = linkedTrainingSessionForPlan(training.sessions, plan.id)
+                    return (
+                      <tr key={plan.id}>
+                        <td>{plan.date}</td>
+                        <td>{planHorizonLabel(plan.date, today)}</td>
+                        <td>{plan.title}</td>
+                        <td className="data-table-notes">{plan.goal || '—'}</td>
+                        <td>{TRAINING_PLAN_STATUS_LABELS[plan.status]}</td>
+                        <td>
+                          {linked ? (
+                            <button type="button" className="btn btn-small" onClick={() => onViewPlanSession(plan)}>
+                              查看训练记录
+                            </button>
+                          ) : null}
+                          {!linked && plan.status === 'planned' && canEditPlans ? (
+                            <>
+                              <button type="button" className="btn btn-small btn-primary" onClick={() => onStartPlan(plan)}>
+                                开始训练
+                              </button>
+                              <button type="button" className="btn btn-small" onClick={() => onEditPlan(plan)}>
+                                编辑
+                              </button>
+                              <button type="button" className="btn btn-small" onClick={() => onCancelPlan(plan)}>
+                                取消
+                              </button>
+                              <button type="button" className="btn btn-small" onClick={() => onDeletePlan(plan)}>
+                                删除
+                              </button>
+                            </>
+                          ) : null}
+                          {!linked && plan.status === 'cancelled' && canEditPlans ? (
+                            <button type="button" className="btn btn-small" onClick={() => onDeletePlan(plan)}>
+                              删除
+                            </button>
+                          ) : null}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       ) : null}
 
       {tab === 'members' ? (

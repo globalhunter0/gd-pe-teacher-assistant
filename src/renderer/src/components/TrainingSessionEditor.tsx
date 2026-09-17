@@ -22,6 +22,7 @@ import {
   type TrainingExerciseKind,
   type TrainingItem,
   type TrainingParticipation,
+  type TrainingPlan,
   type TrainingResult,
   type TrainingResultKind,
   type TrainingSession,
@@ -47,8 +48,17 @@ interface TrainingSessionEditorProps {
   /** 编辑既有课次时，已绑定本 sessionId 的成绩（独立成绩不在此列） */
   existingSessionResults?: TrainingResult[]
   record: TrainingSession | null
+  sourcePlan?: TrainingPlan | null
   onCancel: () => void
   onSave: (session: TrainingSession, sessionResults: TrainingResult[]) => Promise<void>
+}
+
+function notesFromPlan(plan: TrainingPlan | null | undefined): string {
+  if (!plan) {
+    return ''
+  }
+  const text = [plan.goal ? `训练目标：${plan.goal}` : '', plan.notes].filter(Boolean).join('\n')
+  return text.length <= 1000 ? text : text.slice(0, 1000)
 }
 
 function emptyExercise(sortOrder: number): TrainingExercise {
@@ -72,18 +82,29 @@ export default function TrainingSessionEditor({
   items,
   existingSessionResults = [],
   record,
+  sourcePlan = null,
   onCancel,
   onSave
 }: TrainingSessionEditorProps): React.JSX.Element {
-  const [date, setDate] = useState(record?.date ?? formatTrainingDate(new Date()))
+  const [date, setDate] = useState(record?.date ?? sourcePlan?.date ?? formatTrainingDate(new Date()))
   const [startTime, setStartTime] = useState(record?.startTime ?? '')
-  const [title, setTitle] = useState(record?.title ?? '')
+  const [title, setTitle] = useState(record?.title ?? sourcePlan?.title ?? '')
   const [place, setPlace] = useState(record?.place ?? '')
   const [duration, setDuration] = useState(record?.durationMinutes != null ? String(record.durationMinutes) : '90')
-  const [notes, setNotes] = useState(record?.notes ?? '')
+  const [notes, setNotes] = useState(record?.notes ?? notesFromPlan(sourcePlan))
   const [exercises, setExercises] = useState<TrainingExercise[]>(
     record?.exercises.length
       ? record.exercises
+      : sourcePlan
+        ? sourcePlan.content
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .map((name, sortOrder) => ({
+              ...emptyExercise(sortOrder),
+              name,
+              kind: 'drill'
+            }))
       : [
           emptyExercise(0),
           { ...emptyExercise(1), name: '专项练习', kind: 'drill' },
@@ -214,6 +235,9 @@ export default function TrainingSessionEditor({
         exercises: namedExercises.map((item, sortOrder) => ({ ...item, name: item.name.trim(), sortOrder })),
         attendance
       }
+      if (record?.planId || sourcePlan?.id) {
+        session.planId = record?.planId ?? sourcePlan!.id
+      }
 
       const sessionResults: TrainingResult[] = []
       for (const draft of draftResults) {
@@ -265,7 +289,7 @@ export default function TrainingSessionEditor({
     <div className="exam-detail">
       <PageHeader
         icon="training"
-        title={record ? '编辑训练' : '开始训练'}
+        title={record ? '编辑训练' : sourcePlan ? '从计划开始训练' : '开始训练'}
         description={`${team.name}。默认全员正常参加，只改异常人员。可在本课记录当堂测试，成绩会绑定本次训练。RPE 为 0–10 主观强度，不是体检指标。`}
         actions={
           <>

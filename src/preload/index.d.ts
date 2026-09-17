@@ -32,6 +32,8 @@ import type {
 } from '../shared/examBatch/peTestImport/types'
 import type {
   TrainingItem,
+  TrainingPlan,
+  TrainingPlanSessionResult,
   TrainingResult,
   TrainingSession,
   TrainingTeam,
@@ -137,8 +139,14 @@ export interface ElectronAPI {
   trainingTeams: {
     get: () => Promise<TrainingTeam[]>
     save: (items: TrainingTeam[]) => Promise<TrainingTeam[]>
+    archive: (teamId: string) => Promise<{ teams: TrainingTeam[]; plans: TrainingPlan[] }>
     deleteCheck: (teamId: string) => Promise<TrainingTeamDeleteCheck>
-    safeDelete: (teamId: string) => Promise<TrainingTeamSafeDeleteResult>
+    safeDelete: (teamId: string) => Promise<TrainingTeamSafeDeleteResult & { plans: TrainingPlan[] }>
+  }
+  trainingPlans: {
+    get: () => Promise<TrainingPlan[]>
+    save: (items: TrainingPlan[]) => Promise<TrainingPlan[]>
+    completeWithSession: (planId: string, session: TrainingSession) => Promise<TrainingPlanSessionResult>
   }
   trainingMembers: {
     get: () => Promise<TrainingTeamMember[]>

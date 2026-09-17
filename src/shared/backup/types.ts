@@ -15,6 +15,7 @@ export const BUSINESS_JSON_FILES = [
   'resources.json',
   'training-teams.json',
   'training-members.json',
+  'training-plans.json',
   'training-sessions.json',
   'training-items.json',
   'training-results.json'

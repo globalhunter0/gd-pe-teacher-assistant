@@ -32,6 +32,7 @@ async function seedUserData(root: string): Promise<void> {
   await writeJsonItemsAtomic(join(root, 'resources.json'), [{ id: 'res-1', storedFileName: 'res-1.bin' }])
   await writeJsonItemsAtomic(join(root, 'training-teams.json'), [{ id: 'team-1', name: '田径队' }])
   await writeJsonItemsAtomic(join(root, 'training-members.json'), [])
+  await writeJsonItemsAtomic(join(root, 'training-plans.json'), [])
   await writeJsonItemsAtomic(join(root, 'training-sessions.json'), [])
   await writeJsonItemsAtomic(join(root, 'training-items.json'), [])
   await writeJsonItemsAtomic(join(root, 'training-results.json'), [])
@@ -470,6 +471,8 @@ export async function runBackupRestoreSelfCheckOrThrow(): Promise<string> {
     const profileMemberId = 'training-member-a0240aaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
     const profileSessionId = 'training-session-a0240aaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
     const profileResultId = 'training-result-a0240aaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const profilePlanId = 'training-plan-a0240aaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const profileCancelledPlanId = 'training-plan-b0240bbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
     await writeJsonItemsAtomic(join(root, 'training-teams.json'), [
       {
         id: profileTeamId,
@@ -518,7 +521,34 @@ export async function runBackupRestoreSelfCheckOrThrow(): Promise<string> {
         createdAt: '2026-09-10T00:00:00.000Z',
         updatedAt: '2026-09-10T00:00:00.000Z',
         exercises: [],
-        attendance: []
+        attendance: [],
+        planId: profilePlanId
+      }
+    ])
+    await writeJsonItemsAtomic(join(root, 'training-plans.json'), [
+      {
+        id: profilePlanId,
+        trainingTeamId: profileTeamId,
+        date: '2026-09-10',
+        title: '速度课计划',
+        goal: '提高加速能力',
+        content: '1. 热身\n2. 加速跑',
+        notes: '观察起跑',
+        status: 'completed',
+        createdAt: '2026-09-09T00:00:00.000Z',
+        updatedAt: '2026-09-10T00:00:00.000Z'
+      },
+      {
+        id: profileCancelledPlanId,
+        trainingTeamId: profileTeamId,
+        date: '2026-09-20',
+        title: '未执行力量课',
+        goal: '',
+        content: '力量循环',
+        notes: '',
+        status: 'cancelled',
+        createdAt: '2026-09-09T00:00:00.000Z',
+        updatedAt: '2026-09-16T00:00:00.000Z'
       }
     ])
     await writeJsonItemsAtomic(join(root, 'training-results.json'), [
@@ -566,6 +596,8 @@ export async function runBackupRestoreSelfCheckOrThrow(): Promise<string> {
     await writeJsonItemsAtomic(join(root, 'training-members.json'), [])
     await writeJsonItemsAtomic(join(root, 'training-results.json'), [])
     await writeJsonItemsAtomic(join(root, 'schedule.json'), [])
+    await writeJsonItemsAtomic(join(root, 'training-plans.json'), [])
+    await writeJsonItemsAtomic(join(root, 'training-sessions.json'), [])
     await restoreDataBackup(root, profileArchive, { appVersion: '0.24.0-selfcheck' })
     const restoredMembers = await readJsonItemsFile(join(root, 'training-members.json'), parseAnyItems)
     const restoredMember = restoredMembers[0] as {
@@ -587,6 +619,24 @@ export async function runBackupRestoreSelfCheckOrThrow(): Promise<string> {
     const restoredSchedule = await readJsonItemsFile(join(root, 'schedule.json'), parseAnyItems)
     if ((restoredSchedule[0] as { trainingTeamId?: string }).trainingTeamId !== profileTeamId) {
       throw new Error('backup/restore 后课表 trainingTeamId 关联丢失')
+    }
+    const restoredPlans = await readJsonItemsFile(join(root, 'training-plans.json'), parseAnyItems)
+    const restoredCompletedPlan = restoredPlans.find((item) => (item as { id?: string }).id === profilePlanId) as {
+      trainingTeamId?: string
+      status?: string
+    }
+    const restoredCancelledPlan = restoredPlans.find(
+      (item) => (item as { id?: string }).id === profileCancelledPlanId
+    ) as { status?: string }
+    if (restoredCompletedPlan?.trainingTeamId !== profileTeamId || restoredCompletedPlan.status !== 'completed') {
+      throw new Error('backup/restore 后训练计划归属或 completed 状态丢失')
+    }
+    if (restoredCancelledPlan?.status !== 'cancelled') {
+      throw new Error('backup/restore 后已取消训练计划丢失')
+    }
+    const restoredSessions = await readJsonItemsFile(join(root, 'training-sessions.json'), parseAnyItems)
+    if ((restoredSessions[0] as { planId?: string }).planId !== profilePlanId) {
+      throw new Error('backup/restore 后 session.planId 关联丢失')
     }
 
     const archivedAt = '2026-09-16T00:00:00.000Z'
@@ -627,6 +677,7 @@ export async function runBackupRestoreSelfCheckOrThrow(): Promise<string> {
       'training-members.json',
       'training-sessions.json',
       'training-results.json',
+      'training-plans.json',
       'schedule.json'
     ]) {
       await writeJsonItemsAtomic(join(root, fileName), [])
@@ -656,6 +707,23 @@ export async function runBackupRestoreSelfCheckOrThrow(): Promise<string> {
     }
     if ((lifecycleSchedule[0] as { trainingTeamId?: string }).trainingTeamId !== profileTeamId) {
       throw new Error('backup/restore 后 archived 训练队的课表关联丢失')
+    }
+    const lifecyclePlans = await readJsonItemsFile(join(root, 'training-plans.json'), parseAnyItems)
+    const lifecycleCompleted = lifecyclePlans.find((item) => (item as { id?: string }).id === profilePlanId) as {
+      trainingTeamId?: string
+      status?: string
+    }
+    const lifecycleCancelled = lifecyclePlans.find(
+      (item) => (item as { id?: string }).id === profileCancelledPlanId
+    ) as { status?: string }
+    if (lifecycleCompleted?.trainingTeamId !== profileTeamId || lifecycleCompleted.status !== 'completed') {
+      throw new Error('backup/restore 后 archived team 的历史训练计划丢失')
+    }
+    if (lifecycleCancelled?.status !== 'cancelled') {
+      throw new Error('backup/restore 后 archived team 的已取消计划丢失')
+    }
+    if ((lifecycleSessions[0] as { planId?: string }).planId !== profilePlanId) {
+      throw new Error('backup/restore 后 archived team 的 plan → session 关联丢失')
     }
     const lifecycleStatsAfter = buildTrainingTeamStats(
       profileTeamId,

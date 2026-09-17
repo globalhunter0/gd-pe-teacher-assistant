@@ -2,11 +2,19 @@ import { mergeBuiltinTrainingItems } from '../shared/trainingTeam/builtinItems'
 import {
   parseTrainingItems,
   parseTrainingMembers,
+  parseTrainingPlans,
   parseTrainingResults,
   parseTrainingSessions,
   parseTrainingTeams
 } from '../shared/trainingTeam/validate'
-import type { TrainingItem, TrainingResult, TrainingSession, TrainingTeam, TrainingTeamMember } from '../shared/trainingTeam/types'
+import type {
+  TrainingItem,
+  TrainingPlan,
+  TrainingResult,
+  TrainingSession,
+  TrainingTeam,
+  TrainingTeamMember
+} from '../shared/trainingTeam/types'
 import { loadUserJsonItems, saveUserJsonItems, userJsonPath } from './userJsonFile'
 
 export function getTrainingTeamFilePath(): string {
@@ -19,6 +27,10 @@ export function getTrainingMemberFilePath(): string {
 
 export function getTrainingSessionFilePath(): string {
   return userJsonPath('training-sessions.json')
+}
+
+export function getTrainingPlanFilePath(): string {
+  return userJsonPath('training-plans.json')
 }
 
 export function getTrainingItemFilePath(): string {
@@ -52,18 +64,51 @@ export async function saveTrainingMembers(input: unknown, knownStudentIds: Reado
   return saveUserJsonItems('training-members.json', items)
 }
 
-export async function loadTrainingSessions(): Promise<TrainingSession[]> {
+export async function loadTrainingPlans(): Promise<TrainingPlan[]> {
   const teams = await loadTrainingTeams()
   return loadUserJsonItems(
+    'training-plans.json',
+    (input) =>
+      parseTrainingPlans(input, {
+        knownTeamIds: new Set(teams.map((item) => item.id))
+      }),
+    '训练计划'
+  )
+}
+
+export async function saveTrainingPlans(input: unknown): Promise<TrainingPlan[]> {
+  const teams = await loadTrainingTeams()
+  const plans = parseTrainingPlans(input, {
+    knownTeamIds: new Set(teams.map((item) => item.id))
+  })
+  return saveUserJsonItems('training-plans.json', plans)
+}
+
+export async function loadTrainingSessions(): Promise<TrainingSession[]> {
+  const [teams, plans] = await Promise.all([
+    loadTrainingTeams(),
+    loadTrainingPlans()
+  ])
+  return loadUserJsonItems(
     'training-sessions.json',
-    (input) => parseTrainingSessions(input, { knownTeamIds: new Set(teams.map((item) => item.id)) }),
+    (input) =>
+      parseTrainingSessions(input, {
+        knownTeamIds: new Set(teams.map((item) => item.id)),
+        knownPlanIds: new Set(plans.map((item) => item.id))
+      }),
     '训练记录'
   )
 }
 
 export async function saveTrainingSessions(input: unknown): Promise<TrainingSession[]> {
-  const teams = await loadTrainingTeams()
-  const items = parseTrainingSessions(input, { knownTeamIds: new Set(teams.map((item) => item.id)) })
+  const [teams, plans] = await Promise.all([
+    loadTrainingTeams(),
+    loadTrainingPlans()
+  ])
+  const items = parseTrainingSessions(input, {
+    knownTeamIds: new Set(teams.map((item) => item.id)),
+    knownPlanIds: new Set(plans.map((item) => item.id))
+  })
   return saveUserJsonItems('training-sessions.json', items)
 }
 
