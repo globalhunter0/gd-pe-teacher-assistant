@@ -30,6 +30,7 @@ export default function App(): React.JSX.Element {
   const [activeKey, setActiveKey] = useState<NavKey>('dashboard')
   const [peTestTab, setPeTestTab] = useState<PeTestCenterTab>(PE_TEST_CENTER_DEFAULT_TAB)
   const [pePrefill, setPePrefill] = useState<PeSessionPrefill | null>(null)
+  const [openPeSessionId, setOpenPeSessionId] = useState<string | null>(null)
   const [openTestSessionId, setOpenTestSessionId] = useState<string | null>(null)
   const [openTestEditorTab, setOpenTestEditorTab] = useState<'edit' | 'analysis'>('edit')
   const [statsStudentId, setStatsStudentId] = useState<string | null>(null)
@@ -75,7 +76,13 @@ export default function App(): React.JSX.Element {
                         {activeKey === 'dashboard' ? (
                           <DashboardPage
                             onStartRecord={(prefill) => {
+                              setOpenPeSessionId(null)
                               setPePrefill(prefill)
+                              setActiveKey('lessons')
+                            }}
+                            onOpenSession={(sessionId) => {
+                              setPePrefill(null)
+                              setOpenPeSessionId(sessionId)
                               setActiveKey('lessons')
                             }}
                             onOpenStudents={(classId) => {
@@ -105,7 +112,12 @@ export default function App(): React.JSX.Element {
                             }}
                           />
                         ) : activeKey === 'lessons' ? (
-                          <PeLessonRecordsPage prefill={pePrefill} onPrefillConsumed={() => setPePrefill(null)} />
+                          <PeLessonRecordsPage
+                            prefill={pePrefill}
+                            onPrefillConsumed={() => setPePrefill(null)}
+                            openSessionId={openPeSessionId}
+                            onOpenSessionConsumed={() => setOpenPeSessionId(null)}
+                          />
                         ) : activeKey === 'plans' ? (
                           <TeachingPlansPage context={planContext} />
                         ) : activeKey === 'resources' ? (

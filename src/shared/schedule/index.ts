@@ -18,7 +18,14 @@ export type {
   ScheduleTrainingTeamLinkDisplay,
   ScheduleTrainingTeamLinkState
 } from './validate'
-export { workbenchBoundClassId, workbenchListedClass, workbenchUsesTrainingTeam } from './workbench'
+export {
+  workbenchBoundClassId,
+  workbenchClockStatus,
+  workbenchListedClass,
+  workbenchUsesTrainingTeam,
+  WORKBENCH_CLOCK_LABELS
+} from './workbench'
+export type { WorkbenchClockStatus } from './workbench'
 export { applyScheduleSync, buildSchedulePreview, emptyScheduleResolutions } from './reconcile'
 export type {
   IncomingScheduleRow,

@@ -1020,6 +1020,14 @@ textarea {
   color: #607080;
 }
 
+.badge-unrecorded {
+  box-shadow: inset 0 0 0 1px rgba(196, 90, 26, 0.28);
+}
+
+.badge-recorded {
+  box-shadow: inset 0 0 0 1px rgba(20, 122, 79, 0.2);
+}
+
 .quick-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1095,6 +1103,23 @@ textarea {
 .recent-list li:last-child,
 .overview-list li:last-child {
   border-bottom: 0;
+}
+
+.recent-item {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.recent-item:hover .recent-title {
+  color: #147a4f;
 }
 
 .recent-title {

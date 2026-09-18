@@ -14,7 +14,8 @@ import {
   PE_LESSON_TYPE_LABELS,
   PE_LESSON_TYPES,
   countAttendance,
-  findDuplicateSession,
+  findExistingPeSession,
+  findPeSessionById,
   formatLocalDate,
   type PEClassSession,
   type PeLessonType,
@@ -24,11 +25,15 @@ import {
 interface PeLessonRecordsPageProps {
   prefill: PeSessionPrefill | null
   onPrefillConsumed: () => void
+  openSessionId: string | null
+  onOpenSessionConsumed: () => void
 }
 
 export default function PeLessonRecordsPage({
   prefill,
-  onPrefillConsumed
+  onPrefillConsumed,
+  openSessionId,
+  onOpenSessionConsumed
 }: PeLessonRecordsPageProps): React.JSX.Element {
   const { classes } = useClasses()
   const listedClasses = listedClassRecords(classes)
@@ -50,6 +55,7 @@ export default function PeLessonRecordsPage({
   const [topic, setTopic] = useState('')
   const [prefillClassId, setPrefillClassId] = useState(listedClasses[0]?.id ?? '')
   const handledPrefillKey = useRef<string | null>(null)
+  const handledOpenId = useRef<string | null>(null)
 
   const classFilterOptions = useMemo(() => {
     const keys = Array.from(new Set(sessions.map((item) => `${item.gradeSnapshot} ${item.classNameSnapshot}`)))
@@ -116,6 +122,31 @@ export default function PeLessonRecordsPage({
     setActionError(null)
   }, [prefill, classes, loading])
 
+  useEffect(() => {
+    if (!openSessionId) {
+      handledOpenId.current = null
+      return
+    }
+    if (loading) {
+      return
+    }
+    if (handledOpenId.current === openSessionId) {
+      return
+    }
+    handledOpenId.current = openSessionId
+
+    const existing = findPeSessionById(sessions, openSessionId)
+    onOpenSessionConsumed()
+    setCreateOpen(false)
+    setPrefillOpen(false)
+    if (existing) {
+      setEditing(existing)
+      setActionError(null)
+      return
+    }
+    setActionError('要打开的课堂记录不存在或已删除')
+  }, [openSessionId, loading, sessions, onOpenSessionConsumed])
+
   function activeStudentsOf(targetClassId: string) {
     return students.filter((item) => item.classId === targetClassId && item.status === 'active')
   }
@@ -161,12 +192,17 @@ export default function PeLessonRecordsPage({
       return
     }
 
-    const existing = findDuplicateSession(sessions, targetClassId, options.date, options.period)
-    if (existing && 'records' in existing) {
+    const existing = findExistingPeSession(sessions, {
+      classId: targetClassId,
+      date: options.date,
+      period: options.period,
+      scheduleLessonId: options.scheduleLessonId
+    })
+    if (existing) {
       setCreateOpen(false)
       setPrefillOpen(false)
       onPrefillConsumed()
-      setEditing(existing as PEClassSession)
+      setEditing(existing)
       setActionError(`该班级 ${options.date} 第${options.period}节已有课堂记录，已打开已有记录。`)
       return
     }
@@ -194,9 +230,9 @@ export default function PeLessonRecordsPage({
 
   async function handleManualCreate(): Promise<void> {
     setDuplicateHint(null)
-    const existing = findDuplicateSession(sessions, classId, date, period)
-    if (existing && 'records' in existing) {
-      setDuplicateHint(existing as PEClassSession)
+    const existing = findExistingPeSession(sessions, { classId, date, period })
+    if (existing) {
+      setDuplicateHint(existing)
       return
     }
 
@@ -296,7 +332,7 @@ export default function PeLessonRecordsPage({
         <TechEmptyState
           kind="lessons"
           title="还没有课堂记录"
-          description="可从工作台今日课程点击“开始记录”，或在这里新建补课、临时课。"
+          description="可从工作台今日课程点击“开始课堂”，或在这里新建补课、临时课。"
           actionLabel="新建课堂记录"
           onAction={openCreate}
         />
