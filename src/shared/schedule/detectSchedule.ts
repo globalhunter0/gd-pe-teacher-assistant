@@ -10,6 +10,7 @@ import type {
   ScheduleImportSummary
 } from './importTypes'
 import { getDefaultSlotTime } from './periodTimes'
+import { isScheduleSpecialEventText } from './specialEvent'
 import type { CourseType, Period, Weekday } from './types'
 
 const HEADER_SCAN_ROWS = 20
@@ -383,7 +384,7 @@ function isFooterOrNote(cells: string[]): boolean {
 }
 
 function isSpecialEventText(text: string): boolean {
-  return /升旗|仪式|大课间|课间操|值班|教研|会议|活动/.test(text)
+  return isScheduleSpecialEventText(text)
 }
 
 export function extractScheduleWorkbook(

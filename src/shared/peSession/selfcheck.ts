@@ -2,6 +2,11 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseScheduleItems, scheduleSlotId, workbenchClockStatus } from '../schedule'
+import {
+  resolveScheduleClassroomEligibility,
+  shouldShowScheduleUnboundHint
+} from '../schedule/classroomEligibility'
+import { isScheduleSpecialEventText } from '../schedule/specialEvent'
 import { DEFAULT_SCHEDULE } from '../schedule/defaultSchedule'
 import type { ScheduleItem } from '../schedule/types'
 import type { PEClassSession, PEStudentRecord, PeLessonType } from './types'
@@ -224,6 +229,64 @@ export function runPeSessionWorkbenchSelfCheckOrThrow(): string {
     '原有 class+date+period 防重必须仍有效'
   )
 
+  const listedClasses = [{ id: CLASS_A, status: 'active' as const }]
+  const todayEligible = resolveScheduleClassroomEligibility(lesson, {
+    cellWeekday: 1,
+    todayWeekday: 1,
+    classes: listedClasses
+  })
+  assert(todayEligible.eligible, '今天已绑定行政班的体育课应允许开始课堂')
+  assert(resolveWorkbenchLessonRecord([], lesson, TODAY).status === 'unrecorded', '今天课表未记录时开始课堂目标应为未记录')
+  assert(resolveWorkbenchLessonRecord([linked], lesson, TODAY).session?.id === SESSION_LINKED, '今天课表已记录时继续记录目标应与工作台一致')
+
+  const unboundLesson = todayLesson()
+  delete unboundLesson.classId
+  const unboundEligibility = resolveScheduleClassroomEligibility(unboundLesson, {
+    cellWeekday: 1,
+    todayWeekday: 1,
+    classes: listedClasses
+  })
+  assert(!unboundEligibility.eligible && unboundEligibility.reason === 'unbound', '未绑定行政班不允许开始课堂')
+  assert(shouldShowScheduleUnboundHint(unboundLesson, unboundEligibility), '未绑定行政班应提示而不是猜班级')
+
+  const trainingOnly = todayLesson()
+  delete trainingOnly.classId
+  trainingOnly.trainingTeamId = 'training-team-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+  const trainingEligibility = resolveScheduleClassroomEligibility(trainingOnly, {
+    cellWeekday: 1,
+    todayWeekday: 1,
+    classes: listedClasses
+  })
+  assert(!trainingEligibility.eligible && trainingEligibility.reason === 'training-only', '训练队课不生成行政班课堂操作')
+
+  const flagLesson = todayLesson({ team: '升旗仪式' })
+  assert(isScheduleSpecialEventText(flagLesson.team), '升旗仪式必须识别为特殊事件')
+  const specialEligibility = resolveScheduleClassroomEligibility(flagLesson, {
+    cellWeekday: 1,
+    todayWeekday: 1,
+    classes: listedClasses
+  })
+  assert(!specialEligibility.eligible && specialEligibility.reason === 'special-event', '特殊事件不生成课堂操作')
+
+  const otherDayEligibility = resolveScheduleClassroomEligibility(lesson, {
+    cellWeekday: 2,
+    todayWeekday: 1,
+    classes: listedClasses
+  })
+  assert(!otherDayEligibility.eligible && otherDayEligibility.reason === 'not-today', '非今天星期列不显示今天记录状态')
+
+  const workbenchMatch = resolveWorkbenchLessonRecord([linked], lesson, TODAY)
+  const scheduleMatch = todayEligible.eligible ? resolveWorkbenchLessonRecord([linked], lesson, TODAY) : undefined
+  assert(workbenchMatch.session?.id === scheduleMatch?.session?.id, '同一 scheduleLessonId 工作台与课表页解析结果必须一致')
+  const oldWorkbench = resolveWorkbenchLessonRecord([oldMissingLink], lesson, TODAY)
+  const oldSchedule = resolveWorkbenchLessonRecord([oldMissingLink], lesson, TODAY)
+  assert(oldWorkbench.session?.id === oldSchedule.session?.id, '旧记录 fallback 两个入口必须一致')
+  assert(
+    findExistingPeSession([linked], { classId: CLASS_A, date: TODAY, period: 3, scheduleLessonId: LESSON_ID })?.id ===
+      SESSION_LINKED,
+    '课表页开始课堂仍必须走同一套防重'
+  )
+
   const dashboard = readSrc('../renderer/src/pages/DashboardPage.tsx')
   assert(dashboard.includes('findSessionForWorkbenchLesson') || dashboard.includes('resolveWorkbenchLessonRecord'), '工作台必须用共享记录状态')
   assert(dashboard.includes('workbenchClockStatus'), '工作台必须把时间状态与记录状态分开')
@@ -232,9 +295,18 @@ export function runPeSessionWorkbenchSelfCheckOrThrow(): string {
   assert(dashboard.includes('onOpenSession'), '近期课堂记录必须可打开')
   assert(!dashboard.includes('dashboard-status.json'), '不得派生持久化工作台状态')
   assert(dashboard.includes('今天暂无课程安排'), '空课表/周末必须保持空态文案')
+  assert(dashboard.includes("onNavigate('tests')"), '待完成测试 KPI 必须跳转到体育测试页面')
+
+  const schedulePage = readSrc('../renderer/src/pages/SchedulePage.tsx')
+  assert(schedulePage.includes('resolveWorkbenchLessonRecord'), '课表页必须复用 P0-1 课堂记录状态')
+  assert(schedulePage.includes('resolveScheduleClassroomEligibility'), '课表页必须用共享资格判断')
+  assert(schedulePage.includes('findExistingPeSession') === false, '课表页不得复制防重实现')
+  assert(schedulePage.includes('开始课堂') && schedulePage.includes('继续记录'), '课表页今日课应提供开始课堂/继续记录')
+  assert(schedulePage.includes('未绑定行政班'), '未绑定行政班必须明确提示')
 
   const app = readSrc('../renderer/src/App.tsx')
   assert(app.includes('openPeSessionId'), '打开已有课堂记录必须复用现有课堂记录页')
+  assert(app.includes('SchedulePage onStartRecord') || app.includes('<SchedulePage onStartRecord'), '课表页必须接入同一套课堂导航')
   const lessonPage = readSrc('../renderer/src/pages/PeLessonRecordsPage.tsx')
   assert(lessonPage.includes('findExistingPeSession'), '创建链必须走底层防重')
   assert(lessonPage.includes('openSessionId'), '继续记录/近期记录必须打开原记录编辑界面')

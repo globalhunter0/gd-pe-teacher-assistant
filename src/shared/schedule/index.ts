@@ -26,6 +26,12 @@ export {
   WORKBENCH_CLOCK_LABELS
 } from './workbench'
 export type { WorkbenchClockStatus } from './workbench'
+export { isScheduleSpecialEventText } from './specialEvent'
+export {
+  resolveScheduleClassroomEligibility,
+  shouldShowScheduleUnboundHint
+} from './classroomEligibility'
+export type { ScheduleClassroomBlockReason, ScheduleClassroomEligibility } from './classroomEligibility'
 export { applyScheduleSync, buildSchedulePreview, emptyScheduleResolutions } from './reconcile'
 export type {
   IncomingScheduleRow,

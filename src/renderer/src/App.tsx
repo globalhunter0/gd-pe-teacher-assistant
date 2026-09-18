@@ -48,6 +48,18 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  function goToExistingLesson(sessionId: string): void {
+    setPePrefill(null)
+    setOpenPeSessionId(sessionId)
+    setActiveKey('lessons')
+  }
+
+  function goToNewLesson(prefill: PeSessionPrefill): void {
+    setOpenPeSessionId(null)
+    setPePrefill(prefill)
+    setActiveKey('lessons')
+  }
+
   useEffect(() => {
     if (activeKey === 'exams') {
       setActiveKey('tests')
@@ -75,16 +87,8 @@ export default function App(): React.JSX.Element {
                       <main className={activeKey === 'dashboard' ? 'app-content app-content--dashboard' : 'app-content app-content--workspace'}>
                         {activeKey === 'dashboard' ? (
                           <DashboardPage
-                            onStartRecord={(prefill) => {
-                              setOpenPeSessionId(null)
-                              setPePrefill(prefill)
-                              setActiveKey('lessons')
-                            }}
-                            onOpenSession={(sessionId) => {
-                              setPePrefill(null)
-                              setOpenPeSessionId(sessionId)
-                              setActiveKey('lessons')
-                            }}
+                            onStartRecord={goToNewLesson}
+                            onOpenSession={goToExistingLesson}
                             onOpenStudents={(classId) => {
                               setStudentClassId(classId)
                               setActiveKey('students')
@@ -101,7 +105,7 @@ export default function App(): React.JSX.Element {
                             onNavigate={(key) => navigate(key)}
                           />
                         ) : activeKey === 'schedule' ? (
-                          <SchedulePage />
+                          <SchedulePage onStartRecord={goToNewLesson} onOpenSession={goToExistingLesson} />
                         ) : activeKey === 'classes' || activeKey === 'students' ? (
                           <ClassStudentsPage
                             initialClassId={studentClassId}

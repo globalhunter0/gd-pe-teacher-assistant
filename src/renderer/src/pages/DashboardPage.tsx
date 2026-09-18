@@ -309,7 +309,7 @@ export default function DashboardPage({
             常规 {summary.regularCount} · 大体育课 {summary.bigCount}
           </p>
         </article>
-        <article className="kpi-card kpi-card--orange">
+        <button type="button" className="kpi-card kpi-card--orange" onClick={() => onNavigate('tests')}>
           <AccentLine />
           <span className="kpi-icon">
             <KpiIcon kind="test" />
@@ -320,7 +320,7 @@ export default function DashboardPage({
             <span>条</span>
           </p>
           <p className="kpi-hint">未录入成绩的测试记录</p>
-        </article>
+        </button>
         <article className="kpi-card kpi-card--purple">
           <AccentLine />
           <span className="kpi-icon">

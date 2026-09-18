@@ -530,6 +530,19 @@ textarea {
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
+button.kpi-card {
+  appearance: none;
+  display: block;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.kpi-card:hover {
+  filter: brightness(1.06);
+}
+
 .kpi-card::before {
   content: '';
   position: absolute;
@@ -1597,6 +1610,33 @@ textarea {
   font-size: 10px;
   color: var(--accent);
   line-height: 1.3;
+}
+
+.lesson-unbound-hint,
+.lesson-record-status {
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.lesson-unbound-hint {
+  color: #8a3d12;
+}
+
+.lesson-record-status.is-unrecorded {
+  color: #8a3d12;
+}
+
+.lesson-record-status.is-recorded {
+  color: #147a4f;
+}
+
+.lesson-class-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
 }
 
 .dialog-backdrop {
