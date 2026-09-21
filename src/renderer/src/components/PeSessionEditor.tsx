@@ -3,14 +3,20 @@ import PageLayout, { PageHeader } from './PageLayout'
 import PeQuickEntryPanel from './PeQuickEntryPanel'
 import StatusBadge from './StatusBadge'
 import {
+  ATTENDANCE_EDIT_STATUSES,
   ATTENDANCE_LABELS,
-  ATTENDANCE_STATUSES,
+  PARTICIPATION_LABELS,
+  PARTICIPATION_STATUSES,
   PERFORMANCE_TAG_LABELS,
   PERFORMANCE_TAGS,
   PE_LESSON_TYPE_LABELS,
   appendActiveStudentsToSession,
+  isAttendanceAway,
   listMissingActiveStudents,
+  resolveAttendancePresence,
+  resolveParticipationStatus,
   type AttendanceStatus,
+  type ParticipationStatus,
   type PEClassSession,
   type PEStudentRecord,
   type PerformanceTag
@@ -110,7 +116,29 @@ export default function PeSessionEditor({
   }
 
   function setStatus(id: string, attendanceStatus: AttendanceStatus): void {
-    updateRecord(id, { attendanceStatus })
+    const record = draft.records.find((item) => item.id === id)
+    if (!record) {
+      return
+    }
+    const patch: Partial<PEStudentRecord> = { attendanceStatus }
+    // 改考勤前，把旧 observer 考勤迁到参与状态，避免见习信息丢失。
+    if (record.attendanceStatus === 'observer' && record.participationStatus === undefined) {
+      patch.participationStatus = 'observer'
+    }
+    updateRecord(id, patch)
+  }
+
+  function setParticipation(id: string, participationStatus: ParticipationStatus): void {
+    const record = draft.records.find((item) => item.id === id)
+    if (!record) {
+      return
+    }
+    // 旧数据把见习写在考勤里：保存参与状态时把考勤归一为正常。
+    const patch: Partial<PEStudentRecord> = { participationStatus }
+    if (record.attendanceStatus === 'observer') {
+      patch.attendanceStatus = 'normal'
+    }
+    updateRecord(id, patch)
   }
 
   function toggleTag(id: string, tag: PerformanceTag): void {
@@ -134,9 +162,16 @@ export default function PeSessionEditor({
     setDraft((current) => ({
       ...current,
       updatedAt: now,
-      records: current.records.map((record) =>
-        selected.has(record.id) ? { ...record, attendanceStatus, updatedAt: now } : record
-      )
+      records: current.records.map((record) => {
+        if (!selected.has(record.id)) {
+          return record
+        }
+        const next: PEStudentRecord = { ...record, attendanceStatus, updatedAt: now }
+        if (record.attendanceStatus === 'observer' && record.participationStatus === undefined) {
+          next.participationStatus = 'observer'
+        }
+        return next
+      })
     }))
     setMessage(null)
   }
@@ -312,14 +347,14 @@ export default function PeSessionEditor({
       {selected.size > 0 ? (
         <div className="batch-bar">
           <span>已选 {selected.size} 人，批量设为：</span>
-          {ATTENDANCE_STATUSES.map((status) => (
+          {ATTENDANCE_EDIT_STATUSES.map((status) => (
             <button key={status} type="button" className="btn btn-small" onClick={() => applyBatch(status)}>
               {ATTENDANCE_LABELS[status]}
             </button>
           ))}
         </div>
       ) : (
-        <p className="edit-hint">默认全部正常。点选异常学生即可。勾选后可批量改考勤。</p>
+        <p className="edit-hint">默认全部正常。点选异常学生即可。勾选后可批量改考勤；参与状态单独设置。</p>
       )}
 
       <div className="data-table-wrap">
@@ -336,71 +371,95 @@ export default function PeSessionEditor({
               </th>
               <th>学号</th>
               <th>姓名</th>
-              <th>考勤状态</th>
+              <th>考勤</th>
+              <th>参与状态</th>
               <th>课堂表现</th>
               <th>备注</th>
             </tr>
           </thead>
           <tbody>
-            {records.map((record) => (
-              <tr key={record.id}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={selected.has(record.id)}
-                    onChange={() => toggleSelect(record.id)}
-                    aria-label={`选择 ${record.nameSnapshot}`}
-                  />
-                </td>
-                <td>{record.studentNoSnapshot || '—'}</td>
-                <td className="col-name">{record.nameSnapshot}</td>
-                <td>
-                  <div className="attendance-buttons">
-                    {ATTENDANCE_STATUSES.map((status) => (
-                      <button
-                        key={status}
-                        type="button"
-                        className={
-                          record.attendanceStatus === status ? 'btn btn-small btn-primary' : 'btn btn-small'
-                        }
-                        onClick={() => setStatus(record.id, status)}
-                      >
-                        {ATTENDANCE_LABELS[status]}
-                      </button>
-                    ))}
-                  </div>
-                </td>
-                <td className="col-tags">
-                  <button type="button" className="btn btn-small" onClick={() => setOpenTagId(openTagId === record.id ? null : record.id)}>
-                    {record.performanceTags.length > 0
-                      ? record.performanceTags.map((tag) => PERFORMANCE_TAG_LABELS[tag]).join('、')
-                      : '添加标签'}
-                  </button>
-                  {openTagId === record.id ? (
-                    <div className="tag-popover">
-                      {PERFORMANCE_TAGS.map((tag) => (
-                        <label key={tag} className="tag-option">
-                          <input
-                            type="checkbox"
-                            checked={record.performanceTags.includes(tag)}
-                            onChange={() => toggleTag(record.id, tag)}
-                          />
-                          {PERFORMANCE_TAG_LABELS[tag]}
-                        </label>
+            {records.map((record) => {
+              const presence = resolveAttendancePresence(record)
+              const participation = resolveParticipationStatus(record)
+              const away = isAttendanceAway(presence)
+              return (
+                <tr key={record.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(record.id)}
+                      onChange={() => toggleSelect(record.id)}
+                      aria-label={`选择 ${record.nameSnapshot}`}
+                    />
+                  </td>
+                  <td>{record.studentNoSnapshot || '—'}</td>
+                  <td className="col-name">{record.nameSnapshot}</td>
+                  <td>
+                    <div className="attendance-buttons">
+                      {ATTENDANCE_EDIT_STATUSES.map((status) => (
+                        <button
+                          key={status}
+                          type="button"
+                          className={presence === status ? 'btn btn-small btn-primary' : 'btn btn-small'}
+                          onClick={() => setStatus(record.id, status)}
+                        >
+                          {ATTENDANCE_LABELS[status]}
+                        </button>
                       ))}
                     </div>
-                  ) : null}
-                </td>
-                <td>
-                  <input
-                    className="row-note"
-                    value={record.note}
-                    onChange={(event) => updateRecord(record.id, { note: event.target.value })}
-                    placeholder="可选"
-                  />
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td>
+                    <select
+                      className={away ? 'participation-select is-muted' : 'participation-select'}
+                      value={participation}
+                      disabled={away}
+                      title={away ? '缺勤/请假时参与状态无课堂意义' : undefined}
+                      aria-label={`${record.nameSnapshot} 参与状态`}
+                      onChange={(event) => setParticipation(record.id, event.target.value as ParticipationStatus)}
+                    >
+                      {PARTICIPATION_STATUSES.map((status) => (
+                        <option key={status} value={status}>
+                          {PARTICIPATION_LABELS[status]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="col-tags">
+                    <button
+                      type="button"
+                      className="btn btn-small"
+                      onClick={() => setOpenTagId(openTagId === record.id ? null : record.id)}
+                    >
+                      {record.performanceTags.length > 0
+                        ? record.performanceTags.map((tag) => PERFORMANCE_TAG_LABELS[tag]).join('、')
+                        : '添加标签'}
+                    </button>
+                    {openTagId === record.id ? (
+                      <div className="tag-popover">
+                        {PERFORMANCE_TAGS.map((tag) => (
+                          <label key={tag} className="tag-option">
+                            <input
+                              type="checkbox"
+                              checked={record.performanceTags.includes(tag)}
+                              onChange={() => toggleTag(record.id, tag)}
+                            />
+                            {PERFORMANCE_TAG_LABELS[tag]}
+                          </label>
+                        ))}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td>
+                    <input
+                      className="row-note"
+                      value={record.note}
+                      onChange={(event) => updateRecord(record.id, { note: event.target.value })}
+                      placeholder="可选"
+                    />
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

@@ -46,6 +46,7 @@ export function buildPeSession(options: {
       nameSnapshot: student.name,
       studentNoSnapshot: student.studentNo,
       attendanceStatus: 'normal',
+      participationStatus: 'normal',
       performanceTags: [],
       note: '',
       createdAt: now,

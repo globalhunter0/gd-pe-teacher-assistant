@@ -5,9 +5,11 @@ import type {
   PEClassSession,
   PEStudentRecord,
   PeLessonType,
+  ParticipationStatus,
   PerformanceTag
 } from './types'
-import { ATTENDANCE_STATUSES, PE_LESSON_TYPES, PERFORMANCE_TAGS } from './types'
+import { ATTENDANCE_STATUSES, PARTICIPATION_STATUSES, PE_LESSON_TYPES, PERFORMANCE_TAGS } from './types'
+import { parseParticipationStatus } from './participation'
 
 const SESSION_ID_PATTERN =
   /^pe-session-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -40,6 +42,10 @@ function isAttendance(value: unknown): value is AttendanceStatus {
 
 function isTag(value: unknown): value is PerformanceTag {
   return PERFORMANCE_TAGS.includes(value as PerformanceTag)
+}
+
+function isParticipation(value: unknown): value is ParticipationStatus {
+  return PARTICIPATION_STATUSES.includes(value as ParticipationStatus)
 }
 
 function isGrade(value: unknown): value is Grade {
@@ -125,7 +131,12 @@ function parseRecord(entry: unknown, sessionId: string): PEStudentRecord {
     throw new Error('学生课堂记录时间字段不正确')
   }
 
-  return {
+  const rawParticipation = record.participationStatus
+  if (rawParticipation !== undefined && rawParticipation !== null && !isParticipation(rawParticipation)) {
+    throw new Error('参与状态不正确')
+  }
+
+  const parsed: PEStudentRecord = {
     id,
     sessionId,
     studentId,
@@ -137,6 +148,10 @@ function parseRecord(entry: unknown, sessionId: string): PEStudentRecord {
     createdAt,
     updatedAt
   }
+  if (rawParticipation !== undefined && rawParticipation !== null) {
+    parsed.participationStatus = parseParticipationStatus(rawParticipation)
+  }
+  return parsed
 }
 
 export function parsePeSessions(input: unknown, options: ParsePeSessionOptions = {}): PEClassSession[] {

@@ -2106,6 +2106,21 @@ button.kpi-card:hover {
   table-layout: auto;
 }
 
+.participation-select {
+  font: inherit;
+  min-width: 7.5rem;
+  max-width: 9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: #fff;
+}
+
+.participation-select.is-muted {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .score-input {
   font: inherit;
   width: 7.5rem;

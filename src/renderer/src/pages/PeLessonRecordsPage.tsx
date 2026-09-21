@@ -14,7 +14,7 @@ import {
   COMMON_PERIODS,
   PE_LESSON_TYPE_LABELS,
   PE_LESSON_TYPES,
-  countAttendance,
+  countLessonRosterStats,
   findExistingPeSession,
   findPeSessionById,
   formatLocalDate,
@@ -69,7 +69,7 @@ export default function PeLessonRecordsPage({
   const lessonTotals = useMemo(() => {
     return sessions.reduce(
       (acc, item) => {
-        const counts = countAttendance(item.records)
+        const counts = countLessonRosterStats(item.records)
         acc.absent += counts.absent
         acc.leave += counts.leave
         acc.late += counts.late
@@ -402,7 +402,7 @@ export default function PeLessonRecordsPage({
             </thead>
             <tbody>
               {visibleSessions.map((item) => {
-                const counts = countAttendance(item.records)
+                const counts = countLessonRosterStats(item.records)
                 return (
                   <tr key={item.id}>
                     <td>{item.date}</td>
