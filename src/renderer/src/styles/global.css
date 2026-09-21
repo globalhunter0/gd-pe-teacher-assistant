@@ -530,6 +530,19 @@ textarea {
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
+button.kpi-card {
+  appearance: none;
+  display: block;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.kpi-card:hover {
+  filter: brightness(1.06);
+}
+
 .kpi-card::before {
   content: '';
   position: absolute;
@@ -1020,6 +1033,14 @@ textarea {
   color: #607080;
 }
 
+.badge-unrecorded {
+  box-shadow: inset 0 0 0 1px rgba(196, 90, 26, 0.28);
+}
+
+.badge-recorded {
+  box-shadow: inset 0 0 0 1px rgba(20, 122, 79, 0.2);
+}
+
 .quick-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1095,6 +1116,23 @@ textarea {
 .recent-list li:last-child,
 .overview-list li:last-child {
   border-bottom: 0;
+}
+
+.recent-item {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.recent-item:hover .recent-title {
+  color: #147a4f;
 }
 
 .recent-title {
@@ -1574,6 +1612,33 @@ textarea {
   line-height: 1.3;
 }
 
+.lesson-unbound-hint,
+.lesson-record-status {
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.lesson-unbound-hint {
+  color: #8a3d12;
+}
+
+.lesson-record-status.is-unrecorded {
+  color: #8a3d12;
+}
+
+.lesson-record-status.is-recorded {
+  color: #147a4f;
+}
+
+.lesson-class-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
 .dialog-backdrop {
   position: fixed;
   inset: 0;
@@ -1957,6 +2022,20 @@ textarea {
   align-items: center;
   margin-bottom: 12px;
   font-size: 13px;
+}
+
+.session-sync-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--bg-surface-soft);
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .status-buttons {

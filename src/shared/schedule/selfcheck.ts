@@ -11,7 +11,7 @@ import {
 } from './validate'
 import type { ScheduleItem } from './types'
 import type { TrainingTeam } from '../trainingTeam/types'
-import { workbenchBoundClassId, workbenchUsesTrainingTeam } from './workbench'
+import { workbenchBoundClassId, workbenchClockStatus, workbenchUsesTrainingTeam } from './workbench'
 
 const CLASS_ID = 'class-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
 const TRAINING_TEAM_ID = 'training-team-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
@@ -130,6 +130,9 @@ export async function runScheduleLinkageSelfCheckOrThrow(): Promise<string> {
   }
   if (workbenchUsesTrainingTeam(boundTeam[0]) || workbenchBoundClassId(boundTeam[0]) !== CLASS_ID) {
     throw new Error('同时存在 classId 与 trainingTeamId 时工作台仍不得使用训练队')
+  }
+  if (workbenchClockStatus(boundClass[0], new Date(2026, 8, 18, 23, 0, 0), undefined, undefined) !== 'done') {
+    throw new Error('工作台时钟状态不得把下课当成课堂已记录')
   }
 
   const cleared = parseScheduleItems(withLinks(boundTeam, {}))

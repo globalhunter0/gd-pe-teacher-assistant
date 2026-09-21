@@ -30,6 +30,7 @@ export default function App(): React.JSX.Element {
   const [activeKey, setActiveKey] = useState<NavKey>('dashboard')
   const [peTestTab, setPeTestTab] = useState<PeTestCenterTab>(PE_TEST_CENTER_DEFAULT_TAB)
   const [pePrefill, setPePrefill] = useState<PeSessionPrefill | null>(null)
+  const [openPeSessionId, setOpenPeSessionId] = useState<string | null>(null)
   const [openTestSessionId, setOpenTestSessionId] = useState<string | null>(null)
   const [openTestEditorTab, setOpenTestEditorTab] = useState<'edit' | 'analysis'>('edit')
   const [statsStudentId, setStatsStudentId] = useState<string | null>(null)
@@ -45,6 +46,18 @@ export default function App(): React.JSX.Element {
     if (next.key === 'tests') {
       setPeTestTab(next.peTestTab ?? PE_TEST_CENTER_DEFAULT_TAB)
     }
+  }
+
+  function goToExistingLesson(sessionId: string): void {
+    setPePrefill(null)
+    setOpenPeSessionId(sessionId)
+    setActiveKey('lessons')
+  }
+
+  function goToNewLesson(prefill: PeSessionPrefill): void {
+    setOpenPeSessionId(null)
+    setPePrefill(prefill)
+    setActiveKey('lessons')
   }
 
   useEffect(() => {
@@ -74,10 +87,8 @@ export default function App(): React.JSX.Element {
                       <main className={activeKey === 'dashboard' ? 'app-content app-content--dashboard' : 'app-content app-content--workspace'}>
                         {activeKey === 'dashboard' ? (
                           <DashboardPage
-                            onStartRecord={(prefill) => {
-                              setPePrefill(prefill)
-                              setActiveKey('lessons')
-                            }}
+                            onStartRecord={goToNewLesson}
+                            onOpenSession={goToExistingLesson}
                             onOpenStudents={(classId) => {
                               setStudentClassId(classId)
                               setActiveKey('students')
@@ -94,7 +105,7 @@ export default function App(): React.JSX.Element {
                             onNavigate={(key) => navigate(key)}
                           />
                         ) : activeKey === 'schedule' ? (
-                          <SchedulePage />
+                          <SchedulePage onStartRecord={goToNewLesson} onOpenSession={goToExistingLesson} />
                         ) : activeKey === 'classes' || activeKey === 'students' ? (
                           <ClassStudentsPage
                             initialClassId={studentClassId}
@@ -105,7 +116,12 @@ export default function App(): React.JSX.Element {
                             }}
                           />
                         ) : activeKey === 'lessons' ? (
-                          <PeLessonRecordsPage prefill={pePrefill} onPrefillConsumed={() => setPePrefill(null)} />
+                          <PeLessonRecordsPage
+                            prefill={pePrefill}
+                            onPrefillConsumed={() => setPePrefill(null)}
+                            openSessionId={openPeSessionId}
+                            onOpenSessionConsumed={() => setOpenPeSessionId(null)}
+                          />
                         ) : activeKey === 'plans' ? (
                           <TeachingPlansPage context={planContext} />
                         ) : activeKey === 'resources' ? (

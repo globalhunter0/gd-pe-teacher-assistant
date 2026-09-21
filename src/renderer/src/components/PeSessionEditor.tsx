@@ -6,25 +6,37 @@ import {
   PERFORMANCE_TAG_LABELS,
   PERFORMANCE_TAGS,
   PE_LESSON_TYPE_LABELS,
+  appendActiveStudentsToSession,
+  listMissingActiveStudents,
   type AttendanceStatus,
   type PEClassSession,
   type PEStudentRecord,
   type PerformanceTag
 } from '@shared/peSession'
+import type { StudentRecord } from '@shared/student'
+import { useStudents } from '../context/StudentContext'
 
 interface PeSessionEditorProps {
   session: PEClassSession
   onBack: () => void
   onSave: (session: PEClassSession) => Promise<void>
+  planPrefillHint?: string | null
 }
 
-export default function PeSessionEditor({ session, onBack, onSave }: PeSessionEditorProps): React.JSX.Element {
+export default function PeSessionEditor({
+  session,
+  onBack,
+  onSave,
+  planPrefillHint = null
+}: PeSessionEditorProps): React.JSX.Element {
+  const { students } = useStudents()
   const [draft, setDraft] = useState<PEClassSession>(session)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [openTagId, setOpenTagId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [dismissedSync, setDismissedSync] = useState(false)
 
   const records = useMemo(
     () =>
@@ -34,6 +46,11 @@ export default function PeSessionEditor({ session, onBack, onSave }: PeSessionEd
           a.nameSnapshot.localeCompare(b.nameSnapshot, 'zh-CN')
       ),
     [draft.records]
+  )
+
+  const missingStudents = useMemo(
+    () => listMissingActiveStudents(draft, students as StudentRecord[]),
+    [draft, students]
   )
 
   function touchSession(patch: Partial<PEClassSession>): void {
@@ -107,6 +124,27 @@ export default function PeSessionEditor({ session, onBack, onSave }: PeSessionEd
     setSelected(new Set(records.map((item) => item.id)))
   }
 
+  function handleAppendMissingStudents(): void {
+    if (missingStudents.length === 0) {
+      return
+    }
+    const confirmed = window.confirm(
+      `将补充 ${missingStudents.length} 名在读学生到本节课堂记录？\n已有学生的考勤、表现与备注不会被修改。`
+    )
+    if (!confirmed) {
+      return
+    }
+    const { session: next, addedCount } = appendActiveStudentsToSession(draft, students as StudentRecord[])
+    if (addedCount === 0) {
+      setDismissedSync(true)
+      return
+    }
+    setDraft(next)
+    setDismissedSync(true)
+    setMessage(`已补充 ${addedCount} 名学生，请保存课堂记录`)
+    setError(null)
+  }
+
   async function handleSave(): Promise<void> {
     setSaving(true)
     setError(null)
@@ -140,6 +178,16 @@ export default function PeSessionEditor({ session, onBack, onSave }: PeSessionEd
 
       {error ? <p className="page-error">{error}</p> : null}
       {message ? <p className="page-success">{message}</p> : null}
+      {planPrefillHint ? <p className="edit-hint">{planPrefillHint}</p> : null}
+
+      {!dismissedSync && missingStudents.length > 0 ? (
+        <div className="session-sync-bar">
+          <span>有 {missingStudents.length} 名在读学生尚未加入本节记录</span>
+          <button type="button" className="btn btn-small btn-primary" onClick={handleAppendMissingStudents}>
+            补充学生
+          </button>
+        </div>
+      ) : null}
 
       <div className="toolbar">
         <label className="toolbar-field toolbar-field-grow">

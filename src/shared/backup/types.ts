@@ -20,7 +20,8 @@ export const BUSINESS_JSON_FILES = [
   'training-plans.json',
   'training-sessions.json',
   'training-items.json',
-  'training-results.json'
+  'training-results.json',
+  'settings.json'
 ] as const
 
 export const RESOURCE_FILES_DIR = 'resources/files'

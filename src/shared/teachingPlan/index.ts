@@ -10,3 +10,8 @@ export {
   plansMatchingClassContext,
   renumberWeeks
 } from './validate'
+export {
+  currentWeekNumberForDate,
+  resolveUniqueCurrentWeekPrefill
+} from './prefill'
+export type { TeachingPlanPrefillResult, TeachingPlanPrefillStatus } from './prefill'

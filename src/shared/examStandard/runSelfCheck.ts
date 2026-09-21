@@ -7,6 +7,7 @@ import { runV0170PeTestImportPlanSelfCheckOrThrow } from '../examBatch/v0170Impo
 import { runScheduleBulkDeleteSelfCheckOrThrow } from '../schedule/bulkDeleteSelfcheck'
 import { runScheduleImportSelfCheckOrThrow } from '../schedule/importSelfcheck'
 import { runScheduleLinkageSelfCheckOrThrow } from '../schedule/selfcheck'
+import { runPeSessionWorkbenchSelfCheckOrThrow } from '../peSession/selfcheck'
 import { runTrainingTeamSelfCheckOrThrow } from '../trainingTeam/selfcheck'
 import { runRosterAutoDetectionSelfCheckOrThrow } from '../student/detectSelfcheck'
 import { runStudentImportIpcSelfCheckOrThrow } from '../student/ipcSelfcheck'
@@ -91,6 +92,7 @@ async function main(): Promise<void> {
   console.log(runNationalFitnessPhaseC3SelfCheckOrThrow())
   console.log(runNationalFitnessPhaseD1SelfCheckOrThrow())
   console.log(runPeTestBusinessClosureSelfCheckOrThrow())
+  console.log(runPeSessionWorkbenchSelfCheckOrThrow())
   console.log(runTrainingTeamSelfCheckOrThrow())
   console.log(await runScheduleLinkageSelfCheckOrThrow())
   console.log(await runScheduleBulkDeleteSelfCheckOrThrow())

@@ -8,31 +8,39 @@ import { listedClassRecords } from '@shared/class'
 import { useClasses } from '../context/ClassContext'
 import { usePeSessions } from '../context/PeSessionContext'
 import { useStudents } from '../context/StudentContext'
+import { useTeachingPlans } from '../context/TeachingPlanContext'
 import { buildPeSession } from '../data/peSession/buildSession'
 import {
   COMMON_PERIODS,
   PE_LESSON_TYPE_LABELS,
   PE_LESSON_TYPES,
   countAttendance,
-  findDuplicateSession,
+  findExistingPeSession,
+  findPeSessionById,
   formatLocalDate,
   type PEClassSession,
   type PeLessonType,
   type PeSessionPrefill
 } from '@shared/peSession'
+import { resolveUniqueCurrentWeekPrefill } from '@shared/teachingPlan'
 
 interface PeLessonRecordsPageProps {
   prefill: PeSessionPrefill | null
   onPrefillConsumed: () => void
+  openSessionId: string | null
+  onOpenSessionConsumed: () => void
 }
 
 export default function PeLessonRecordsPage({
   prefill,
-  onPrefillConsumed
+  onPrefillConsumed,
+  openSessionId,
+  onOpenSessionConsumed
 }: PeLessonRecordsPageProps): React.JSX.Element {
   const { classes } = useClasses()
   const listedClasses = listedClassRecords(classes)
   const { students } = useStudents()
+  const { plans } = useTeachingPlans()
   const { sessions, loading, error, upsertSession, deleteSession } = usePeSessions()
   const [editing, setEditing] = useState<PEClassSession | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
@@ -42,6 +50,7 @@ export default function PeLessonRecordsPage({
   const [working, setWorking] = useState(false)
   const [duplicateHint, setDuplicateHint] = useState<PEClassSession | null>(null)
   const [filterClassKey, setFilterClassKey] = useState('all')
+  const [planPrefillHint, setPlanPrefillHint] = useState<string | null>(null)
 
   const [classId, setClassId] = useState(listedClasses[0]?.id ?? '')
   const [date, setDate] = useState(formatLocalDate(new Date()))
@@ -50,6 +59,7 @@ export default function PeLessonRecordsPage({
   const [topic, setTopic] = useState('')
   const [prefillClassId, setPrefillClassId] = useState(listedClasses[0]?.id ?? '')
   const handledPrefillKey = useRef<string | null>(null)
+  const handledOpenId = useRef<string | null>(null)
 
   const classFilterOptions = useMemo(() => {
     const keys = Array.from(new Set(sessions.map((item) => `${item.gradeSnapshot} ${item.classNameSnapshot}`)))
@@ -116,6 +126,32 @@ export default function PeLessonRecordsPage({
     setActionError(null)
   }, [prefill, classes, loading])
 
+  useEffect(() => {
+    if (!openSessionId) {
+      handledOpenId.current = null
+      return
+    }
+    if (loading) {
+      return
+    }
+    if (handledOpenId.current === openSessionId) {
+      return
+    }
+    handledOpenId.current = openSessionId
+
+    const existing = findPeSessionById(sessions, openSessionId)
+    onOpenSessionConsumed()
+    setCreateOpen(false)
+    setPrefillOpen(false)
+    if (existing) {
+      setPlanPrefillHint(null)
+      setEditing(existing)
+      setActionError(null)
+      return
+    }
+    setActionError('要打开的课堂记录不存在或已删除')
+  }, [openSessionId, loading, sessions, onOpenSessionConsumed])
+
   function activeStudentsOf(targetClassId: string) {
     return students.filter((item) => item.classId === targetClassId && item.status === 'active')
   }
@@ -161,20 +197,44 @@ export default function PeLessonRecordsPage({
       return
     }
 
-    const existing = findDuplicateSession(sessions, targetClassId, options.date, options.period)
-    if (existing && 'records' in existing) {
+    const existing = findExistingPeSession(sessions, {
+      classId: targetClassId,
+      date: options.date,
+      period: options.period,
+      scheduleLessonId: options.scheduleLessonId
+    })
+    if (existing) {
       setCreateOpen(false)
       setPrefillOpen(false)
       onPrefillConsumed()
-      setEditing(existing as PEClassSession)
+      setPlanPrefillHint(null)
+      setEditing(existing)
       setActionError(`该班级 ${options.date} 第${options.period}节已有课堂记录，已打开已有记录。`)
       return
+    }
+
+    const manualTopic = options.topic.trim()
+    const planPrefill = resolveUniqueCurrentWeekPrefill(plans, classRecord, options.date)
+    let topic = options.topic
+    let notes: string | undefined
+    let nextPlanHint: string | null = null
+
+    if (!manualTopic) {
+      if (planPrefill.status === 'prefilled') {
+        topic = planPrefill.topic
+        notes = planPrefill.notes
+        nextPlanHint = '已从本周教学计划预填'
+      } else if (planPrefill.status === 'ambiguous') {
+        nextPlanHint = '存在多份教学计划，本次未自动带入'
+      }
     }
 
     const created = buildPeSession({
       classRecord,
       activeStudents: active,
-      ...options
+      ...options,
+      topic,
+      notes
     })
 
     setWorking(true)
@@ -183,6 +243,7 @@ export default function PeLessonRecordsPage({
       setCreateOpen(false)
       setPrefillOpen(false)
       onPrefillConsumed()
+      setPlanPrefillHint(nextPlanHint)
       setEditing(created)
       setActionError(null)
     } catch (createError) {
@@ -194,9 +255,9 @@ export default function PeLessonRecordsPage({
 
   async function handleManualCreate(): Promise<void> {
     setDuplicateHint(null)
-    const existing = findDuplicateSession(sessions, classId, date, period)
-    if (existing && 'records' in existing) {
-      setDuplicateHint(existing as PEClassSession)
+    const existing = findExistingPeSession(sessions, { classId, date, period })
+    if (existing) {
+      setDuplicateHint(existing)
       return
     }
 
@@ -258,7 +319,11 @@ export default function PeLessonRecordsPage({
       <PeSessionEditor
         key={editing.id}
         session={editing}
-        onBack={() => setEditing(null)}
+        planPrefillHint={planPrefillHint}
+        onBack={() => {
+          setEditing(null)
+          setPlanPrefillHint(null)
+        }}
         onSave={async (next) => {
           await upsertSession(next)
           setEditing(next)
@@ -296,7 +361,7 @@ export default function PeLessonRecordsPage({
         <TechEmptyState
           kind="lessons"
           title="还没有课堂记录"
-          description="可从工作台今日课程点击“开始记录”，或在这里新建补课、临时课。"
+          description="可从工作台今日课程点击“开始课堂”，或在这里新建补课、临时课。"
           actionLabel="新建课堂记录"
           onAction={openCreate}
         />
@@ -354,7 +419,14 @@ export default function PeLessonRecordsPage({
                     <td>{counts.observer}</td>
                     <td>
                       <div className="table-actions">
-                        <button type="button" className="btn btn-small" onClick={() => setEditing(item)}>
+                        <button
+                          type="button"
+                          className="btn btn-small"
+                          onClick={() => {
+                            setPlanPrefillHint(null)
+                            setEditing(item)
+                          }}
+                        >
                           查看/编辑
                         </button>
                         <button type="button" className="btn btn-small btn-danger" onClick={() => setPendingDelete(item)}>
@@ -431,6 +503,7 @@ export default function PeLessonRecordsPage({
                   className="btn btn-small"
                   onClick={() => {
                     setCreateOpen(false)
+                    setPlanPrefillHint(null)
                     setEditing(duplicateHint)
                   }}
                 >

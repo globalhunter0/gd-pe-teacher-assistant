@@ -2,13 +2,23 @@ import { useMemo, useState } from 'react'
 import LessonEditorDialog from '../components/LessonEditorDialog'
 import PageLayout, { PageHeader } from '../components/PageLayout'
 import ScheduleImportDialog from '../components/ScheduleImportDialog'
-import { isListedClass } from '@shared/class'
+import {
+  formatLocalDate,
+  mapScheduleCourseType,
+  resolveWorkbenchLessonRecord,
+  WORKBENCH_RECORD_STATUS_LABELS,
+  type PeSessionPrefill
+} from '@shared/peSession'
 import {
   applyScheduleBulkDelete,
   formatScheduleBulkDeleteConfirm,
-  resolveScheduleTrainingTeamLink
+  resolveScheduleClassroomEligibility,
+  resolveScheduleTrainingTeamLink,
+  shouldShowScheduleUnboundHint,
+  workbenchListedClass
 } from '@shared/schedule'
 import { useClasses } from '../context/ClassContext'
+import { usePeSessions } from '../context/PeSessionContext'
 import { useSchedule, useScheduleService } from '../context/ScheduleContext'
 import { useTraining } from '../context/TrainingContext'
 import {
@@ -27,13 +37,21 @@ interface EditingSlot {
   period: Period
 }
 
-export default function SchedulePage(): React.JSX.Element {
+interface SchedulePageProps {
+  onStartRecord: (prefill: PeSessionPrefill) => void
+  onOpenSession: (sessionId: string) => void
+}
+
+export default function SchedulePage({ onStartRecord, onOpenSession }: SchedulePageProps): React.JSX.Element {
   const { items, loading, error, saveItems, restoreDefault, applyLoadedItems } = useSchedule()
   const { classes } = useClasses()
+  const { sessions } = usePeSessions()
   const training = useTraining()
   const scheduleService = useScheduleService()
   const summary = scheduleService.getWeeklySummary()
-  const todayWeekday = scheduleService.getTodayOverview().weekday
+  const todayOverview = scheduleService.getTodayOverview()
+  const todayWeekday = todayOverview.weekday
+  const todayDate = formatLocalDate(new Date())
   const [editing, setEditing] = useState(false)
   const [bulkMode, setBulkMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -229,12 +247,18 @@ export default function SchedulePage(): React.JSX.Element {
               </div>
               {WEEKDAYS.map((weekday) => {
                 const lesson = scheduleService.getLessonAt(weekday, period)
-                const boundClass = lesson?.classId
-                  ? classes.find((item) => item.id === lesson.classId && isListedClass(item))
-                  : undefined
+                const boundClass = lesson ? workbenchListedClass(lesson, classes) : undefined
                 const trainingLink = training.loading
                   ? { label: null }
                   : resolveScheduleTrainingTeamLink(lesson?.trainingTeamId, training.teams)
+                const eligibility = resolveScheduleClassroomEligibility(lesson, {
+                  cellWeekday: weekday,
+                  todayWeekday,
+                  classes
+                })
+                const record =
+                  lesson && eligibility.eligible ? resolveWorkbenchLessonRecord(sessions, lesson, todayDate) : undefined
+                const existingSession = record?.session
                 return (
                   <div
                     key={`${weekday}-${period}`}
@@ -250,6 +274,24 @@ export default function SchedulePage(): React.JSX.Element {
                         lesson?.classId ? (boundClass ? `${boundClass.grade} ${boundClass.className}` : '已删除班级') : null
                       }
                       trainingTeamLabel={trainingLink.label}
+                      recordStatus={record?.status ?? null}
+                      unboundHint={shouldShowScheduleUnboundHint(lesson, eligibility)}
+                      onStartClass={
+                        lesson && boundClass && record?.status === 'unrecorded'
+                          ? () =>
+                              onStartRecord({
+                                date: todayDate,
+                                period: lesson.period,
+                                scheduleLessonId: lesson.id,
+                                lessonType: mapScheduleCourseType(lesson.courseType),
+                                teamSnapshot: lesson.team,
+                                startTimeSnapshot: lesson.startTime,
+                                endTimeSnapshot: lesson.endTime,
+                                classId: boundClass.id
+                              })
+                          : undefined
+                      }
+                      onContinueClass={existingSession ? () => onOpenSession(existingSession.id) : undefined}
                       onSelect={() => setSlot({ weekday, period })}
                       onToggle={() => {
                         if (lesson) {
@@ -319,6 +361,10 @@ function ScheduleCell({
   selected,
   classLabel,
   trainingTeamLabel,
+  recordStatus,
+  unboundHint,
+  onStartClass,
+  onContinueClass,
   onSelect,
   onToggle
 }: {
@@ -328,6 +374,10 @@ function ScheduleCell({
   selected: boolean
   classLabel: string | null
   trainingTeamLabel: string | null
+  recordStatus: 'unrecorded' | 'recorded' | null
+  unboundHint: boolean
+  onStartClass?: () => void
+  onContinueClass?: () => void
   onSelect: () => void
   onToggle: () => void
 }): React.JSX.Element {
@@ -362,17 +412,45 @@ function ScheduleCell({
     )
   }
 
+  const classroomAction =
+    !editable && recordStatus ? (
+      <span className="lesson-class-action">
+        <span className={`lesson-record-status is-${recordStatus}`}>
+          {WORKBENCH_RECORD_STATUS_LABELS[recordStatus]}
+        </span>
+        {recordStatus === 'recorded' && onContinueClass ? (
+          <button type="button" className="btn btn-small" onClick={onContinueClass}>
+            继续记录
+          </button>
+        ) : null}
+        {recordStatus === 'unrecorded' && onStartClass ? (
+          <button type="button" className="btn btn-small" onClick={onStartClass}>
+            开始课堂
+          </button>
+        ) : null}
+      </span>
+    ) : !editable && unboundHint ? (
+      <span className="lesson-unbound-hint">未绑定行政班</span>
+    ) : null
+
+  if (editable) {
+    return (
+      <button type="button" className={`${typeClass} is-editable`} onClick={onSelect}>
+        <span className="lesson-team">{lesson.team}</span>
+        <span className="lesson-type">{COURSE_TYPE_LABELS[lesson.courseType]}</span>
+        {classLabel ? <span className="lesson-link">班：{classLabel}</span> : null}
+        {trainingTeamLabel ? <span className="lesson-link">队：{trainingTeamLabel}</span> : null}
+      </button>
+    )
+  }
+
   return (
-    <button
-      type="button"
-      className={editable ? `${typeClass} is-editable` : typeClass}
-      onClick={editable ? onSelect : undefined}
-      tabIndex={editable ? 0 : -1}
-    >
+    <div className={typeClass}>
       <span className="lesson-team">{lesson.team}</span>
       <span className="lesson-type">{COURSE_TYPE_LABELS[lesson.courseType]}</span>
       {classLabel ? <span className="lesson-link">班：{classLabel}</span> : null}
       {trainingTeamLabel ? <span className="lesson-link">队：{trainingTeamLabel}</span> : null}
-    </button>
+      {classroomAction}
+    </div>
   )
 }

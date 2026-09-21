@@ -23,3 +23,12 @@ export {
   findDuplicateSession,
   parsePeSessions
 } from './validate'
+export {
+  findExistingPeSession,
+  findPeSessionById,
+  findSessionForWorkbenchLesson,
+  resolveWorkbenchLessonRecord,
+  WORKBENCH_RECORD_STATUS_LABELS
+} from './workbenchToday'
+export type { WorkbenchLessonRecordMatch, WorkbenchRecordStatus } from './workbenchToday'
+export { appendActiveStudentsToSession, listMissingActiveStudents } from './rosterSync'

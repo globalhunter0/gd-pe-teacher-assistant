@@ -1,8 +1,15 @@
 import { useMemo, useState } from 'react'
 import { listedClassRecords, type ClassRecord } from '@shared/class'
 import { countTestRecords } from '@shared/peTest'
-import { ATTENDANCE_LABELS, formatLocalDate, mapScheduleCourseType, type PeSessionPrefill } from '@shared/peSession'
-import { workbenchListedClass } from '@shared/schedule'
+import {
+  ATTENDANCE_LABELS,
+  formatLocalDate,
+  mapScheduleCourseType,
+  resolveWorkbenchLessonRecord,
+  WORKBENCH_RECORD_STATUS_LABELS,
+  type PeSessionPrefill
+} from '@shared/peSession'
+import { workbenchClockStatus, workbenchListedClass, WORKBENCH_CLOCK_LABELS } from '@shared/schedule'
 import { isActiveTrainingTeam } from '@shared/trainingTeam'
 import heroSportsTech from '@assets/dashboard/hero-sports-tech.png'
 import EmptyState from '../components/EmptyState'
@@ -27,6 +34,7 @@ export interface PlanNavContext {
 
 interface DashboardPageProps {
   onStartRecord: (prefill: PeSessionPrefill) => void
+  onOpenSession: (sessionId: string) => void
   onOpenStudents: (classId: string) => void
   onOpenTests: (classId: string) => void
   onOpenPlan: (context: PlanNavContext) => void
@@ -51,35 +59,6 @@ function formatDateLabel(now: Date): { date: string; weekday: string } {
     weekday: weekdays[now.getDay()]
   }
 }
-
-function toMinutes(time: string): number {
-  const [hours, minutes] = time.split(':').map(Number)
-  return hours * 60 + minutes
-}
-
-function lessonLaneStatus(
-  lesson: ScheduleItem,
-  now: Date,
-  currentId: string | undefined,
-  nextId: string | undefined
-): 'done' | 'live' | 'next' | 'later' {
-  if (currentId === lesson.id) {
-    return 'live'
-  }
-  if (nextId === lesson.id) {
-    return 'next'
-  }
-  const minutes = now.getHours() * 60 + now.getMinutes()
-  if (toMinutes(lesson.endTime) < minutes) {
-    return 'done'
-  }
-  if (toMinutes(lesson.startTime) > minutes) {
-    return 'later'
-  }
-  return 'done'
-}
-
-const STATUS_LABEL = { done: '已结束', live: '进行中', next: '下一节', later: '稍后' }
 
 function KpiIcon({ kind }: { kind: 'class' | 'week' | 'test' | 'team' }): React.JSX.Element {
   const common = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7 }
@@ -162,6 +141,7 @@ function QuickIcon({ kind }: { kind: 'students' | 'schedule' | 'lessons' | 'test
 
 export default function DashboardPage({
   onStartRecord,
+  onOpenSession,
   onOpenStudents,
   onOpenTests,
   onOpenPlan,
@@ -183,7 +163,21 @@ export default function DashboardPage({
   )
   const summary = scheduleService.getWeeklySummary()
   const today = scheduleService.getTodayOverview(now)
+  const todayDate = formatLocalDate(now)
   const dateLabel = formatDateLabel(now)
+  const todayRecordStats = useMemo(() => {
+    let unrecorded = 0
+    let recorded = 0
+    for (const lesson of today.lessons) {
+      const match = resolveWorkbenchLessonRecord(sessions, lesson, todayDate)
+      if (match.status === 'recorded') {
+        recorded += 1
+      } else {
+        unrecorded += 1
+      }
+    }
+    return { unrecorded, recorded }
+  }, [sessions, today.lessons, todayDate])
   const [bindLesson, setBindLesson] = useState<ScheduleItem | null>(null)
   const [bindValue, setBindValue] = useState('')
   const [bindError, setBindError] = useState<string | null>(null)
@@ -315,7 +309,7 @@ export default function DashboardPage({
             常规 {summary.regularCount} · 大体育课 {summary.bigCount}
           </p>
         </article>
-        <article className="kpi-card kpi-card--orange">
+        <button type="button" className="kpi-card kpi-card--orange" onClick={() => onNavigate('tests')}>
           <AccentLine />
           <span className="kpi-icon">
             <KpiIcon kind="test" />
@@ -326,7 +320,7 @@ export default function DashboardPage({
             <span>条</span>
           </p>
           <p className="kpi-hint">未录入成绩的测试记录</p>
-        </article>
+        </button>
         <article className="kpi-card kpi-card--purple">
           <AccentLine />
           <span className="kpi-icon">
@@ -377,8 +371,10 @@ export default function DashboardPage({
               {today.lessons.map((lesson) => {
                 const boundClass = workbenchListedClass(lesson, classes)
                 const classReady = Boolean(boundClass)
-                const lane = lessonLaneStatus(lesson, now, today.currentLesson?.id, today.nextLesson?.id)
-                const emphasize = lane === 'live' || lane === 'next'
+                const lane = workbenchClockStatus(lesson, now, today.currentLesson?.id, today.nextLesson?.id)
+                const record = resolveWorkbenchLessonRecord(sessions, lesson, todayDate)
+                const existingSession = record.session
+                const emphasize = (lane === 'live' || lane === 'next') && record.status === 'unrecorded'
                 return (
                   <li key={lesson.id} className={`today-lane is-${lane}`}>
                     <div className="today-lane-time">
@@ -394,15 +390,27 @@ export default function DashboardPage({
                         {boundClass ? ` · ${lesson.team}` : lesson.classId ? ' · 已删除班级' : ' · 未绑定行政班'}
                       </p>
                     </div>
-                    <span className={`badge badge-${lane}`}>{STATUS_LABEL[lane]}</span>
+                    <span className={`badge badge-${lane}${record.status === 'unrecorded' ? ' badge-unrecorded' : ' badge-recorded'}`}>
+                      {WORKBENCH_CLOCK_LABELS[lane]} · {WORKBENCH_RECORD_STATUS_LABELS[record.status]}
+                    </span>
                     <div className="today-lane-actions">
-                      <button
-                        type="button"
-                        className={emphasize ? 'btn btn-small btn-primary' : 'btn btn-small'}
-                        onClick={() => onStartRecord(prefillFrom(lesson, boundClass?.id))}
-                      >
-                        开始课堂
-                      </button>
+                      {existingSession ? (
+                        <button
+                          type="button"
+                          className={emphasize ? 'btn btn-small btn-primary' : 'btn btn-small'}
+                          onClick={() => onOpenSession(existingSession.id)}
+                        >
+                          继续记录
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className={emphasize ? 'btn btn-small btn-primary' : 'btn btn-small'}
+                          onClick={() => onStartRecord(prefillFrom(lesson, boundClass?.id))}
+                        >
+                          开始课堂
+                        </button>
+                      )}
                       <button type="button" className="btn btn-small" onClick={() => openBind(lesson)}>
                         绑定
                       </button>
@@ -543,19 +551,21 @@ export default function DashboardPage({
                 const absent = session.records.filter((item) => item.attendanceStatus === 'absent').length
                 return (
                   <li key={session.id}>
-                    <p className="recent-title">
-                      {session.gradeSnapshot} {session.classNameSnapshot}
-                    </p>
-                    <p className="recent-sub">
-                      {session.date} · 第{session.period}节
-                      {session.topic ? ` · ${session.topic}` : ''}
-                    </p>
-                    {recorded > 0 ? (
-                      <p className="recent-stat">
-                        已记 {recorded} 人
-                        {absent > 0 ? ` · ${ATTENDANCE_LABELS.absent} ${absent}` : ''}
+                    <button type="button" className="recent-item" onClick={() => onOpenSession(session.id)}>
+                      <p className="recent-title">
+                        {session.gradeSnapshot} {session.classNameSnapshot}
                       </p>
-                    ) : null}
+                      <p className="recent-sub">
+                        {session.date} · 第{session.period}节
+                        {session.topic ? ` · ${session.topic}` : ''}
+                      </p>
+                      {recorded > 0 ? (
+                        <p className="recent-stat">
+                          已记 {recorded} 人
+                          {absent > 0 ? ` · ${ATTENDANCE_LABELS.absent} ${absent}` : ''}
+                        </p>
+                      ) : null}
+                    </button>
                   </li>
                 )
               })}
@@ -570,8 +580,12 @@ export default function DashboardPage({
           </div>
           <ul className="overview-list">
             <li>
-              <span>当前班级</span>
-              <strong>{listedClasses.length}</strong>
+              <span>今日未记录</span>
+              <strong>{todayRecordStats.unrecorded}</strong>
+            </li>
+            <li>
+              <span>今日已记录</span>
+              <strong>{todayRecordStats.recorded}</strong>
             </li>
             <li>
               <span>课堂记录</span>
@@ -581,12 +595,8 @@ export default function DashboardPage({
               <span>已建立测试</span>
               <strong>{testSessions.length}</strong>
             </li>
-            <li>
-              <span>本周课时</span>
-              <strong>{summary.total}</strong>
-            </li>
           </ul>
-          <p className="kpi-hint">以上数字都来自本地已保存数据，没有完成率估算。</p>
+          <p className="kpi-hint">今日记录状态按课表格子实时计算，不是完成率估算。</p>
         </div>
       </div>
 

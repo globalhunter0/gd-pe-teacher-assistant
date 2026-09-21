@@ -6,13 +6,14 @@ import { createDataBackup, restoreDataBackup, verifyBackupArchive, backupCoversR
 import { parseBackupManifest } from './manifest'
 import { parseZip, buildZip } from './zip'
 import { ARCHIVE_FILES_PREFIX, ARCHIVE_MANIFEST_NAME, BACKUP_FORMAT_VERSION, BUSINESS_JSON_FILES } from './types'
-import { loadJsonItemsFile, pathExists, readJsonItemsFile, writeJsonItemsAtomic } from '../persistence/jsonFile'
+import { loadJsonItemsFile, pathExists, readJsonDocumentFile, readJsonItemsFile, writeJsonDocumentAtomic, writeJsonItemsAtomic } from '../persistence/jsonFile'
 import {
   buildTrainingTeamStats,
   type TrainingResult,
   type TrainingSession,
   type TrainingTeamMember
 } from '../trainingTeam'
+import { parseUserPreferences } from '../userPreferences'
 
 function parseAnyItems(input: unknown): unknown[] {
   if (!Array.isArray(input)) {
@@ -36,6 +37,9 @@ async function seedUserData(root: string): Promise<void> {
   await writeJsonItemsAtomic(join(root, 'training-sessions.json'), [])
   await writeJsonItemsAtomic(join(root, 'training-items.json'), [])
   await writeJsonItemsAtomic(join(root, 'training-results.json'), [])
+  await writeJsonDocumentAtomic(join(root, 'settings.json'), {
+    teacherDisplayName: '陈老师'
+  })
 
   const filesDir = join(root, 'resources', 'files')
   await mkdir(filesDir, { recursive: true })
@@ -746,6 +750,63 @@ export async function runBackupRestoreSelfCheckOrThrow(): Promise<string> {
     )
     if (leftovers.length > 0) {
       throw new Error(`恢复流程遗留了临时目录：${leftovers.join(',')}`)
+    }
+
+    // —— settings.json 纳入 backup / restore（可选域，旧包兼容）——
+    await seedUserData(root)
+    const settingsArchive = join(outside, 'with-settings.gdpebak')
+    const settingsCreated = await createDataBackup(root, settingsArchive, '0.25.0-selfcheck')
+    if (!settingsCreated.manifest.files.some((file) => file.path === 'settings.json')) {
+      throw new Error('新备份必须包含 settings.json')
+    }
+    await writeJsonDocumentAtomic(join(root, 'settings.json'), { teacherDisplayName: '被改过的老师' })
+    await writeJsonItemsAtomic(join(root, 'students.json'), [
+      { id: 'student-1', name: 'settings恢复前学生', classId: 'class-1' }
+    ])
+    const settingsRestored = await restoreDataBackup(root, settingsArchive, { appVersion: '0.25.0-selfcheck' })
+    if (settingsRestored.keptPaths.includes('settings.json')) {
+      throw new Error('备份包含 settings 时不应把 settings 标为保留')
+    }
+    const restoredSettings = await readJsonDocumentFile(join(root, 'settings.json'), parseUserPreferences)
+    if (restoredSettings.teacherDisplayName !== '陈老师') {
+      throw new Error('restore 后教师显示名未恢复')
+    }
+    if ((await readFirstName(join(root, 'students.json'))) !== '张三') {
+      throw new Error('settings 恢复不得破坏其它业务 JSON')
+    }
+
+    await writeJsonDocumentAtomic(join(root, 'settings.json'), { teacherDisplayName: '本机老师' })
+    await writeJsonItemsAtomic(join(root, 'students.json'), [
+      { id: 'student-1', name: '旧包恢复前学生', classId: 'class-1' }
+    ])
+    const noSettingsPath = join(outside, 'no-settings.gdpebak')
+    await writeFilteredArchive(settingsArchive, noSettingsPath, (path) => path === 'settings.json')
+    const noSettingsManifest = await verifyBackupArchive(noSettingsPath)
+    if (noSettingsManifest.files.some((file) => file.path === 'settings.json')) {
+      throw new Error('旧备份过滤后仍含 settings.json')
+    }
+    const noSettingsRestored = await restoreDataBackup(root, noSettingsPath, { appVersion: '0.25.0-selfcheck' })
+    if (!noSettingsRestored.keptPaths.includes('settings.json')) {
+      throw new Error('旧备份无 settings 时应保留本机 settings')
+    }
+    const keptSettings = await readJsonDocumentFile(join(root, 'settings.json'), parseUserPreferences)
+    if (keptSettings.teacherDisplayName !== '本机老师') {
+      throw new Error('旧备份无 settings 时不得清空本机教师显示名')
+    }
+    if ((await readFirstName(join(root, 'students.json'))) !== '张三') {
+      throw new Error('旧备份无 settings 时业务数据仍应恢复')
+    }
+
+    await rm(join(root, 'settings.json'), { force: true })
+    await writeJsonItemsAtomic(join(root, 'students.json'), [
+      { id: 'student-1', name: '无settings文件恢复前', classId: 'class-1' }
+    ])
+    const missingLocalRestored = await restoreDataBackup(root, noSettingsPath, { appVersion: '0.25.0-selfcheck' })
+    if (missingLocalRestored.keptPaths.includes('settings.json')) {
+      throw new Error('本机本无 settings 且备份也无时不应出现在 keptPaths')
+    }
+    if ((await readFirstName(join(root, 'students.json'))) !== '张三') {
+      throw new Error('本机无 settings 不得导致业务恢复失败')
     }
 
     return 'backup/restore self-check passed'

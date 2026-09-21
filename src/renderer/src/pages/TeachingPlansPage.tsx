@@ -6,6 +6,7 @@ import OverviewBar from '../components/workspace/OverviewBar'
 import {
   MAX_PLAN_WEEKS,
   createTeachingPlanWeekId,
+  currentWeekNumberForDate,
   parseTeachingPlans,
   plansMatchingClassContext,
   renumberWeeks,
@@ -30,35 +31,6 @@ function weekPreview(week: TeachingPlanWeek): string {
     return '尚未填写'
   }
   return text.length > 36 ? `${text.slice(0, 36)}…` : text
-}
-
-function parseLocalDate(value: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!match) {
-    return null
-  }
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
-}
-
-function currentWeekNumber(startDate: string | null, weekCount: number): number | null {
-  if (!startDate) {
-    return null
-  }
-  const start = parseLocalDate(startDate)
-  if (!start) {
-    return null
-  }
-  const today = new Date()
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
-  const diff = Math.floor((todayStart - start.getTime()) / 86400000)
-  if (diff < 0) {
-    return null
-  }
-  const week = Math.floor(diff / 7) + 1
-  if (week < 1 || week > weekCount) {
-    return null
-  }
-  return week
 }
 
 export default function TeachingPlansPage({ context = null }: { context?: PlanNavContext | null }): React.JSX.Element {
@@ -279,7 +251,7 @@ export default function TeachingPlansPage({ context = null }: { context?: PlanNa
   }
 
   if (draft) {
-    const highlightedWeek = currentWeekNumber(draft.startDate, draft.weeks.length)
+    const highlightedWeek = currentWeekNumberForDate(draft.startDate, draft.weeks.length)
     return (
       <PageLayout className="page--plans">
         <PageHeader
