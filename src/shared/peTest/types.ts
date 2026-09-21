@@ -73,6 +73,8 @@ export interface PETestRecord {
 
 export type PeTestScoreOutcome = 'official' | 'below_official_minimum'
 
+export type PeTestOrigin = 'formal' | 'classroom'
+
 export interface PETestSession {
   id: string
   classId: string
@@ -102,6 +104,32 @@ export interface PETestSession {
   status?: PeTestSessionStatus
   /** 标记完成时间；进行中为 null。 */
   completedAt?: string | null
+  /**
+   * 成绩来源场景。与 importSource（数据进入方式）正交。
+   * 旧 JSON 缺省按 formal（正式测试）。
+   */
+  origin?: PeTestOrigin
+  /** 关联课堂记录 id；课堂小测写入；正式测试或旧数据为 null。 */
+  peSessionId?: string | null
+}
+
+export const PE_TEST_ORIGINS: PeTestOrigin[] = ['formal', 'classroom']
+
+export const PE_TEST_ORIGIN_LABELS: Record<PeTestOrigin, string> = {
+  formal: '正式测试',
+  classroom: '课堂小测'
+}
+
+export function parsePeTestOrigin(value: unknown): PeTestOrigin {
+  return value === 'classroom' ? 'classroom' : 'formal'
+}
+
+export function peTestOriginLabel(origin: PeTestOrigin | null | undefined): string {
+  return PE_TEST_ORIGIN_LABELS[parsePeTestOrigin(origin)]
+}
+
+export function isClassroomPeTest(session: Pick<PETestSession, 'origin'>): boolean {
+  return parsePeTestOrigin(session.origin) === 'classroom'
 }
 
 export const TEST_VALUE_TYPES: TestValueType[] = ['number', 'time']

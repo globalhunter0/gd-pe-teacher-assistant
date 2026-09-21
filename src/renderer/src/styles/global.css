@@ -1627,7 +1627,17 @@ button.kpi-card:hover {
   color: #8a3d12;
 }
 
+.lesson-record-status.is-in_progress {
+  color: #1d4ed8;
+}
+
+.lesson-record-status.is-completed,
 .lesson-record-status.is-recorded {
+  color: #147a4f;
+}
+
+.badge-completed {
+  background: #ecfdf3;
   color: #147a4f;
 }
 
@@ -2106,6 +2116,21 @@ button.kpi-card:hover {
   table-layout: auto;
 }
 
+.participation-select {
+  font: inherit;
+  min-width: 7.5rem;
+  max-width: 9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: #fff;
+}
+
+.participation-select.is-muted {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .score-input {
   font: inherit;
   width: 7.5rem;
@@ -2298,8 +2323,20 @@ button.kpi-card:hover {
   color: var(--muted, #667085);
 }
 
-.pe-history-section {
-  margin-top: 1.25rem;
+.pe-classroom-quiz {
+  margin-top: 1.5rem;
+}
+
+.pe-classroom-quiz-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.pe-classroom-quiz-head h3 {
+  margin: 0;
 }
 
 .pe-history-section h3,

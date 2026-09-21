@@ -37,6 +37,8 @@ export function buildPeSession(options: {
     teamSnapshot: options.teamSnapshot,
     startTimeSnapshot: options.startTimeSnapshot,
     endTimeSnapshot: options.endTimeSnapshot,
+    status: 'in_progress',
+    completedAt: null,
     createdAt: now,
     updatedAt: now,
     records: options.activeStudents.map((student) => ({
@@ -46,6 +48,7 @@ export function buildPeSession(options: {
       nameSnapshot: student.name,
       studentNoSnapshot: student.studentNo,
       attendanceStatus: 'normal',
+      participationStatus: 'normal',
       performanceTags: [],
       note: '',
       createdAt: now,

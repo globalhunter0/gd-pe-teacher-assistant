@@ -8,6 +8,7 @@ import {
   countBelowOfficialMinimum,
   formatPeTestItemScoreText,
   formatRawValue,
+  peTestOriginLabel,
   resolveTimeInputMode,
   testUnitDisplay,
   usesMinuteFormat,
@@ -311,6 +312,7 @@ export interface StudentItemHistoryPoint {
   bandLabel: string
   note: string
   standardLabel: string
+  originLabel: string
   isPersonalBest: boolean
   vsPrevious: ReturnType<typeof compareWithPreviousResult>
 }
@@ -405,6 +407,7 @@ export function buildStudentItemHistory(
       bandLabel,
       note: record.note ?? '',
       standardLabel: classroomScoringLabel(session),
+      originLabel: peTestOriginLabel(session.origin),
       isPersonalBest: detectPersonalBest(session, studentId, sessions),
       vsPrevious: compareWithPreviousResult(session, studentId, sessions)
     }

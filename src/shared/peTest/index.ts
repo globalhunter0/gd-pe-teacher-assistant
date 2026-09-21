@@ -141,3 +141,16 @@ export {
   peTestHistoryStatusLabel
 } from './studentHistory'
 export type { PeTestHistoryStatusLabel } from './studentHistory'
+export {
+  PE_TEST_ORIGINS,
+  PE_TEST_ORIGIN_LABELS,
+  isClassroomPeTest,
+  parsePeTestOrigin,
+  peTestOriginLabel,
+  type PeTestOrigin
+} from './types'
+export {
+  buildClassroomPeTestSession,
+  findClassroomTestsForPeSession,
+  findOpenClassroomTest
+} from './classroomQuiz'

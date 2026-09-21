@@ -1,11 +1,13 @@
 import type { ScheduleItem } from '../schedule/types'
 import type { PEClassSession } from './types'
+import { resolvePeSessionStatus } from './sessionStatus'
 
-export type WorkbenchRecordStatus = 'unrecorded' | 'recorded'
+export type WorkbenchRecordStatus = 'unrecorded' | 'in_progress' | 'completed'
 
 export const WORKBENCH_RECORD_STATUS_LABELS: Record<WorkbenchRecordStatus, string> = {
   unrecorded: '未记录',
-  recorded: '已记录'
+  in_progress: '记录中',
+  completed: '已完成'
 }
 
 export interface WorkbenchLessonRecordMatch {
@@ -57,9 +59,23 @@ export function resolveWorkbenchLessonRecord(
   date: string
 ): WorkbenchLessonRecordMatch {
   const session = findSessionForWorkbenchLesson(sessions, lesson, date)
+  if (!session) {
+    return { status: 'unrecorded', session: undefined }
+  }
   return {
-    status: session ? 'recorded' : 'unrecorded',
+    status: resolvePeSessionStatus(session),
     session
+  }
+}
+
+export function workbenchActionLabel(status: WorkbenchRecordStatus): string {
+  switch (status) {
+    case 'completed':
+      return '查看记录'
+    case 'in_progress':
+      return '继续记录'
+    default:
+      return '开始课堂'
   }
 }
 

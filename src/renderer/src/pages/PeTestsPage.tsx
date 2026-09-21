@@ -29,12 +29,17 @@ import {
   buildPeTestSessionExportPayload,
   countTestRecords,
   formatLocalDate,
+  isClassroomPeTest,
   isPeTestSessionCompleted,
   markPeTestSessionCompleted,
+  PE_TEST_ORIGIN_LABELS,
   PE_TEST_SESSION_STATUS_LABELS,
+  parsePeTestOrigin,
+  peTestOriginLabel,
   reopenPeTestSession,
   testUnitDisplay,
   type PETestSession,
+  type PeTestOrigin,
   type TestItem
 } from '@shared/peTest'
 
@@ -85,6 +90,7 @@ export default function PeTestsPage({
   const [date, setDate] = useState(formatLocalDate(new Date()))
   const [title, setTitle] = useState('')
   const [examStandardId, setExamStandardId] = useState('')
+  const [originFilter, setOriginFilter] = useState<'all' | PeTestOrigin>('all')
 
   useEffect(() => {
     if (!openSessionId || loading) {
@@ -134,6 +140,12 @@ export default function PeTestsPage({
     () => sessions.reduce((total, item) => total + countTestRecords(item.records).valid, 0),
     [sessions]
   )
+  const visibleSessions = useMemo(() => {
+    if (originFilter === 'all') {
+      return sessions
+    }
+    return sessions.filter((item) => parsePeTestOrigin(item.origin) === originFilter)
+  }, [sessions, originFilter])
 
   function countVisibleDuplicates(targetClassId: string, targetDate: string, optionValue: string): number {
     const selection = parseTeacherTestSelection(optionValue, items)
@@ -480,6 +492,30 @@ export default function PeTestsPage({
           onSecondary={openCreate}
         />
       ) : (
+        <>
+          <div className="toolbar">
+            <div className="pe-quick-tabs" role="group" aria-label="测试来源筛选">
+              {(
+                [
+                  { id: 'all' as const, label: '全部' },
+                  { id: 'formal' as const, label: PE_TEST_ORIGIN_LABELS.formal },
+                  { id: 'classroom' as const, label: PE_TEST_ORIGIN_LABELS.classroom }
+                ] as const
+              ).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={originFilter === item.id ? 'btn btn-small btn-primary' : 'btn btn-small'}
+                  onClick={() => setOriginFilter(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {visibleSessions.length === 0 ? (
+            <p className="empty-text">当前筛选下没有测试记录。</p>
+          ) : (
           <DataTable>
             <table className="data-table">
             <thead>
@@ -487,6 +523,7 @@ export default function PeTestsPage({
                 <th>日期</th>
                 <th>班级</th>
                 <th>项目</th>
+                <th>来源</th>
                 <th>评分依据</th>
                 <th>状态</th>
                 <th>已录入</th>
@@ -496,9 +533,10 @@ export default function PeTestsPage({
               </tr>
             </thead>
             <tbody>
-              {sessions.map((item) => {
+              {visibleSessions.map((item) => {
                 const counts = countTestRecords(item.records)
                 const done = isPeTestSessionCompleted(item)
+                const classroom = isClassroomPeTest(item)
                 return (
                   <tr key={item.id}>
                     <td>{item.date}</td>
@@ -506,6 +544,9 @@ export default function PeTestsPage({
                       {item.gradeSnapshot} {item.classNameSnapshot}
                     </td>
                     <td>{item.testItemNameSnapshot}</td>
+                    <td>
+                      <StatusBadge tone={classroom ? 'warn' : 'ok'}>{peTestOriginLabel(item.origin)}</StatusBadge>
+                    </td>
                     <td>{classroomScoringLabel(item)}</td>
                     <td>
                       <StatusBadge tone={done ? 'ok' : 'warn'}>
@@ -564,6 +605,8 @@ export default function PeTestsPage({
             </tbody>
           </table>
           </DataTable>
+          )}
+        </>
       )}
 
       {createOpen ? (

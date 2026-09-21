@@ -59,6 +59,8 @@ interface PeQuickEntryPanelProps {
   initialRosterTab?: QuickEntryRosterTab
   /** 补测等场景：限制可见学生；null 表示不限制。 */
   initialGroupStudentIds?: string[] | null
+  /** 课堂内嵌：隐藏测试管理入口，完成后回到课堂。 */
+  embedded?: boolean
   onClose: () => void
   onOpenResult: (session: PETestSession, tab: 'edit' | 'analysis') => void
 }
@@ -103,6 +105,7 @@ export default function PeQuickEntryPanel({
   initialSession = null,
   initialRosterTab = 'pending',
   initialGroupStudentIds = null,
+  embedded = false,
   onClose,
   onOpenResult
 }: PeQuickEntryPanelProps): React.JSX.Element {
@@ -460,11 +463,11 @@ export default function PeQuickEntryPanel({
     <PageLayout className="page--pe-quick-entry">
       <PageHeader
         icon="tests"
-        title="课堂快速录入"
+        title={embedded ? '课堂测评录入' : '课堂快速录入'}
         description={`${draft.gradeSnapshot} ${draft.classNameSnapshot} · ${sessionDisplayItemName(draft)} · ${draft.date} · ${classroomScoringLabel(draft)}`}
         actions={
           <button type="button" className="btn" onClick={onClose}>
-            返回测试记录
+            {embedded ? '返回课堂记录' : '返回测试记录'}
           </button>
         }
       />
@@ -523,15 +526,23 @@ export default function PeQuickEntryPanel({
         <div className="pe-quick-done">
           <p>本次测试录入完成</p>
           <div className="pe-quick-done-actions">
-            <button type="button" className="btn btn-primary" onClick={() => onOpenResult(draft, 'edit')}>
-              查看测试结果
-            </button>
-            <button type="button" className="btn" onClick={() => onOpenResult(draft, 'analysis')}>
-              测试分析
-            </button>
-            <button type="button" className="btn" onClick={onClose}>
-              返回测试记录
-            </button>
+            {embedded ? (
+              <button type="button" className="btn btn-primary" onClick={onClose}>
+                返回课堂记录
+              </button>
+            ) : (
+              <>
+                <button type="button" className="btn btn-primary" onClick={() => onOpenResult(draft, 'edit')}>
+                  查看测试结果
+                </button>
+                <button type="button" className="btn" onClick={() => onOpenResult(draft, 'analysis')}>
+                  测试分析
+                </button>
+                <button type="button" className="btn" onClick={onClose}>
+                  返回测试记录
+                </button>
+              </>
+            )}
           </div>
         </div>
       ) : null}

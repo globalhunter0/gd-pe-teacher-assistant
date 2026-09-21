@@ -53,6 +53,9 @@ import { runPeTestBusinessClosureSelfCheckOrThrow } from '../peTest/closureSelfc
 import { runV0260PeTestLifecycleSelfCheckOrThrow } from '../peTest/v0260Selfcheck'
 import { runV0260P02MakeupExportSelfCheckOrThrow } from '../peTest/v0260P02Selfcheck'
 import { runV0260P03StudentHistorySelfCheckOrThrow } from '../peTest/v0260P03Selfcheck'
+import { runV0270P01ClassroomQuizSelfCheckOrThrow } from '../peTest/v0270P01Selfcheck'
+import { runV0270P02ParticipationSelfCheckOrThrow } from '../peSession/v0270P02Selfcheck'
+import { runV0270P03SessionStatusSelfCheckOrThrow } from '../peSession/v0270P03Selfcheck'
 
 async function main(): Promise<void> {
   console.log(runAppVersionSelfCheckOrThrow())
@@ -98,6 +101,9 @@ async function main(): Promise<void> {
   console.log(await runV0260PeTestLifecycleSelfCheckOrThrow())
   console.log(runV0260P02MakeupExportSelfCheckOrThrow())
   console.log(runV0260P03StudentHistorySelfCheckOrThrow())
+  console.log(await runV0270P01ClassroomQuizSelfCheckOrThrow())
+  console.log(await runV0270P02ParticipationSelfCheckOrThrow())
+  console.log(await runV0270P03SessionStatusSelfCheckOrThrow())
   console.log(runPeSessionWorkbenchSelfCheckOrThrow())
   console.log(runTrainingTeamSelfCheckOrThrow())
   console.log(await runScheduleLinkageSelfCheckOrThrow())
