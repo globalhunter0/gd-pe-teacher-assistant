@@ -279,6 +279,24 @@ export function parsePeSessions(input: unknown, options: ParsePeSessionOptions =
       session.completedAt = rawCompletedAt
     }
 
+    const rawPlanId = record.teachingPlanId
+    if (rawPlanId === null) {
+      session.teachingPlanId = null
+    } else if (typeof rawPlanId === 'string' && rawPlanId.trim()) {
+      session.teachingPlanId = rawPlanId.trim()
+    }
+
+    const rawWeekId = record.teachingPlanWeekId
+    if (rawWeekId === null) {
+      session.teachingPlanWeekId = null
+    } else if (typeof rawWeekId === 'string' && rawWeekId.trim()) {
+      session.teachingPlanWeekId = rawWeekId.trim()
+    }
+
+    if (typeof record.objectivesSnapshot === 'string') {
+      session.objectivesSnapshot = record.objectivesSnapshot.trim()
+    }
+
     return session
   })
 
