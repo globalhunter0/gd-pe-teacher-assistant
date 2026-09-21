@@ -20,6 +20,7 @@ import {
 import { STUDENT_GENDER_LABELS, type StudentRecord } from '../student'
 import { classDisplayName } from './students'
 import { actualTestItemName, isGenderLinkedSession, recordsForActualTestItem, resolvedTestItemIdOf, sessionDisplayItemName } from '../peTest/groupedItems'
+import { peTestHistoryStatusLabel } from '../peTest/studentHistory'
 import { averageRaw, bestRaw, countTestStatuses, formatTestScore, formatTestScoreWithUnit, validRawValues } from './tests'
 
 export type VsPreviousKind = 'improved' | 'declined' | 'same' | 'first' | 'incomparable'
@@ -297,6 +298,7 @@ export interface StudentItemHistoryPoint {
   createdAt: string
   title: string
   status: TestRecordStatus
+  statusLabel: string
   rawValue: number | null
   examScore: number | null
   baseScore: number | null
@@ -304,7 +306,10 @@ export interface StudentItemHistoryPoint {
   gradeSnapshot: PETestSession['gradeSnapshot']
   actualItemName: string
   rawText: string
+  unitText: string
   scoreText: string
+  bandLabel: string
+  note: string
   standardLabel: string
   isPersonalBest: boolean
   vsPrevious: ReturnType<typeof compareWithPreviousResult>
@@ -319,7 +324,11 @@ export interface StudentItemHistory {
   recentRawText: string
   recentScoreText: string
   bestRawText: string
+  previousRawText: string
   firstRawText: string
+  /** 最近有效 vs 上一次有效 */
+  changeText: string
+  changeKind: VsPreviousKind | null
   vsFirstText: string
   vsFirstKind: VsPreviousKind | null
   scoringStandardChanged: boolean
@@ -330,7 +339,8 @@ export function buildStudentItemHistory(
   sessions: ReadonlyArray<PETestSession>,
   studentId: string,
   testItemId: string,
-  testItems: ReadonlyArray<TestItem>
+  testItems: ReadonlyArray<TestItem>,
+  standards: ReadonlyArray<ExamStandard> = listBuiltinExamStandards()
 ): StudentItemHistory | null {
   const itemSessions = sortSessionsAsc(
     sessions.filter((session) => {
@@ -347,22 +357,53 @@ export function buildStudentItemHistory(
   const name =
     testItem?.name ??
     (sampleRecord ? actualTestItemName(sample, sampleRecord, testItems) : sample.testItemNameSnapshot)
+  const unitLabel = testUnitDisplay(sample.unitSnapshot, sample.customUnitLabelSnapshot)
   const points: StudentItemHistoryPoint[] = itemSessions.map((session) => {
     const record = studentRecordIn(session, studentId)!
+    const statusLabel = peTestHistoryStatusLabel(record.status)
+    let rawText = '—'
+    if (record.status === 'valid' && record.rawValue !== null) {
+      rawText = formatTestScoreWithUnit(record.rawValue, session, testItem)
+    } else if (record.status === 'absent') {
+      rawText = '缺考'
+    } else if (record.status === 'pending') {
+      rawText = '未测'
+    } else if (record.status === 'exempt') {
+      rawText = '免考'
+    } else if (record.status === 'invalid') {
+      rawText = record.rawValue === null ? '异常' : formatTestScoreWithUnit(record.rawValue, session, testItem)
+    }
+    let bandLabel = '—'
+    if (record.status === 'valid' && record.examScore !== null) {
+      const full = resolveExamItemFullScore(session, record, standards)
+      if (full !== null) {
+        bandLabel = SCORE_BAND_LABELS[classifyScoreBand(record.examScore, full)]
+      }
+    }
     return {
       sessionId: session.id,
       date: session.date,
       createdAt: session.createdAt,
       title: session.title,
       status: record.status,
+      statusLabel,
       rawValue: record.rawValue,
       examScore: record.examScore,
       baseScore: record.baseScore ?? null,
       bonusScore: record.bonusScore ?? null,
       gradeSnapshot: session.gradeSnapshot,
       actualItemName: actualTestItemName(session, record, testItems),
-      rawText: record.status === 'valid' ? formatTestScoreWithUnit(record.rawValue, session, testItem) : '—',
-      scoreText: formatPeTestItemScoreText(record),
+      rawText,
+      unitText:
+        record.status === 'valid' || record.status === 'invalid'
+          ? unitLabel || (session.valueTypeSnapshot === 'time' && session.timeInputModeSnapshot !== 'minutesSeconds' ? '秒' : '')
+          : '—',
+      scoreText:
+        record.status === 'pending' || record.status === 'absent' || record.status === 'exempt'
+          ? '—'
+          : formatPeTestItemScoreText(record),
+      bandLabel,
+      note: record.note ?? '',
       standardLabel: classroomScoringLabel(session),
       isPersonalBest: detectPersonalBest(session, studentId, sessions),
       vsPrevious: compareWithPreviousResult(session, studentId, sessions)
@@ -371,9 +412,11 @@ export function buildStudentItemHistory(
   const valid = points.filter((item) => item.status === 'valid' && item.rawValue !== null)
   const first = valid[0]
   const recent = valid[valid.length - 1]
+  const previous = valid.length >= 2 ? valid[valid.length - 2] : null
   const values = valid.map((item) => item.rawValue as number)
   const best = bestRaw(values, sample.directionSnapshot)
   const preferMinute = usesMinuteFormat(sample.timeInputModeSnapshot, sample.valueTypeSnapshot)
+  const decimalPlaces = testItem?.decimalPlaces ?? (sample.valueTypeSnapshot === 'time' ? 1 : 0)
   const vsFirstCompared =
     first && recent && first.sessionId !== recent.sessionId && sample.directionSnapshot !== 'neutral'
       ? compareToPrevious(
@@ -381,9 +424,21 @@ export function buildStudentItemHistory(
           first.rawValue as number,
           sample.directionSnapshot,
           sample.valueTypeSnapshot,
-          testItem?.decimalPlaces ?? (sample.valueTypeSnapshot === 'time' ? 1 : 0),
+          decimalPlaces,
           preferMinute,
-          testUnitDisplay(sample.unitSnapshot, sample.customUnitLabelSnapshot)
+          unitLabel
+        )
+      : null
+  const vsPreviousCompared =
+    previous && recent && sample.directionSnapshot !== 'neutral'
+      ? compareToPrevious(
+          recent.rawValue as number,
+          previous.rawValue as number,
+          sample.directionSnapshot,
+          sample.valueTypeSnapshot,
+          decimalPlaces,
+          preferMinute,
+          unitLabel
         )
       : null
 
@@ -399,6 +454,20 @@ export function buildStudentItemHistory(
     vsFirstKind = vsFirstCompared.kind
   }
 
+  let changeText = '—'
+  let changeKind: VsPreviousKind | null = null
+  if (sample.directionSnapshot === 'neutral') {
+    changeText = '不比较'
+  } else if (valid.length === 0) {
+    changeText = '—'
+  } else if (valid.length === 1) {
+    changeText = '首次测试'
+    changeKind = 'first'
+  } else if (vsPreviousCompared) {
+    changeText = vsPreviousCompared.text
+    changeKind = vsPreviousCompared.kind
+  }
+
   return {
     testItemId,
     name,
@@ -408,7 +477,10 @@ export function buildStudentItemHistory(
     recentRawText: recent ? recent.rawText : '—',
     recentScoreText: recent ? recent.scoreText : '—',
     bestRawText: best === null ? '—' : formatTestScoreWithUnit(best, sample, testItem),
+    previousRawText: previous ? previous.rawText : '—',
     firstRawText: first ? first.rawText : '—',
+    changeText,
+    changeKind,
     vsFirstText,
     vsFirstKind,
     scoringStandardChanged: detectScoringStandardChange(itemSessions),

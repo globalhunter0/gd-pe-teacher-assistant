@@ -135,3 +135,9 @@ export {
   sanitizePeTestExportFileName
 } from './exportSession'
 export type { PeTestExportRow, PeTestExportStatusLabel } from './exportSession'
+export {
+  getResultDirection,
+  isValidPeTestHistoryResult,
+  peTestHistoryStatusLabel
+} from './studentHistory'
+export type { PeTestHistoryStatusLabel } from './studentHistory'
