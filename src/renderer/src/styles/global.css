@@ -2024,6 +2024,20 @@ button.kpi-card:hover {
   font-size: 13px;
 }
 
+.session-sync-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--bg-surface-soft);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 .status-buttons {
   display: flex;
   flex-wrap: wrap;

@@ -17,6 +17,12 @@ import {
   resolveWorkbenchLessonRecord
 } from './workbenchToday'
 import { findDuplicateSession } from './validate'
+import { appendActiveStudentsToSession, listMissingActiveStudents } from './rosterSync'
+import {
+  currentWeekNumberForDate,
+  resolveUniqueCurrentWeekPrefill,
+  type TeachingPlan
+} from '../teachingPlan'
 
 function assert(condition: unknown, message: string): void {
   if (!condition) {
@@ -310,6 +316,191 @@ export function runPeSessionWorkbenchSelfCheckOrThrow(): string {
   const lessonPage = readSrc('../renderer/src/pages/PeLessonRecordsPage.tsx')
   assert(lessonPage.includes('findExistingPeSession'), '创建链必须走底层防重')
   assert(lessonPage.includes('openSessionId'), '继续记录/近期记录必须打开原记录编辑界面')
+  assert(lessonPage.includes('resolveUniqueCurrentWeekPrefill'), '新建课堂必须走共享教学计划预填')
+  assert(lessonPage.includes('buildPeSession'), '工作台/课表/手动创建必须共用 buildPeSession')
+
+  const editor = readSrc('../renderer/src/components/PeSessionEditor.tsx')
+  assert(editor.includes('listMissingActiveStudents'), '课堂编辑器必须检测缺失在读学生')
+  assert(editor.includes('appendActiveStudentsToSession'), '补充学生必须走只追加同步')
+  assert(editor.includes('补充学生'), '缺失学生时必须提供补充学生按钮')
+  assert(!editor.includes('records = active'), '禁止整表重写课堂名单')
+
+  // —— A. 课堂名单增量同步（只补不删）——
+  const rosterSession: PEClassSession = {
+    ...session({
+      id: SESSION_LINKED,
+      classId: CLASS_A,
+      period: 3,
+      scheduleLessonId: LESSON_ID,
+      recordId: RECORD_A
+    }),
+    records: Array.from({ length: 47 }, (_, index) => ({
+      id: `pe-record-aaaaaaaa-bbbb-4ccc-8ddd-${String(index + 1).padStart(12, '0')}`,
+      sessionId: SESSION_LINKED,
+      studentId: `student-aaaaaaaa-bbbb-4ccc-8ddd-${String(index + 1).padStart(12, '0')}`,
+      nameSnapshot: `学生${index + 1}`,
+      studentNoSnapshot: String(index + 1).padStart(2, '0'),
+      attendanceStatus: index === 0 ? ('absent' as const) : ('normal' as const),
+      performanceTags: index === 0 ? (['engaged'] as const) : [],
+      note: index === 0 ? '已填备注' : '',
+      createdAt: '2026-09-18T00:00:00.000Z',
+      updatedAt: '2026-09-18T00:00:00.000Z'
+    }))
+  }
+  // 第 48 号在读新生 + 一名已转出但仍在历史名单中的学生保持不动
+  const classStudents = [
+    ...rosterSession.records.map((record, index) => ({
+      id: record.studentId,
+      classId: CLASS_A,
+      status: index === 46 ? ('transferred' as const) : ('active' as const),
+      name: record.nameSnapshot,
+      studentNo: record.studentNoSnapshot
+    })),
+    {
+      id: 'student-aaaaaaaa-bbbb-4ccc-8ddd-000000000048',
+      classId: CLASS_A,
+      status: 'active' as const,
+      name: '新生48',
+      studentNo: '48'
+    }
+  ]
+  // 转出学生仍在 records 中；当前在读只有 46 名旧生 + 1 名新生（班级少于历史）
+  const missing = listMissingActiveStudents(rosterSession, classStudents)
+  assert(missing.length === 1 && missing[0].id.endsWith('048'), '47 人 session 新增 1 名在读只应检出 1 人')
+  const beforeFingerprint = JSON.stringify(rosterSession.records)
+  const synced = appendActiveStudentsToSession(rosterSession, classStudents, '2026-09-18T12:00:00.000Z')
+  assert(synced.addedCount === 1, '只应追加 1 人')
+  assert(synced.session.records.length === 48, '追加后应为 48 人')
+  assert(
+    JSON.stringify(synced.session.records.slice(0, 47)) === beforeFingerprint,
+    '已有 47 人的 attendance/performance/notes 不得改变'
+  )
+  assert(
+    synced.session.records.some((record) => record.studentId.endsWith('047')),
+    '已转出历史学生必须保留'
+  )
+  assert(synced.session.records[0].attendanceStatus === 'absent', '不得重置已有考勤')
+  assert(synced.session.records[0].note === '已填备注', '不得覆盖已有备注')
+  assert(synced.session.records[47].attendanceStatus === 'normal', '新补入学生默认正常')
+  assert(synced.session.records[47].performanceTags.length === 0, '新补入学生不得编造表现')
+
+  const again = appendActiveStudentsToSession(synced.session, classStudents)
+  assert(again.addedCount === 0 && again.session.records.length === 48, '重复同步不得重复添加')
+  const noop = appendActiveStudentsToSession(rosterSession, classStudents.filter((s) => !s.id.endsWith('048')))
+  assert(noop.addedCount === 0 && noop.session === rosterSession, '无缺失学生时结果不变')
+
+  // 班级人数少于历史 session：只补不删
+  const fewerActive = classStudents.filter((s) => s.status === 'active' && !s.id.endsWith('048')).slice(0, 10)
+  const noDelete = appendActiveStudentsToSession(rosterSession, fewerActive)
+  assert(noDelete.addedCount === 0 && noDelete.session.records.length === 47, '班级变少不得自动删除历史名单')
+
+  const badSession = {
+    ...rosterSession,
+    records: [
+      ...rosterSession.records.slice(0, 2),
+      {
+        ...rosterSession.records[2],
+        studentId: ''
+      }
+    ]
+  }
+  assert(
+    listMissingActiveStudents(badSession, classStudents).every((s) => s.id.trim()),
+    '空 studentId 旧数据不得导致崩溃或误匹配'
+  )
+  assert(findPeSessionById([deletedClassSession], SESSION_DELETED_CLASS)?.id === SESSION_DELETED_CLASS, '班级已删除时历史 session 仍可打开')
+
+  // —— B. 本周教学计划只读预填 ——
+  const basePlan: TeachingPlan = {
+    id: 'teaching-plan-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    name: '初一体育',
+    academicYear: '2026-2027',
+    semester: '第一学期',
+    grade: '初一',
+    startDate: '2026-09-01',
+    endDate: null,
+    totalWeeks: 4,
+    notes: '',
+    createdAt: '2026-09-01T00:00:00.000Z',
+    updatedAt: '2026-09-01T00:00:00.000Z',
+    weeks: [
+      {
+        id: 'teaching-plan-week-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee1',
+        weekNumber: 1,
+        title: '第一周课题',
+        contents: '第一周内容',
+        objectives: '',
+        notes: ''
+      },
+      {
+        id: 'teaching-plan-week-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee2',
+        weekNumber: 2,
+        title: '快速跑',
+        contents: '起跑与加速',
+        objectives: '掌握起跑姿势',
+        notes: ''
+      },
+      {
+        id: 'teaching-plan-week-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee3',
+        weekNumber: 3,
+        title: '',
+        contents: '',
+        objectives: '',
+        notes: ''
+      },
+      {
+        id: 'teaching-plan-week-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee4',
+        weekNumber: 4,
+        title: '第四周',
+        contents: '内容四',
+        objectives: '',
+        notes: ''
+      }
+    ]
+  }
+  assert(currentWeekNumberForDate('2026-09-01', 4, '2026-09-18') === 3, '周次计算应按开始日起算')
+  // 2026-09-08 是第 2 周
+  const unique = resolveUniqueCurrentWeekPrefill(
+    [basePlan],
+    { grade: '初一', academicYear: '2026-2027', semester: '第一学期' },
+    '2026-09-08'
+  )
+  assert(unique.status === 'prefilled' && unique.topic === '快速跑' && unique.notes === '起跑与加速', '唯一计划+当前周应正确预填')
+  const planSnapshot = JSON.stringify(basePlan)
+  assert(JSON.stringify(basePlan) === planSnapshot, '预填不得修改 TeachingPlan')
+
+  assert(
+    resolveUniqueCurrentWeekPrefill([], { grade: '初一', academicYear: '2026-2027', semester: '第一学期' }, '2026-09-08')
+      .status === 'none',
+    '没有计划时不预填'
+  )
+  const duplicatePlan = { ...basePlan, id: 'teaching-plan-aaaaaaaa-bbbb-4ccc-8ddd-ffffffffffff', name: '另一份' }
+  assert(
+    resolveUniqueCurrentWeekPrefill(
+      [basePlan, duplicatePlan],
+      { grade: '初一', academicYear: '2026-2027', semester: '第一学期' },
+      '2026-09-08'
+    ).status === 'ambiguous',
+    '多份匹配计划不得猜测'
+  )
+  assert(
+    resolveUniqueCurrentWeekPrefill(
+      [basePlan],
+      { grade: '初二', academicYear: '2026-2027', semester: '第一学期' },
+      '2026-09-08'
+    ).status === 'none',
+    '不同年级不得串计划'
+  )
+  assert(
+    resolveUniqueCurrentWeekPrefill(
+      [basePlan],
+      { grade: '初一', academicYear: '2026-2027', semester: '第二学期' },
+      '2026-09-08'
+    ).status === 'none',
+    '不同学期不得串计划'
+  )
+  const oldSessionTopic = linked.topic
+  assert(oldSessionTopic === '', '旧 session 不被预填逻辑改写（本自检只测纯函数，创建链仅新建调用）')
 
   return 'pe-session workbench self-check passed'
 }

@@ -8,6 +8,7 @@ import { listedClassRecords } from '@shared/class'
 import { useClasses } from '../context/ClassContext'
 import { usePeSessions } from '../context/PeSessionContext'
 import { useStudents } from '../context/StudentContext'
+import { useTeachingPlans } from '../context/TeachingPlanContext'
 import { buildPeSession } from '../data/peSession/buildSession'
 import {
   COMMON_PERIODS,
@@ -21,6 +22,7 @@ import {
   type PeLessonType,
   type PeSessionPrefill
 } from '@shared/peSession'
+import { resolveUniqueCurrentWeekPrefill } from '@shared/teachingPlan'
 
 interface PeLessonRecordsPageProps {
   prefill: PeSessionPrefill | null
@@ -38,6 +40,7 @@ export default function PeLessonRecordsPage({
   const { classes } = useClasses()
   const listedClasses = listedClassRecords(classes)
   const { students } = useStudents()
+  const { plans } = useTeachingPlans()
   const { sessions, loading, error, upsertSession, deleteSession } = usePeSessions()
   const [editing, setEditing] = useState<PEClassSession | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
@@ -47,6 +50,7 @@ export default function PeLessonRecordsPage({
   const [working, setWorking] = useState(false)
   const [duplicateHint, setDuplicateHint] = useState<PEClassSession | null>(null)
   const [filterClassKey, setFilterClassKey] = useState('all')
+  const [planPrefillHint, setPlanPrefillHint] = useState<string | null>(null)
 
   const [classId, setClassId] = useState(listedClasses[0]?.id ?? '')
   const [date, setDate] = useState(formatLocalDate(new Date()))
@@ -140,6 +144,7 @@ export default function PeLessonRecordsPage({
     setCreateOpen(false)
     setPrefillOpen(false)
     if (existing) {
+      setPlanPrefillHint(null)
       setEditing(existing)
       setActionError(null)
       return
@@ -202,15 +207,34 @@ export default function PeLessonRecordsPage({
       setCreateOpen(false)
       setPrefillOpen(false)
       onPrefillConsumed()
+      setPlanPrefillHint(null)
       setEditing(existing)
       setActionError(`该班级 ${options.date} 第${options.period}节已有课堂记录，已打开已有记录。`)
       return
     }
 
+    const manualTopic = options.topic.trim()
+    const planPrefill = resolveUniqueCurrentWeekPrefill(plans, classRecord, options.date)
+    let topic = options.topic
+    let notes: string | undefined
+    let nextPlanHint: string | null = null
+
+    if (!manualTopic) {
+      if (planPrefill.status === 'prefilled') {
+        topic = planPrefill.topic
+        notes = planPrefill.notes
+        nextPlanHint = '已从本周教学计划预填'
+      } else if (planPrefill.status === 'ambiguous') {
+        nextPlanHint = '存在多份教学计划，本次未自动带入'
+      }
+    }
+
     const created = buildPeSession({
       classRecord,
       activeStudents: active,
-      ...options
+      ...options,
+      topic,
+      notes
     })
 
     setWorking(true)
@@ -219,6 +243,7 @@ export default function PeLessonRecordsPage({
       setCreateOpen(false)
       setPrefillOpen(false)
       onPrefillConsumed()
+      setPlanPrefillHint(nextPlanHint)
       setEditing(created)
       setActionError(null)
     } catch (createError) {
@@ -294,7 +319,11 @@ export default function PeLessonRecordsPage({
       <PeSessionEditor
         key={editing.id}
         session={editing}
-        onBack={() => setEditing(null)}
+        planPrefillHint={planPrefillHint}
+        onBack={() => {
+          setEditing(null)
+          setPlanPrefillHint(null)
+        }}
         onSave={async (next) => {
           await upsertSession(next)
           setEditing(next)
@@ -390,7 +419,14 @@ export default function PeLessonRecordsPage({
                     <td>{counts.observer}</td>
                     <td>
                       <div className="table-actions">
-                        <button type="button" className="btn btn-small" onClick={() => setEditing(item)}>
+                        <button
+                          type="button"
+                          className="btn btn-small"
+                          onClick={() => {
+                            setPlanPrefillHint(null)
+                            setEditing(item)
+                          }}
+                        >
                           查看/编辑
                         </button>
                         <button type="button" className="btn btn-small btn-danger" onClick={() => setPendingDelete(item)}>
@@ -467,6 +503,7 @@ export default function PeLessonRecordsPage({
                   className="btn btn-small"
                   onClick={() => {
                     setCreateOpen(false)
+                    setPlanPrefillHint(null)
                     setEditing(duplicateHint)
                   }}
                 >

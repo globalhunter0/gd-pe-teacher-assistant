@@ -31,3 +31,4 @@ export {
   WORKBENCH_RECORD_STATUS_LABELS
 } from './workbenchToday'
 export type { WorkbenchLessonRecordMatch, WorkbenchRecordStatus } from './workbenchToday'
+export { appendActiveStudentsToSession, listMissingActiveStudents } from './rosterSync'

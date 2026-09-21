@@ -14,6 +14,7 @@ export function buildPeSession(options: {
   period: number
   lessonType: PeLessonType
   topic: string
+  notes?: string
   scheduleLessonId: string | null
   teamSnapshot: string
   startTimeSnapshot: string
@@ -30,7 +31,7 @@ export function buildPeSession(options: {
     scheduleLessonId: options.scheduleLessonId,
     lessonType: options.lessonType,
     topic: options.topic.trim(),
-    notes: '',
+    notes: (options.notes ?? '').trim(),
     classNameSnapshot: options.classRecord.className,
     gradeSnapshot: options.classRecord.grade,
     teamSnapshot: options.teamSnapshot,
