@@ -7,6 +7,7 @@ import {
   MAX_PLAN_WEEKS,
   createTeachingPlanWeekId,
   currentWeekNumberForDate,
+  deriveWeeklyPlanExecution,
   parseTeachingPlans,
   plansMatchingClassContext,
   renumberWeeks,
@@ -16,6 +17,7 @@ import {
 import type { PlanNavContext } from './DashboardPage'
 import TeachingPlanCreateDialog from '../components/TeachingPlanCreateDialog'
 import TeachingPlanWeekDialog from '../components/TeachingPlanWeekDialog'
+import { usePeSessions } from '../context/PeSessionContext'
 import { useTeachingPlans } from '../context/TeachingPlanContext'
 
 function clonePlan(plan: TeachingPlan): TeachingPlan {
@@ -33,8 +35,15 @@ function weekPreview(week: TeachingPlanWeek): string {
   return text.length > 36 ? `${text.slice(0, 36)}…` : text
 }
 
-export default function TeachingPlansPage({ context = null }: { context?: PlanNavContext | null }): React.JSX.Element {
+export default function TeachingPlansPage({
+  context = null,
+  onOpenSession
+}: {
+  context?: PlanNavContext | null
+  onOpenSession?: (sessionId: string) => void
+}): React.JSX.Element {
   const { plans, loading, error, upsertPlan, deletePlan, duplicatePlan } = useTeachingPlans()
+  const { sessions } = usePeSessions()
   const [createOpen, setCreateOpen] = useState(false)
   const [openedId, setOpenedId] = useState<string | null>(null)
   const [draft, setDraft] = useState<TeachingPlan | null>(null)
@@ -252,6 +261,16 @@ export default function TeachingPlansPage({ context = null }: { context?: PlanNa
 
   if (draft) {
     const highlightedWeek = currentWeekNumberForDate(draft.startDate, draft.weeks.length)
+    const currentWeek = highlightedWeek
+      ? draft.weeks.find((week) => week.weekNumber === highlightedWeek) ?? null
+      : null
+    const currentWeekExecution = currentWeek
+      ? deriveWeeklyPlanExecution({
+          teachingPlanId: draft.id,
+          teachingPlanWeekId: currentWeek.id,
+          sessions
+        })
+      : null
     return (
       <PageLayout className="page--plans">
         <PageHeader
@@ -366,6 +385,30 @@ export default function TeachingPlansPage({ context = null }: { context?: PlanNa
               </div>
               <p className="plan-week-title">{week.title || '尚未填写主题'}</p>
               <p className="plan-week-preview">{weekPreview(week)}</p>
+              {highlightedWeek === week.weekNumber && currentWeekExecution ? (
+                <div className="plan-week-execution">
+                  <p className="plan-week-execution-count">本周已执行 {currentWeekExecution.completedCount} 节</p>
+                  {currentWeekExecution.recent.length > 0 ? (
+                    <ul className="plan-week-execution-list">
+                      {currentWeekExecution.recent.slice(0, 5).map((item) => (
+                        <li key={item.sessionId}>
+                          {onOpenSession ? (
+                            <button type="button" className="link-button" onClick={() => onOpenSession(item.sessionId)}>
+                              {item.date} 第{item.period}节 · {item.grade} {item.className}
+                              {item.topic ? ` · ${item.topic}` : ''}
+                            </button>
+                          ) : (
+                            <span>
+                              {item.date} 第{item.period}节 · {item.grade} {item.className}
+                              {item.topic ? ` · ${item.topic}` : ''}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
             </article>
           ))}
         </div>

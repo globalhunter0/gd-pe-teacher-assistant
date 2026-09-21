@@ -56,6 +56,9 @@ import { runV0260P03StudentHistorySelfCheckOrThrow } from '../peTest/v0260P03Sel
 import { runV0270P01ClassroomQuizSelfCheckOrThrow } from '../peTest/v0270P01Selfcheck'
 import { runV0270P02ParticipationSelfCheckOrThrow } from '../peSession/v0270P02Selfcheck'
 import { runV0270P03SessionStatusSelfCheckOrThrow } from '../peSession/v0270P03Selfcheck'
+import { runV0280P01WeeklyTaskSelfCheckOrThrow } from '../teachingPlan/v0280P01Selfcheck'
+import { runV0280P02PlanLinkSelfCheckOrThrow } from '../teachingPlan/v0280P02Selfcheck'
+import { runV0280P03ExecutionSelfCheckOrThrow } from '../teachingPlan/v0280P03Selfcheck'
 
 async function main(): Promise<void> {
   console.log(runAppVersionSelfCheckOrThrow())
@@ -104,6 +107,9 @@ async function main(): Promise<void> {
   console.log(await runV0270P01ClassroomQuizSelfCheckOrThrow())
   console.log(await runV0270P02ParticipationSelfCheckOrThrow())
   console.log(await runV0270P03SessionStatusSelfCheckOrThrow())
+  console.log(runV0280P01WeeklyTaskSelfCheckOrThrow())
+  console.log(await runV0280P02PlanLinkSelfCheckOrThrow())
+  console.log(runV0280P03ExecutionSelfCheckOrThrow())
   console.log(runPeSessionWorkbenchSelfCheckOrThrow())
   console.log(runTrainingTeamSelfCheckOrThrow())
   console.log(await runScheduleLinkageSelfCheckOrThrow())

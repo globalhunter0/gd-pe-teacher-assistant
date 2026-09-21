@@ -19,11 +19,14 @@ export function buildPeSession(options: {
   teamSnapshot: string
   startTimeSnapshot: string
   endTimeSnapshot: string
+  teachingPlanId?: string | null
+  teachingPlanWeekId?: string | null
+  objectivesSnapshot?: string
 }): PEClassSession {
   const now = new Date().toISOString()
   const sessionId = createPeSessionId()
 
-  return {
+  const session: PEClassSession = {
     id: sessionId,
     classId: options.classRecord.id,
     date: options.date,
@@ -55,4 +58,16 @@ export function buildPeSession(options: {
       updatedAt: now
     }))
   }
+
+  if (options.teachingPlanId !== undefined) {
+    session.teachingPlanId = options.teachingPlanId
+  }
+  if (options.teachingPlanWeekId !== undefined) {
+    session.teachingPlanWeekId = options.teachingPlanWeekId
+  }
+  if (options.objectivesSnapshot !== undefined && options.objectivesSnapshot.trim()) {
+    session.objectivesSnapshot = options.objectivesSnapshot.trim()
+  }
+
+  return session
 }

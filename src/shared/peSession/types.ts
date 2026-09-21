@@ -50,6 +50,13 @@ export interface PEClassSession {
    */
   status?: PeSessionStatus
   completedAt?: string | null
+  /**
+   * 创建时关联的教学计划 / 周次（可选）。历史快照：topic/notes/objectivesSnapshot 不随计划修改而变。
+   */
+  teachingPlanId?: string | null
+  teachingPlanWeekId?: string | null
+  /** 创建时从周计划 objectives 快照；只读展示，不回写 TeachingPlan。 */
+  objectivesSnapshot?: string
   createdAt: string
   updatedAt: string
   records: PEStudentRecord[]

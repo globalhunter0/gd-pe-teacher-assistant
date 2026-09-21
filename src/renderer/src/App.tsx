@@ -123,7 +123,7 @@ export default function App(): React.JSX.Element {
                             onOpenSessionConsumed={() => setOpenPeSessionId(null)}
                           />
                         ) : activeKey === 'plans' ? (
-                          <TeachingPlansPage context={planContext} />
+                          <TeachingPlansPage context={planContext} onOpenSession={goToExistingLesson} />
                         ) : activeKey === 'resources' ? (
                           <ResourcesPage />
                         ) : activeKey === 'tests' || activeKey === 'exams' ? (

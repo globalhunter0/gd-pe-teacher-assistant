@@ -220,11 +220,17 @@ export default function PeLessonRecordsPage({
     let topic = options.topic
     let notes: string | undefined
     let nextPlanHint: string | null = null
+    let teachingPlanId: string | null | undefined
+    let teachingPlanWeekId: string | null | undefined
+    let objectivesSnapshot: string | undefined
 
     if (!manualTopic) {
       if (planPrefill.status === 'prefilled') {
         topic = planPrefill.topic
         notes = planPrefill.notes
+        teachingPlanId = planPrefill.planId
+        teachingPlanWeekId = planPrefill.weekId
+        objectivesSnapshot = planPrefill.objectives || undefined
         nextPlanHint = '已从本周教学计划预填'
       } else if (planPrefill.status === 'ambiguous') {
         nextPlanHint = '存在多份教学计划，本次未自动带入'
@@ -236,7 +242,10 @@ export default function PeLessonRecordsPage({
       activeStudents: active,
       ...options,
       topic,
-      notes
+      notes,
+      teachingPlanId,
+      teachingPlanWeekId,
+      objectivesSnapshot
     })
 
     setWorking(true)

@@ -383,6 +383,14 @@ export default function PeSessionEditor({
           />
         </label>
       </div>
+      {draft.objectivesSnapshot ? (
+        <p className="edit-hint pe-session-objectives">
+          本周教学目标（创建时快照）：{draft.objectivesSnapshot}
+        </p>
+      ) : null}
+      {draft.teachingPlanId && !draft.objectivesSnapshot ? (
+        <p className="edit-hint">原教学计划周目标未快照；计划本身可在「教学计划」页查看。</p>
+      ) : null}
       <label className="session-notes-field">
         课堂小结 / 整节课备注
         <textarea
