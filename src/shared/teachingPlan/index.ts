@@ -22,3 +22,9 @@ export {
   resolveTeachingPlansForClass
 } from './weeklyTask'
 export type { ClassPlanContext, WeeklyTeachingTask, WeeklyTeachingTaskStatus } from './weeklyTask'
+export { deriveWeeklyPlanExecution } from './execution'
+export type {
+  WeeklyExecutionClassRef,
+  WeeklyExecutionRecentItem,
+  WeeklyPlanExecution
+} from './execution'

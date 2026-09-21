@@ -684,6 +684,30 @@ button.kpi-card:hover {
   color: var(--text-muted);
 }
 
+.plan-week-execution {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.plan-week-execution-count {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.plan-week-execution-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.plan-week-execution-list li + li {
+  margin-top: 4px;
+}
+
 .today-courses {
   overflow: hidden;
   background:

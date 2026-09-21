@@ -11,7 +11,7 @@ import {
   type PeSessionPrefill
 } from '@shared/peSession'
 import { workbenchClockStatus, workbenchListedClass, WORKBENCH_CLOCK_LABELS } from '@shared/schedule'
-import { buildWeeklyTeachingTask } from '@shared/teachingPlan'
+import { buildWeeklyTeachingTask, deriveWeeklyPlanExecution } from '@shared/teachingPlan'
 import { isActiveTrainingTeam } from '@shared/trainingTeam'
 import heroSportsTech from '@assets/dashboard/hero-sports-tech.png'
 import EmptyState from '../components/EmptyState'
@@ -179,6 +179,16 @@ export default function DashboardPage({
       }),
     [plans, listedClasses, today.lessons, todayDate]
   )
+  const weeklyExecution = useMemo(() => {
+    if (weeklyTask.status !== 'ready' || !weeklyTask.planId || !weeklyTask.weekId) {
+      return null
+    }
+    return deriveWeeklyPlanExecution({
+      teachingPlanId: weeklyTask.planId,
+      teachingPlanWeekId: weeklyTask.weekId,
+      sessions
+    })
+  }, [weeklyTask, sessions])
   const todayRecordStats = useMemo(() => {
     let unrecorded = 0
     let inProgress = 0
@@ -375,7 +385,10 @@ export default function DashboardPage({
               <span>教学目标</span>
               {weeklyTask.objectives || '—'}
             </p>
-            <p className="weekly-teaching-task-meta">今日对应课程 {weeklyTask.todayLessonCount} 节</p>
+            <p className="weekly-teaching-task-meta">
+              今日对应课程 {weeklyTask.todayLessonCount} 节
+              {weeklyExecution ? ` · 已完成 ${weeklyExecution.completedCount} 节` : ''}
+            </p>
           </div>
         ) : null}
         {weeklyTask.status === 'none' ? (
