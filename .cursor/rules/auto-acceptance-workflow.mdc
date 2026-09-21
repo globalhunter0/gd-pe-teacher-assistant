@@ -1,0 +1,53 @@
+---
+description: P0 自动验收与收口流程（暂停常规人工验收）
+alwaysApply: true
+---
+
+# 自动验收与收口
+
+## 原则
+
+- 暂停常规人工验收；不要要求用户逐项点页面、截图确认。
+- 每个 P0 完成后由 Agent 做充分自动化验证，通过后直接 commit + push，再继续下一 P0。
+- 最终报告用精简收口格式；通过时写明「自动验收通过，无需人工验收。」
+
+## 仅在以下情况请求人工确认
+
+- Electron / 真实 UI 行为无法自动确认
+- 文件选择器、系统权限、打印、剪贴板等 OS 交互
+- 自动验证结果与代码逻辑矛盾
+- 真实数据丢失风险
+- 外部服务 / 网络 / GitHub / 第三方登录阻断
+- 明显 UI 错位但无法程序化确认视觉结果
+
+停下来时只输出：问题、影响范围、已验证内容、无法自动确认点、最小人工操作。不要给长清单。
+
+## 每个 P0 收口至少执行
+
+1. 当前 P0 专项 self-check
+2. 前序 P0 self-check
+3. 相关模块既有 self-check
+4. 全量 regression（`npx tsx src/shared/examStandard/runSelfCheck.ts`）
+5. app version self-check
+6. backup/restore（涉及持久化时）
+7. 老数据 / 旧 JSON 兼容
+8. 新字段 parse/save/restore
+9. `npx tsc -b`
+10. `npm run build`
+11. `git diff --check`
+12. `git status` + untracked 审计
+13. 确认无非本 P0 改动、无构建产物/临时垃圾
+
+有可启动的 Electron / renderer 自动测试能力时也应跑。
+
+## 业务链验证（不只测函数能跑）
+
+优先覆盖：创建 → 保存 → 再读 → 修改 → 再保存 → 历史仍在 → backup → restore → 一致。跨模块验证真实引用；旧数据用 fixture；删除验证不误删、不悬空崩溃、阻断规则正确；统计验证来源正确、无重复计数、不建平行统计库。
+
+## Commit / Push
+
+上述检查全通过、working tree 仅本 P0 合理改动、无高风险未验证行为时：直接单一清晰 P0 commit，push 当前 feature branch，然后继续下一 P0。不需等待人工确认。
+
+## 必须停止
+
+自动验证失败；数据安全无法确认；非预期历史数据修改；build/tsc/regression 不过；merge conflict；须用户决定的业务规则；自动化无法判断的真实 UI/OS 行为。
