@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { basename, extname } from 'node:path'
 import * as XLSX from 'xlsx'
+import { emptyImportTransactionReport, runStagedJsonWrites } from '../shared/importTransaction'
 import { cellToDisplayString } from '../shared/student/importMapping'
 import type { ImportPickResult } from '../shared/student/importTypes'
 import {
@@ -214,8 +215,46 @@ export async function commitScheduleExcel(
     fileName: currentSession.fileName,
     resolutions
   })
+  if (!preview.canCommit) {
+    throw new Error(preview.blockingReasons[0] ?? '课表同步尚未确认，不能写入')
+  }
   const target = applyScheduleSync(current, incoming, resolutions)
-  const saved = await saveSchedule(target)
+  const previous = current
+  let saved = target
+
+  const writeResult = await runStagedJsonWrites([
+    {
+      name: 'schedule.json',
+      write: async () => {
+        saved = await saveSchedule(target)
+      },
+      restore: async () => {
+        await saveSchedule(previous)
+      }
+    }
+  ])
+
+  if (!writeResult.ok) {
+    const message =
+      writeResult.error instanceof Error ? writeResult.error.message : String(writeResult.error)
+    const err = new Error(
+      writeResult.rolledBack
+        ? `课表导入失败，已回滚到导入前状态：${message}`
+        : `课表导入失败且回滚不完整：${message}`
+    )
+    ;(err as Error & { transaction?: unknown }).transaction = emptyImportTransactionReport('schedule', {
+      created: preview.totals.create,
+      updated: preview.totals.update,
+      unchanged: preview.totals.keep,
+      skipped: extraction.summary.skipped.length,
+      conflicts: preview.totals.conflict,
+      errors: [message],
+      rolledBack: writeResult.rolledBack,
+      ok: false
+    })
+    throw err
+  }
+
   clearScheduleImportSession()
   return {
     items: saved,
@@ -225,6 +264,16 @@ export async function commitScheduleExcel(
     remove: preview.totals.remove,
     recognized: extraction.summary.recognizedCount,
     specialEventCount: extraction.summary.specialEventCount,
-    skipped: extraction.summary.skipped.length
+    skipped: extraction.summary.skipped.length,
+    transaction: emptyImportTransactionReport('schedule', {
+      created: preview.totals.create,
+      updated: preview.totals.update,
+      unchanged: preview.totals.keep,
+      skipped: extraction.summary.skipped.length + preview.totals.remove,
+      conflicts: preview.totals.conflict,
+      errors: [],
+      rolledBack: false,
+      ok: true
+    })
   }
 }

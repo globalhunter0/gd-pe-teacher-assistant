@@ -1,4 +1,5 @@
 import type { ClassRecord } from '../class/types'
+import type { ImportTransactionReport } from '../importTransaction'
 import type { StudentGender, StudentRecord } from './types'
 
 export type ImportRowStatus = 'importable' | 'warning' | 'error' | 'duplicate'
@@ -51,6 +52,8 @@ export interface ImportCommitResult {
   createdStudentCount?: number
   updatedStudentCount?: number
   removedFromRosterCount?: number
+  /** 幂等事务报告：失败时含 rolledBack */
+  transaction?: ImportTransactionReport
 }
 
 export type ImportPickResult =

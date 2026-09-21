@@ -1,6 +1,7 @@
 import { isListedClass } from '../../class/validate'
 import { listBuiltinExamStandards } from '../../examStandard/catalog'
 import type { ClassRecord } from '../../class/types'
+import { emptyImportTransactionReport, runStagedJsonWrites } from '../../importTransaction'
 import type { PETestSession, TestItem } from '../../peTest/types'
 import type { StudentRecord } from '../../student/types'
 import { mergePeTestsAtomically, planExamBatchPeTestImport } from './planImport'
@@ -128,13 +129,56 @@ export async function executeImportExamBatchToPeTests(
     throw new Error('没有可新建的测试')
   }
 
-  await stores.savePeTests(merged.next)
+  const previous = existing
+  const writeResult = await runStagedJsonWrites([
+    {
+      name: 'pe-tests.json',
+      write: async () => {
+        await stores.savePeTests(merged.next)
+      },
+      restore: async () => {
+        await stores.savePeTests(previous)
+      }
+    }
+  ])
+
+  if (!writeResult.ok) {
+    const message =
+      writeResult.error instanceof Error ? writeResult.error.message : String(writeResult.error)
+    const err = new Error(
+      writeResult.rolledBack
+        ? `体育测试导入失败，已回滚到导入前状态：${message}`
+        : `体育测试导入失败且回滚不完整：${message}`
+    )
+    ;(err as Error & { transaction?: unknown }).transaction = emptyImportTransactionReport('pe-tests', {
+      created: planned.sessions.length,
+      updated: 0,
+      unchanged: 0,
+      skipped: planned.duplicateKeys.length,
+      conflicts: 0,
+      errors: [message],
+      rolledBack: writeResult.rolledBack,
+      ok: false
+    })
+    throw err
+  }
+
   return {
     classId: classRecord.id,
     className: classRecord.className,
     testDate: payload.testDate,
     createdCount: planned.sessions.length,
     skippedCount: planned.duplicateKeys.length,
-    ...summarize(planned.sessions)
+    ...summarize(planned.sessions),
+    transaction: emptyImportTransactionReport('pe-tests', {
+      created: planned.sessions.length,
+      updated: 0,
+      unchanged: 0,
+      skipped: planned.duplicateKeys.length,
+      conflicts: 0,
+      errors: [],
+      rolledBack: false,
+      ok: true
+    })
   }
 }

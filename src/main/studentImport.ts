@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
 import { basename, extname } from 'node:path'
 import * as XLSX from 'xlsx'
+import { emptyImportTransactionReport, runStagedJsonWrites } from '../shared/importTransaction'
 import { cellToDisplayString, mappingFromPayload } from '../shared/student/importMapping'
 import type {
   ImportColumn,
@@ -266,30 +267,75 @@ export async function commitStudentExcel(
   const knownClassIds = new Set(parsedClasses.map((item) => item.id))
   const parsedStudents = parseStudentRecords(planned.students, { knownClassIds })
   const previousClasses = classes
+  const previousStudents = students
+  const previousClassIds = new Set(previousClasses.map((item) => item.id))
+  let savedClasses = parsedClasses
+  let savedStudents = parsedStudents
 
-  try {
-    const savedClasses = await saveClasses(parsedClasses)
-    const savedStudents = await saveStudents(parsedStudents, knownClassIds)
-    clearImportSession()
-    return {
-      students: savedStudents,
-      classes: savedClasses,
-      imported: planned.createdStudentCount + planned.updatedStudentCount,
-      warningImported: 0,
-      skippedDuplicate: 0,
-      skippedError: preview.totals.conflict,
-      createdClassCount: planned.createdClassCount,
-      createdStudentCount: planned.createdStudentCount,
-      updatedStudentCount: planned.updatedStudentCount,
-      removedFromRosterCount: planned.removedFromRosterCount
+  const writeResult = await runStagedJsonWrites([
+    {
+      name: 'classes.json',
+      write: async () => {
+        savedClasses = await saveClasses(parsedClasses)
+      },
+      restore: async () => {
+        await saveClasses(previousClasses)
+      }
+    },
+    {
+      name: 'students.json',
+      write: async () => {
+        savedStudents = await saveStudents(parsedStudents, knownClassIds)
+      },
+      restore: async () => {
+        await saveStudents(previousStudents, previousClassIds)
+      }
     }
-  } catch (writeError) {
-    try {
-      await saveClasses(previousClasses)
-    } catch {
-      // 尽量回滚班级文件
-    }
-    throw writeError
+  ])
+
+  if (!writeResult.ok) {
+    const message =
+      writeResult.error instanceof Error ? writeResult.error.message : String(writeResult.error)
+    const err = new Error(
+      writeResult.rolledBack
+        ? `学生导入失败，已回滚到导入前状态（失败阶段：${writeResult.failedStage}）：${message}`
+        : `学生导入失败且回滚不完整（失败阶段：${writeResult.failedStage}）：${message}`
+    )
+    ;(err as Error & { transaction?: unknown }).transaction = emptyImportTransactionReport('students', {
+      created: 0,
+      updated: 0,
+      unchanged: preview.totals.keep,
+      skipped: 0,
+      conflicts: preview.totals.conflict,
+      errors: [message],
+      rolledBack: writeResult.rolledBack,
+      ok: false
+    })
+    throw err
+  }
+
+  clearImportSession()
+  return {
+    students: savedStudents,
+    classes: savedClasses,
+    imported: planned.createdStudentCount + planned.updatedStudentCount,
+    warningImported: 0,
+    skippedDuplicate: 0,
+    skippedError: preview.totals.conflict,
+    createdClassCount: planned.createdClassCount,
+    createdStudentCount: planned.createdStudentCount,
+    updatedStudentCount: planned.updatedStudentCount,
+    removedFromRosterCount: planned.removedFromRosterCount,
+    transaction: emptyImportTransactionReport('students', {
+      created: planned.createdStudentCount + planned.createdClassCount,
+      updated: planned.updatedStudentCount,
+      unchanged: preview.totals.keep,
+      skipped: planned.removedFromRosterCount,
+      conflicts: preview.totals.conflict,
+      errors: [],
+      rolledBack: false,
+      ok: true
+    })
   }
 }
 

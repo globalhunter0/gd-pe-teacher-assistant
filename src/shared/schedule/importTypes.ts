@@ -1,3 +1,4 @@
+import type { ImportTransactionReport } from '../importTransaction'
 import type { CourseType, Period, Weekday } from './types'
 
 export type ScheduleImportField = 'weekday' | 'period' | 'startTime' | 'endTime' | 'team' | 'courseType'
@@ -100,4 +101,6 @@ export interface ScheduleImportCommitResult {
   recognized: number
   specialEventCount: number
   skipped: number
+  /** 幂等事务报告：失败时含 rolledBack */
+  transaction?: ImportTransactionReport
 }

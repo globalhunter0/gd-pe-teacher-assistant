@@ -1,5 +1,6 @@
 import type { BatchAssessmentRow } from '../types'
 import type { ExamStandard } from '../../examStandard/types'
+import type { ImportTransactionReport } from '../../importTransaction'
 import type { PETestSession, TestItem, TestRecordStatus } from '../../peTest/types'
 import type { StudentRecord } from '../../student/types'
 import type { ClassRecord } from '../../class/types'
@@ -70,4 +71,6 @@ export interface ExamBatchPeTestImportResult {
     validCount: number
     absentCount: number
   }>
+  /** 幂等事务报告：失败时含 rolledBack */
+  transaction?: ImportTransactionReport
 }

@@ -60,6 +60,7 @@ import { runV0280P01WeeklyTaskSelfCheckOrThrow } from '../teachingPlan/v0280P01S
 import { runV0280P02PlanLinkSelfCheckOrThrow } from '../teachingPlan/v0280P02Selfcheck'
 import { runV0280P03ExecutionSelfCheckOrThrow } from '../teachingPlan/v0280P03Selfcheck'
 import { runV0290P01IntegritySelfCheckOrThrow } from '../dataIntegrity/v0290P01Selfcheck'
+import { runV0290P02ImportTransactionSelfCheckOrThrow } from '../importTransaction/v0290P02Selfcheck'
 
 async function main(): Promise<void> {
   console.log(runAppVersionSelfCheckOrThrow())
@@ -112,6 +113,7 @@ async function main(): Promise<void> {
   console.log(await runV0280P02PlanLinkSelfCheckOrThrow())
   console.log(runV0280P03ExecutionSelfCheckOrThrow())
   console.log(runV0290P01IntegritySelfCheckOrThrow())
+  console.log(await runV0290P02ImportTransactionSelfCheckOrThrow())
   console.log(runPeSessionWorkbenchSelfCheckOrThrow())
   console.log(runTrainingTeamSelfCheckOrThrow())
   console.log(await runScheduleLinkageSelfCheckOrThrow())
