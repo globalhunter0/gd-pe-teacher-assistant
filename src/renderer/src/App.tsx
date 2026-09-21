@@ -39,6 +39,7 @@ export default function App(): React.JSX.Element {
   const [planContext, setPlanContext] = useState<PlanNavContext | null>(null)
   const [openTrainingTeamId, setOpenTrainingTeamId] = useState<string | null>(null)
   const [startTrainingSession, setStartTrainingSession] = useState(false)
+  const [startupHealthError, setStartupHealthError] = useState<string | null>(null)
 
   function navigate(key: string): void {
     const next = resolveAppNavigation(key)
@@ -67,6 +68,16 @@ export default function App(): React.JSX.Element {
     }
   }, [activeKey])
 
+  useEffect(() => {
+    void window.electronAPI.dataIntegrity.startupStatus().then((report) => {
+      if (report && report.status === 'error') {
+        setStartupHealthError(
+          `启动自检发现数据错误 ${report.issueCount.error} 项。应用仍可打开；请到「设置 / 备份与恢复」查看明细，损坏文件不会被自动清空。`
+        )
+      }
+    })
+  }, [])
+
   return (
     <UserPreferencesProvider>
     <ScheduleProvider>
@@ -81,6 +92,14 @@ export default function App(): React.JSX.Element {
                   <div className="app-shell">
                     <Sidebar activeKey={activeKey === 'exams' ? 'tests' : activeKey} onNavigate={navigate} />
                     <div className="app-main">
+                      {startupHealthError ? (
+                        <div className="data-integrity-banner data-integrity-banner--error" role="alert">
+                          {startupHealthError}{' '}
+                          <button type="button" className="btn btn-small" onClick={() => setActiveKey('settings')}>
+                            打开设置
+                          </button>
+                        </div>
+                      ) : null}
                       {activeKey === 'dashboard' ? (
                         <AppHeader title={PAGE_TITLES[activeKey]} description={PAGE_DESCRIPTIONS[activeKey]} />
                       ) : null}

@@ -175,6 +175,14 @@ export interface ElectronAPI {
   }
   dataIntegrity: {
     audit: () => Promise<DataIntegrityReport>
+    startupStatus: () => Promise<DataIntegrityReport | null>
+    safeRepair: () => Promise<{
+      ok: boolean
+      safetyBackupPath: string | null
+      repairedCount: number
+      message: string
+      reportAfter: DataIntegrityReport | null
+    }>
   }
   userPreferences: {
     get: () => Promise<UserPreferences>

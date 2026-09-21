@@ -2,6 +2,7 @@ export { BACKUP_FORMAT_VERSION, BACKUP_FILE_EXTENSION, APP_RELEASE_VERSION, BUSI
 export type { BackupManifest, BackupFileEntry, BackupResult, RestoreResult } from './types'
 export {
   createDataBackup,
+  createSafetyBackupArchive,
   restoreDataBackup,
   verifyBackupArchive,
   backupCoversResources,

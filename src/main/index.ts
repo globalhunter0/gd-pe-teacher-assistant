@@ -20,6 +20,7 @@ import { registerExamBatchIpc } from './examBatchIpc'
 import { registerTrainingIpc } from './trainingIpc'
 import { registerBackupIpc } from './backupIpc'
 import { registerDataIntegrityIpc } from './dataIntegrityIpc'
+import { buildAndRunStartupHealthCheck } from './dataIntegrityService'
 import { registerUserPreferencesIpc } from './userPreferencesIpc'
 import {
   getTrainingItemFilePath,
@@ -93,6 +94,15 @@ app.whenReady().then(() => {
   registerDataIntegrityIpc()
   registerUserPreferencesIpc()
   assertBuiltinExamCatalog()
+  void buildAndRunStartupHealthCheck().then((report) => {
+    if (report.status === 'healthy') {
+      console.log('[data-integrity] startup health: healthy')
+    } else {
+      console.warn(
+        `[data-integrity] startup health: ${report.status} (error=${report.issueCount.error}, warning=${report.issueCount.warning})`
+      )
+    }
+  })
   void loadSchedule().then((items) => {
     console.log(`[schedule] ${items.length} 节课程，文件：${getScheduleFilePath()}`)
   })

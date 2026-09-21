@@ -1,8 +1,18 @@
-import { access } from 'node:fs/promises'
+import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { BUSINESS_JSON_FILES } from '../shared/backup/types'
-import { runDataIntegrityAudit, type DataIntegrityReport, type DataIntegritySnapshot } from '../shared/dataIntegrity'
-import { UserDataCorruptError } from '../shared/persistence/jsonFile'
+import { APP_RELEASE_VERSION, BUSINESS_JSON_FILES } from '../shared/backup/types'
+import { createSafetyBackupArchive } from '../shared/backup/service'
+import {
+  applyRawPeSessionStatusRepairs,
+  planSafeRepairs,
+  runDataIntegrityAudit,
+  runStartupHealthAudit,
+  scanRawPeSessionsForStatusRepairs,
+  type DataIntegrityReport,
+  type DataIntegritySnapshot,
+  type SafeRepairPlan
+} from '../shared/dataIntegrity'
+import { pathExists, UserDataCorruptError } from '../shared/persistence/jsonFile'
 import { loadClasses } from './classStore'
 import { loadPeSessions } from './peSessionStore'
 import { loadPeTests } from './peTestStore'
@@ -18,7 +28,17 @@ import {
 } from './trainingStore'
 import { getUserDataRoot } from './userDataPaths'
 
-async function fileStatus(fileName: string): Promise<DataIntegritySnapshot['fileStatuses'] extends ReadonlyArray<infer T> | undefined ? T : never> {
+const CORRUPT_QUARANTINE_DIR = 'corrupt-quarantine'
+
+let lastStartupReport: DataIntegrityReport | null = null
+
+export function getLastStartupHealthReport(): DataIntegrityReport | null {
+  return lastStartupReport
+}
+
+async function fileStatus(
+  fileName: string
+): Promise<NonNullable<DataIntegritySnapshot['fileStatuses']>[number]> {
   const filePath = join(getUserDataRoot(), fileName)
   try {
     await access(filePath)
@@ -28,10 +48,25 @@ async function fileStatus(fileName: string): Promise<DataIntegritySnapshot['file
   }
 }
 
-async function safeLoad<T>(label: string, loader: () => Promise<T[]>, fileName: string): Promise<{
-  items: T[]
-  parseError?: string
-}> {
+async function quarantineCorruptFile(fileName: string): Promise<string | null> {
+  const root = getUserDataRoot()
+  const source = join(root, fileName)
+  if (!(await pathExists(source))) {
+    return null
+  }
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const dir = join(root, CORRUPT_QUARANTINE_DIR)
+  await mkdir(dir, { recursive: true })
+  const dest = join(dir, `${fileName}.${stamp}.corrupt`)
+  await copyFile(source, dest)
+  return dest
+}
+
+async function safeLoad<T>(
+  label: string,
+  loader: () => Promise<T[]>,
+  fileName: string
+): Promise<{ items: T[]; parseError?: string; quarantinePath?: string }> {
   try {
     return { items: await loader() }
   } catch (error) {
@@ -41,14 +76,61 @@ async function safeLoad<T>(label: string, loader: () => Promise<T[]>, fileName: 
         : error instanceof Error
           ? error.message
           : String(error)
-    return { items: [], parseError: `${label}: ${message}` }
+    let quarantinePath: string | undefined
+    try {
+      quarantinePath = (await quarantineCorruptFile(fileName)) ?? undefined
+    } catch {
+      // 隔离失败不掩盖原错误
+    }
+    return {
+      items: [],
+      parseError: `${label}: ${message}`,
+      quarantinePath
+    }
   }
 }
 
-export async function buildAndRunDataIntegrityAudit(): Promise<DataIntegrityReport> {
-  const root = getUserDataRoot()
-  void root
+function mapParseErrors(
+  fileStatuses: Array<{ fileName: string; exists: boolean; parseError?: string }>,
+  entries: Array<{ parseError?: string; quarantinePath?: string }>
+): void {
+  for (const entry of entries) {
+    if (!entry.parseError) continue
+    const name = entry.parseError.split(':')[0]
+    const fileName =
+      name === 'classes'
+        ? 'classes.json'
+        : name === 'students'
+          ? 'students.json'
+          : name === 'schedule'
+            ? 'schedule.json'
+            : name === 'pe-sessions'
+              ? 'pe-sessions.json'
+              : name === 'pe-tests'
+                ? 'pe-tests.json'
+                : name === 'teaching-plans'
+                  ? 'teaching-plans.json'
+                  : name === 'training-teams'
+                    ? 'training-teams.json'
+                    : name === 'training-members'
+                      ? 'training-members.json'
+                      : name === 'training-sessions'
+                        ? 'training-sessions.json'
+                        : name === 'training-results'
+                          ? 'training-results.json'
+                          : name === 'resources'
+                            ? 'resources.json'
+                            : `${name}.json`
+    const target = fileStatuses.find((item) => item.fileName === fileName)
+    if (target) {
+      target.parseError = entry.quarantinePath
+        ? `${entry.parseError}（已保留原文件并复制到 ${entry.quarantinePath}）`
+        : entry.parseError
+    }
+  }
+}
 
+async function buildSnapshot(): Promise<DataIntegritySnapshot> {
   const classes = await safeLoad('classes', loadClasses, 'classes.json')
   const students = await safeLoad('students', loadStudents, 'students.json')
   const schedule = await safeLoad('schedule', loadSchedule, 'schedule.json')
@@ -62,7 +144,7 @@ export async function buildAndRunDataIntegrityAudit(): Promise<DataIntegrityRepo
   const resources = await safeLoad('resources', loadResources, 'resources.json')
 
   const fileStatuses = await Promise.all(BUSINESS_JSON_FILES.map((name) => fileStatus(name)))
-  const parseErrors = [
+  mapParseErrors(fileStatuses, [
     classes,
     students,
     schedule,
@@ -74,42 +156,9 @@ export async function buildAndRunDataIntegrityAudit(): Promise<DataIntegrityRepo
     trainingSessions,
     trainingResults,
     resources
-  ]
-  for (const entry of parseErrors) {
-    if (entry.parseError) {
-      const name = entry.parseError.split(':')[0]
-      const fileName =
-        name === 'classes'
-          ? 'classes.json'
-          : name === 'students'
-            ? 'students.json'
-            : name === 'schedule'
-              ? 'schedule.json'
-              : name === 'pe-sessions'
-                ? 'pe-sessions.json'
-                : name === 'pe-tests'
-                  ? 'pe-tests.json'
-                  : name === 'teaching-plans'
-                    ? 'teaching-plans.json'
-                    : name === 'training-teams'
-                      ? 'training-teams.json'
-                      : name === 'training-members'
-                        ? 'training-members.json'
-                        : name === 'training-sessions'
-                          ? 'training-sessions.json'
-                          : name === 'training-results'
-                            ? 'training-results.json'
-                            : name === 'resources'
-                              ? 'resources.json'
-                              : `${name}.json`
-      const target = fileStatuses.find((item) => item.fileName === fileName)
-      if (target) {
-        target.parseError = entry.parseError
-      }
-    }
-  }
+  ])
 
-  const snapshot: DataIntegritySnapshot = {
+  return {
     classes: classes.items.map((item) => ({ id: item.id, status: item.status })),
     students: students.items.map((item) => ({
       id: item.id,
@@ -158,6 +207,116 @@ export async function buildAndRunDataIntegrityAudit(): Promise<DataIntegrityRepo
     resources: resources.items.map((item) => ({ id: item.id })),
     fileStatuses
   }
+}
 
-  return runDataIntegrityAudit(snapshot)
+export async function buildAndRunDataIntegrityAudit(): Promise<DataIntegrityReport> {
+  return runDataIntegrityAudit(await buildSnapshot())
+}
+
+export async function buildAndRunStartupHealthCheck(): Promise<DataIntegrityReport> {
+  const report = runStartupHealthAudit(await buildSnapshot())
+  lastStartupReport = report
+  return report
+}
+
+export interface SafeRepairResult {
+  ok: boolean
+  safetyBackupPath: string | null
+  plan: SafeRepairPlan
+  repairedCount: number
+  message: string
+  reportAfter: DataIntegrityReport | null
+}
+
+export async function runSafeRepairWithBackup(options?: {
+  createSafetyBackup?: () => Promise<string>
+}): Promise<SafeRepairResult> {
+  const before = await buildAndRunDataIntegrityAudit()
+  const peSessionPath = join(getUserDataRoot(), 'pe-sessions.json')
+  let rawExtra = [] as ReturnType<typeof scanRawPeSessionsForStatusRepairs>
+  if (await pathExists(peSessionPath)) {
+    try {
+      const rawText = await readFile(peSessionPath, 'utf8')
+      rawExtra = scanRawPeSessionsForStatusRepairs(rawText)
+    } catch {
+      rawExtra = []
+    }
+  }
+  const plan = planSafeRepairs(before, rawExtra)
+  if (plan.actions.length === 0) {
+    return {
+      ok: true,
+      safetyBackupPath: null,
+      plan,
+      repairedCount: 0,
+      message:
+        plan.blocked.length > 0
+          ? '没有可自动修复的项；其余问题需人工处理或从备份恢复。'
+          : '没有需要修复的项。',
+      reportAfter: before
+    }
+  }
+
+  let safetyBackupPath: string
+  try {
+    safetyBackupPath = options?.createSafetyBackup
+      ? await options.createSafetyBackup()
+      : await createSafetyBackupArchive(getUserDataRoot(), APP_RELEASE_VERSION, 'pre-repair')
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    return {
+      ok: false,
+      safetyBackupPath: null,
+      plan,
+      repairedCount: 0,
+      message: `安全备份失败，已禁止修复。${reason}`,
+      reportAfter: before
+    }
+  }
+
+  if (!safetyBackupPath || !(await pathExists(safetyBackupPath))) {
+    return {
+      ok: false,
+      safetyBackupPath: null,
+      plan,
+      repairedCount: 0,
+      message: '安全备份失败，已禁止修复。未生成安全备份文件。',
+      reportAfter: before
+    }
+  }
+
+  if (!(await pathExists(peSessionPath))) {
+    return {
+      ok: false,
+      safetyBackupPath,
+      plan,
+      repairedCount: 0,
+      message: 'pe-sessions.json 不存在，无法修复。',
+      reportAfter: before
+    }
+  }
+
+  const rawText = await readFile(peSessionPath, 'utf8')
+  const nextText = applyRawPeSessionStatusRepairs(rawText, plan.actions)
+  if (nextText === null) {
+    return {
+      ok: false,
+      safetyBackupPath,
+      plan,
+      repairedCount: 0,
+      message: 'pe-sessions.json 无法解析，已保留原文件，请从备份恢复。未自动清空。',
+      reportAfter: before
+    }
+  }
+
+  await writeFile(peSessionPath, nextText, 'utf8')
+  const reportAfter = await buildAndRunStartupHealthCheck()
+  return {
+    ok: true,
+    safetyBackupPath,
+    plan,
+    repairedCount: plan.actions.length,
+    message: `已安全修复 ${plan.actions.length} 项。安全备份：${safetyBackupPath}`,
+    reportAfter
+  }
 }

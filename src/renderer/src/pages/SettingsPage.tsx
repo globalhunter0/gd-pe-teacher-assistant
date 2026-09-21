@@ -12,10 +12,17 @@ export default function SettingsPage(): React.JSX.Element {
   const [teacherDisplayName, setTeacherDisplayName] = useState(preferences.teacherDisplayName)
   const [healthReport, setHealthReport] = useState<DataIntegrityReport | null>(null)
   const [healthOpen, setHealthOpen] = useState(false)
+  const [startupReport, setStartupReport] = useState<DataIntegrityReport | null>(null)
 
   useEffect(() => {
     setTeacherDisplayName(preferences.teacherDisplayName)
   }, [preferences.teacherDisplayName])
+
+  useEffect(() => {
+    void window.electronAPI.dataIntegrity.startupStatus().then((report) => {
+      setStartupReport(report)
+    })
+  }, [])
 
   async function handleBackup(): Promise<void> {
     setWorking(true)
@@ -105,6 +112,35 @@ export default function SettingsPage(): React.JSX.Element {
     }
   }
 
+  async function handleSafeRepair(): Promise<void> {
+    const confirmed = window.confirm(
+      '安全修复只会处理明确可逆的项（例如非法课堂状态）。修复前会先创建安全备份；备份失败则不会修改任何数据。悬空引用与重复 ID 不会自动删除。是否继续？'
+    )
+    if (!confirmed) {
+      return
+    }
+    setWorking(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const result = await window.electronAPI.dataIntegrity.safeRepair()
+      if (!result.ok) {
+        setError(result.message)
+        return
+      }
+      setMessage(result.message)
+      if (result.reportAfter) {
+        setHealthReport(result.reportAfter)
+        setStartupReport(result.reportAfter)
+        setHealthOpen(true)
+      }
+    } catch (repairError) {
+      setError(repairError instanceof Error ? repairError.message : '安全修复失败')
+    } finally {
+      setWorking(false)
+    }
+  }
+
   return (
     <PageLayout className="page--settings">
       <PageHeader
@@ -172,9 +208,22 @@ export default function SettingsPage(): React.JSX.Element {
           <p className="settings-copy">
             只读检查班级、学生、课表、课堂、测试、教学计划与训练队等引用关系。默认不会自动修改或删除任何数据。
           </p>
-          <button type="button" className="btn" disabled={working} onClick={() => void handleHealthCheck()}>
-            {working ? '检查中…' : '运行数据健康检查'}
-          </button>
+          {startupReport && startupReport.status !== 'healthy' ? (
+            <p className={startupReport.status === 'error' ? 'page-error' : 'page-ok'}>
+              启动自检：
+              {startupReport.status === 'error'
+                ? `发现错误 ${startupReport.issueCount.error}（请优先备份后处理；损坏 JSON 不会被自动清空）`
+                : `警告 ${startupReport.issueCount.warning}（不阻塞使用，可运行完整检查查看明细）`}
+            </p>
+          ) : null}
+          <div className="settings-health-actions">
+            <button type="button" className="btn" disabled={working} onClick={() => void handleHealthCheck()}>
+              {working ? '检查中…' : '运行完整数据健康检查'}
+            </button>
+            <button type="button" className="btn" disabled={working} onClick={() => void handleSafeRepair()}>
+              安全修复（需先备份）
+            </button>
+          </div>
           {healthReport ? (
             <div className="settings-health-summary">
               <p>

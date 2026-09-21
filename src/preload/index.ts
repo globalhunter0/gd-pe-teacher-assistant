@@ -189,7 +189,16 @@ const electronAPI = {
   },
   dataIntegrity: {
     audit: (): Promise<import('../shared/dataIntegrity').DataIntegrityReport> =>
-      ipcRenderer.invoke('dataIntegrity:audit')
+      ipcRenderer.invoke('dataIntegrity:audit'),
+    startupStatus: (): Promise<import('../shared/dataIntegrity').DataIntegrityReport | null> =>
+      ipcRenderer.invoke('dataIntegrity:startupStatus'),
+    safeRepair: (): Promise<{
+      ok: boolean
+      safetyBackupPath: string | null
+      repairedCount: number
+      message: string
+      reportAfter: import('../shared/dataIntegrity').DataIntegrityReport | null
+    }> => ipcRenderer.invoke('dataIntegrity:safeRepair')
   },
   userPreferences: {
     get: (): Promise<import('../shared/userPreferences').UserPreferences> =>

@@ -393,6 +393,20 @@ async function defaultSafetyBackup(userDataRoot: string, appVersion: string): Pr
   return archivePath
 }
 
+/** 修复 / 危险写操作前的安全备份；调用方必须先验证文件存在再继续。 */
+export async function createSafetyBackupArchive(
+  userDataRoot: string,
+  appVersion: string = APP_RELEASE_VERSION,
+  prefix = 'pre-repair'
+): Promise<string> {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const dir = join(userDataRoot, SAFETY_BACKUPS_DIR)
+  await mkdir(dir, { recursive: true })
+  const archivePath = join(dir, `${prefix}-${stamp}.gdpebak`)
+  await createDataBackup(userDataRoot, archivePath, appVersion)
+  return archivePath
+}
+
 export async function restoreDataBackup(
   userDataRoot: string,
   archivePath: string,
