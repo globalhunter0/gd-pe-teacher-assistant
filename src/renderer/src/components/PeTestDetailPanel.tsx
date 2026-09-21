@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import PageLayout, { PageHeader } from './PageLayout'
 import DataTable from './ds/DataTable'
+import StatusBadge from './StatusBadge'
 import type { ClassRecord } from '@shared/class'
 import { STUDENT_GENDER_LABELS } from '@shared/student'
 import { SCORE_BAND_LABELS } from '@shared/statistics'
@@ -9,6 +10,8 @@ import {
   canMarkTestComplete,
   filterPeTestDetailRows,
   isGenderLinkedSession,
+  isPeTestSessionCompleted,
+  PE_TEST_SESSION_STATUS_LABELS,
   type PETestSession,
   type PeTestDetailFilter,
   type TestItem
@@ -23,11 +26,13 @@ interface PeTestDetailPanelProps {
   onContinueEntry: () => void
   onOpenAnalysis: () => void
   onOpenEditor?: () => void
+  onCompleteTest: () => void | Promise<void>
+  onReopenTest: () => void | Promise<void>
 }
 
 const FILTERS: Array<{ id: PeTestDetailFilter; label: string }> = [
   { id: 'all', label: '全部' },
-  { id: 'valid', label: '有效成绩' },
+  { id: 'valid', label: '已测' },
   { id: 'pending', label: '未测' },
   { id: 'absent', label: '缺考' },
   { id: 'exempt', label: '免考' },
@@ -43,11 +48,14 @@ export default function PeTestDetailPanel({
   onBack,
   onContinueEntry,
   onOpenAnalysis,
-  onOpenEditor
+  onOpenEditor,
+  onCompleteTest,
+  onReopenTest
 }: PeTestDetailPanelProps): React.JSX.Element {
   const [filter, setFilter] = useState<PeTestDetailFilter>('all')
   const [query, setQuery] = useState('')
-  const [completeHint, setCompleteHint] = useState(false)
+  const [completeConfirm, setCompleteConfirm] = useState(false)
+  const [working, setWorking] = useState(false)
 
   const closure = useMemo(
     () =>
@@ -70,12 +78,27 @@ export default function PeTestDetailPanel({
     [closure.rows, filter, query]
   )
 
+  const sessionCompleted = isPeTestSessionCompleted(session)
+
+  async function confirmComplete(): Promise<void> {
+    setWorking(true)
+    try {
+      await onCompleteTest()
+      setCompleteConfirm(false)
+    } finally {
+      setWorking(false)
+    }
+  }
+
   function requestComplete(): void {
-    if (canMarkTestComplete(closure)) {
-      setCompleteHint(false)
+    if (!canMarkTestComplete(session)) {
       return
     }
-    setCompleteHint(true)
+    if (closure.pending > 0) {
+      setCompleteConfirm(true)
+      return
+    }
+    void confirmComplete()
   }
 
   return (
@@ -86,14 +109,20 @@ export default function PeTestDetailPanel({
         description={`${closure.classLabel} · ${closure.date} · ${closure.itemName} · ${closure.standardLabel}`}
         actions={
           <>
-            {closure.pending > 0 ? (
+            {!sessionCompleted && closure.pending > 0 ? (
               <button type="button" className="btn btn-primary" onClick={onContinueEntry}>
                 继续录入
               </button>
             ) : null}
-            <button type="button" className="btn" onClick={requestComplete}>
-              完成测试
-            </button>
+            {sessionCompleted ? (
+              <button type="button" className="btn btn-primary" onClick={() => void onReopenTest()} disabled={working}>
+                继续编辑
+              </button>
+            ) : (
+              <button type="button" className="btn" onClick={requestComplete} disabled={working}>
+                完成测试
+              </button>
+            )}
             <button type="button" className="btn" onClick={onOpenAnalysis}>
               查看完整测试分析
             </button>
@@ -108,6 +137,18 @@ export default function PeTestDetailPanel({
           </>
         }
       />
+
+      <p className="pe-detail-session-status">
+        <StatusBadge tone={sessionCompleted ? 'ok' : 'warn'}>
+          {PE_TEST_SESSION_STATUS_LABELS[session.status ?? 'in_progress']}
+        </StatusBadge>
+        <span>
+          已测 {closure.valid} · 未测 {closure.pending} · 缺考 {closure.absent}
+          {sessionCompleted && session.completedAt
+            ? ` · 完成于 ${session.completedAt.slice(0, 10)}`
+            : ''}
+        </span>
+      </p>
 
       <dl className="pe-detail-meta">
         <div>
@@ -152,36 +193,32 @@ export default function PeTestDetailPanel({
         </div>
       </dl>
       <p className="pe-detail-progress">
-        完成进度 {closure.processed} / {closure.roster}
-        {closure.complete ? ' · 本次测试已完成' : ''}
+        录入进度 {closure.processed} / {closure.roster}
+        {sessionCompleted ? ' · 本次测试已标记完成' : ''}
       </p>
-      <div className="pe-quick-progress" aria-label="完成进度">
+      <div className="pe-quick-progress" aria-label="录入进度">
         <span style={{ width: `${closure.roster === 0 ? 0 : Math.round((closure.processed / closure.roster) * 100)}%` }} />
       </div>
 
-      {completeHint && closure.pending > 0 ? (
+      {completeConfirm ? (
         <div className="pe-quick-done">
-          <p>本次测试仍有 {closure.pending} 名学生未录入成绩。</p>
-          <p className="pe-quick-setup-hint">名单：{closure.pendingNames.join('、')}</p>
+          <p>
+            当前还有 {closure.pending} 名学生未完成测试。已测 {closure.valid} 人，缺考 {closure.absent} 人，未测{' '}
+            {closure.pending} 人。
+          </p>
+          <p className="pe-quick-setup-hint">是否仍要完成本次测试？完成后仍可「继续编辑」补录成绩。</p>
           <div className="pe-quick-done-actions">
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => {
-                setFilter('pending')
-                setCompleteHint(false)
-              }}
-            >
-              继续查看未测学生
+            <button type="button" className="btn btn-primary" onClick={() => void confirmComplete()} disabled={working}>
+              确认完成
             </button>
-            <button type="button" className="btn" onClick={() => setCompleteHint(false)}>
-              返回处理
+            <button type="button" className="btn" onClick={() => setCompleteConfirm(false)} disabled={working}>
+              取消
             </button>
           </div>
         </div>
       ) : null}
 
-      {closure.complete ? (
+      {sessionCompleted ? (
         <section className="pe-detail-result">
           <h3>本次测试结果</h3>
           <dl className="pe-detail-result-grid">

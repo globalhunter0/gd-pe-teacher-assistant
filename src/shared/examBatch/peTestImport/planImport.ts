@@ -232,7 +232,9 @@ export function planExamBatchPeTestImport(
         importSource: 'exam-batch',
         examStandardId: payload.examStandardId,
         scoringCitySnapshot: payload.scoringCity,
-        scoringVersionSnapshot: payload.scoringVersion
+        scoringVersionSnapshot: payload.scoringVersion,
+        status: 'in_progress',
+        completedAt: null
       })
     }
   }

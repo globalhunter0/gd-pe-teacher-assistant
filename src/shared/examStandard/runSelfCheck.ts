@@ -50,6 +50,7 @@ import { runNationalFitnessPhaseC2SelfCheckOrThrow } from '../nationalFitness/ph
 import { runNationalFitnessPhaseC3SelfCheckOrThrow } from '../nationalFitness/phaseC3Selfcheck'
 import { runNationalFitnessPhaseD1SelfCheckOrThrow } from '../peTest/phaseD1Selfcheck'
 import { runPeTestBusinessClosureSelfCheckOrThrow } from '../peTest/closureSelfcheck'
+import { runV0260PeTestLifecycleSelfCheckOrThrow } from '../peTest/v0260Selfcheck'
 
 async function main(): Promise<void> {
   console.log(runAppVersionSelfCheckOrThrow())
@@ -92,6 +93,7 @@ async function main(): Promise<void> {
   console.log(runNationalFitnessPhaseC3SelfCheckOrThrow())
   console.log(runNationalFitnessPhaseD1SelfCheckOrThrow())
   console.log(runPeTestBusinessClosureSelfCheckOrThrow())
+  console.log(await runV0260PeTestLifecycleSelfCheckOrThrow())
   console.log(runPeSessionWorkbenchSelfCheckOrThrow())
   console.log(runTrainingTeamSelfCheckOrThrow())
   console.log(await runScheduleLinkageSelfCheckOrThrow())

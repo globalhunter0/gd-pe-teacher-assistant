@@ -28,6 +28,10 @@ import {
   TEST_VALUE_TYPE_LABELS,
   countTestRecords,
   formatLocalDate,
+  isPeTestSessionCompleted,
+  markPeTestSessionCompleted,
+  PE_TEST_SESSION_STATUS_LABELS,
+  reopenPeTestSession,
   testUnitDisplay,
   type PETestSession,
   type TestItem
@@ -310,6 +314,16 @@ export default function PeTestsPage({
           setEditing(live)
           setDetailing(null)
         }}
+        onCompleteTest={async () => {
+          const next = markPeTestSessionCompleted(live)
+          await upsertSession(next)
+          setDetailing(next)
+        }}
+        onReopenTest={async () => {
+          const next = reopenPeTestSession(live)
+          await upsertSession(next)
+          setDetailing(next)
+        }}
       />
     )
   }
@@ -448,6 +462,7 @@ export default function PeTestsPage({
                 <th>班级</th>
                 <th>项目</th>
                 <th>评分依据</th>
+                <th>状态</th>
                 <th>已录入</th>
                 <th>未录入</th>
                 <th>有效成绩</th>
@@ -457,6 +472,7 @@ export default function PeTestsPage({
             <tbody>
               {sessions.map((item) => {
                 const counts = countTestRecords(item.records)
+                const done = isPeTestSessionCompleted(item)
                 return (
                   <tr key={item.id}>
                     <td>{item.date}</td>
@@ -465,6 +481,11 @@ export default function PeTestsPage({
                     </td>
                     <td>{item.testItemNameSnapshot}</td>
                     <td>{classroomScoringLabel(item)}</td>
+                    <td>
+                      <StatusBadge tone={done ? 'ok' : 'warn'}>
+                        {PE_TEST_SESSION_STATUS_LABELS[item.status ?? 'in_progress']}
+                      </StatusBadge>
+                    </td>
                     <td>
                       {counts.entered}/{item.records.length}
                     </td>

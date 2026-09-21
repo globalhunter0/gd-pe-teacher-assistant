@@ -127,6 +127,8 @@ function sessionOf(records: PETestRecord[], extra?: Partial<PETestSession>): PET
     examStandardId: 'cn-gd-guangzhou-middle-2024-2026',
     scoringCitySnapshot: '广州',
     scoringVersionSnapshot: '2024–2026',
+    status: extra?.status ?? 'in_progress',
+    completedAt: extra?.completedAt ?? null,
     ...extra
   }
 }
@@ -164,7 +166,14 @@ export async function runV0230PeTestResultClosureSelfCheck(): Promise<string> {
     rec(sid, s2, 'valid', 240, 80)
   ])
   const cA = buildPeTestClosure({ session: allValid, allSessions: [allValid], testItem: run, classes: [CLASS] })
-  assert(cA.valid === 2 && cA.pending === 0 && cA.complete, 'A. 全部 valid')
+  assert(cA.valid === 2 && cA.pending === 0 && !cA.complete, 'A. 全部 valid 但未标记完成时 session 仍为进行中')
+  const cADone = buildPeTestClosure({
+    session: sessionOf(allValid.records, { status: 'completed', completedAt: NOW }),
+    allSessions: [allValid],
+    testItem: run,
+    classes: [CLASS]
+  })
+  assert(cADone.complete, 'A. 标记 completed 后 closure 显示已完成')
   assert(cA.summary.scoredCount === 2, 'H. 有效样本 n')
   assert(cA.summary.averageScoreText !== '0', 'I. 平均分')
   assert(cA.summary.averageScoreText === '87.50', 'I. 平均分 87.50')
@@ -192,7 +201,7 @@ export async function runV0230PeTestResultClosureSelfCheck(): Promise<string> {
     rec(sid, s2, 'pending', null, null)
   ])
   const cD = buildPeTestClosure({ session: withPending, allSessions: [withPending], testItem: run, classes: [CLASS] })
-  assert(cD.pending === 1 && !cD.complete && !canMarkTestComplete(cD), 'D/K. valid + pending 未完成')
+  assert(cD.pending === 1 && !cD.complete && canMarkTestComplete(withPending), 'D/K. 有未测仍可发起完成（需确认）')
   assert(cD.summary.scoredCount === 1 && cD.summary.minScoreText === '95', 'E. pending 不进最低分')
   assert(cD.rows.find((row) => row.record.status === 'pending')?.scoreText === '—', 'E. pending 不是 0 分')
   assert(filterPeTestDetailRows(cD.rows, 'pending', '').length === 1, '未测筛选')

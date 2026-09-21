@@ -2,6 +2,7 @@ import type { Grade } from '../class/types'
 import { GRADES } from '../class/types'
 import type { StudentGender } from '../student/types'
 import { STUDENT_GENDERS } from '../student/types'
+import { parsePeTestSessionStatus } from './sessionLifecycle'
 import type {
   PETestRecord,
   PETestSession,
@@ -394,7 +395,14 @@ export function parsePeTestSessions(input: unknown, options: ParsePeTestOptions 
       examStandardId: typeof record.examStandardId === 'string' && record.examStandardId.trim() !== '' ? record.examStandardId.trim() : null,
       scoringCitySnapshot: typeof record.scoringCitySnapshot === 'string' ? record.scoringCitySnapshot.trim() : '',
       scoringVersionSnapshot: typeof record.scoringVersionSnapshot === 'string' ? record.scoringVersionSnapshot.trim() : '',
-      testGroupId: typeof record.testGroupId === 'string' && record.testGroupId.trim() !== '' ? record.testGroupId.trim() : null
+      testGroupId: typeof record.testGroupId === 'string' && record.testGroupId.trim() !== '' ? record.testGroupId.trim() : null,
+      status: parsePeTestSessionStatus(record.status),
+      completedAt:
+        typeof record.completedAt === 'string' && record.completedAt.trim() !== '' ? record.completedAt.trim() : null
+    }
+
+    if (session.status !== 'completed') {
+      session.completedAt = null
     }
 
     return session

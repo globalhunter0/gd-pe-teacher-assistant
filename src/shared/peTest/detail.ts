@@ -12,6 +12,7 @@ import { recordMatchesSearch } from './quickEntry/roster'
 import { BUILTIN_TEST_ITEMS } from './builtinItems'
 import { actualTestItemName, resolveActualTestItem, sessionDisplayItemName } from './groupedItems'
 import { classroomScoringLabel, formatPeTestItemScoreText, isBelowOfficialMinimumRecord } from './scoringBasis'
+import { countPeTestSessionProgress, isPeTestSessionCompleted } from './sessionLifecycle'
 import type { PETestRecord, PETestSession, TestItem } from './types'
 
 export type PeTestDetailFilter = 'all' | 'valid' | 'pending' | 'absent' | 'exempt' | 'fail' | 'invalid'
@@ -162,7 +163,7 @@ export function buildPeTestClosure(options: {
     pending: statuses.pending,
     invalid: statuses.invalid,
     processed,
-    complete: statuses.pending === 0 && summary.rosterCount > 0,
+    complete: isPeTestSessionCompleted(options.session),
     summary,
     passCount,
     excellentCount,
@@ -192,6 +193,12 @@ export function filterPeTestDetailRows(
   })
 }
 
-export function canMarkTestComplete(closure: Pick<PeTestClosure, 'pending'>): boolean {
-  return closure.pending === 0
+export function canMarkTestComplete(session: Pick<PETestSession, 'status'>): boolean {
+  return !isPeTestSessionCompleted(session)
+}
+
+export function peTestSessionProgressFromRecords(
+  records: ReadonlyArray<Pick<PETestRecord, 'status'>>
+): ReturnType<typeof countPeTestSessionProgress> {
+  return countPeTestSessionProgress(records)
 }
