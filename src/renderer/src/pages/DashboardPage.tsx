@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { listedClassRecords, type ClassRecord } from '@shared/class'
-import { countTestRecords } from '@shared/peTest'
+import { countIncompletePeTestSessions } from '@shared/peTest'
 import {
   ATTENDANCE_LABELS,
   formatLocalDate,
@@ -158,7 +158,7 @@ export default function DashboardPage({
   const listedClasses = listedClassRecords(classes)
   const listedTeams = teams.filter(isActiveTrainingTeam)
   const pendingTestRecords = useMemo(
-    () => testSessions.reduce((total, session) => total + countTestRecords(session.records).pending, 0),
+    () => countIncompletePeTestSessions(testSessions),
     [testSessions]
   )
   const summary = scheduleService.getWeeklySummary()

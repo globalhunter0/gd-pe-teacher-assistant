@@ -123,7 +123,9 @@ function makeSession(options: {
     examStandardId: options.examStandardId,
     scoringCitySnapshot: snaps.scoringCitySnapshot,
     scoringVersionSnapshot: snaps.scoringVersionSnapshot,
-    testGroupId: null
+    testGroupId: null,
+    status: 'in_progress',
+    completedAt: null
   }
   return session
 }

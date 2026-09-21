@@ -2298,6 +2298,31 @@ button.kpi-card:hover {
   color: var(--muted, #667085);
 }
 
+.pe-history-section {
+  margin-top: 1.25rem;
+}
+
+.pe-history-section h3,
+.pe-history-detail h4 {
+  margin: 0 0 0.5rem;
+}
+
+.pe-history-detail {
+  margin-top: 1rem;
+}
+
+.pe-history-change--up {
+  color: var(--color-success, #1b7f4a);
+}
+
+.pe-history-change--down {
+  color: var(--color-danger, #b42318);
+}
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted, #667085);
+}
+
 .growth-signals {
   margin: 0 0 16px;
   padding-left: 18px;
@@ -3930,6 +3955,16 @@ textarea:disabled {
   margin: 2px 0 0;
   font-size: 16px;
   font-weight: 700;
+}
+
+.pe-detail-session-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .pe-detail-progress {

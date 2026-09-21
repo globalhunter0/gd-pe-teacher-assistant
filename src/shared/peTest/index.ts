@@ -1,6 +1,7 @@
 export type {
   PETestRecord,
   PETestSession,
+  PeTestSessionStatus,
   PeTestImportSource,
   PeTestScoreOutcome,
   TestCategory,
@@ -105,5 +106,38 @@ export {
   captureRecordState,
   visibleQuickEntryRecords
 } from './quickEntry'
-export { buildPeTestClosure, canMarkTestComplete, filterPeTestDetailRows } from './detail'
+export { buildPeTestClosure, canMarkTestComplete, filterPeTestDetailRows, peTestSessionProgressFromRecords } from './detail'
 export type { PeTestClosure, PeTestDetailFilter, PeTestDetailRow } from './detail'
+export {
+  countIncompletePeTestSessions,
+  countPeTestSessionProgress,
+  isPeTestSessionCompleted,
+  markPeTestSessionCompleted,
+  PE_TEST_SESSION_STATUS_LABELS,
+  PE_TEST_SESSION_STATUSES,
+  parsePeTestSessionStatus,
+  reopenPeTestSession
+} from './sessionLifecycle'
+export type { PeTestSessionProgress } from './sessionLifecycle'
+export {
+  PE_TEST_EXPORT_HEADERS,
+  buildPeTestSessionExportPayload,
+  buildPeTestSessionExportRows,
+  cloneSessionForExportGuard,
+  escapeExcelText,
+  peTestExportBandLabel,
+  peTestExportClassLabel,
+  peTestExportFileBaseName,
+  peTestExportRawText,
+  peTestExportScoreText,
+  peTestExportStatusLabel,
+  peTestExportUnitLabel,
+  sanitizePeTestExportFileName
+} from './exportSession'
+export type { PeTestExportRow, PeTestExportStatusLabel } from './exportSession'
+export {
+  getResultDirection,
+  isValidPeTestHistoryResult,
+  peTestHistoryStatusLabel
+} from './studentHistory'
+export type { PeTestHistoryStatusLabel } from './studentHistory'

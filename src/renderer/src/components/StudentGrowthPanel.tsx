@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import StatCard from './StatCard'
 import TrendSparkline from './TrendSparkline'
-import { TEST_RECORD_STATUS_LABELS } from '@shared/peTest'
 import {
   buildStudentAttentionSignals,
   indexPeTests,
@@ -91,6 +90,8 @@ export default function StudentGrowthPanel({
             <p>最近成绩：{item.recentRawText}</p>
             <p>最近得分：{item.recentScoreText}</p>
             <p>个人最佳：{item.bestRawText}</p>
+            <p>上次成绩：{item.previousRawText}</p>
+            <p>较上次：{item.changeText}</p>
             <p>首次成绩：{item.firstRawText}</p>
             <p>相比首次：{item.vsFirstText}</p>
             <p>测试次数：{item.testCount}</p>
@@ -154,7 +155,7 @@ export default function StudentGrowthPanel({
                     <td>{row.bonusScore && row.bonusScore > 0 ? `+${row.bonusScore}` : '—'}</td>
                     <td>{row.scoreText}</td>
                     <td>
-                      {TEST_RECORD_STATUS_LABELS[row.status]}
+                      {row.statusLabel}
                       {row.isPersonalBest ? ' · 个人最佳' : ''}
                     </td>
                     <td>{row.standardLabel}</td>

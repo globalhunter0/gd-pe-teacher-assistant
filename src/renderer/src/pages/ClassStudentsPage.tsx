@@ -5,6 +5,7 @@ import ClassEditorDialog from '../components/ClassEditorDialog'
 import PageLayout, { PageHeader } from '../components/PageLayout'
 import ExcelImportDialog from '../components/ExcelImportDialog'
 import StudentEditorDialog from '../components/StudentEditorDialog'
+import StudentPeTestHistoryPanel from '../components/StudentPeTestHistoryPanel'
 import DataTable from '../components/ds/DataTable'
 import SearchInput from '../components/ds/SearchInput'
 import TechEmptyState from '../components/workspace/TechEmptyState'
@@ -14,6 +15,7 @@ import { usePeSessions } from '../context/PeSessionContext'
 import { usePeTests } from '../context/PeTestContext'
 import { useSchedule } from '../context/ScheduleContext'
 import { useStudents } from '../context/StudentContext'
+import { useTestItems } from '../context/TestItemContext'
 import { countActiveStudents, filterStudents } from '../data/student/query'
 
 export default function ClassStudentsPage({
@@ -30,8 +32,10 @@ export default function ClassStudentsPage({
   const { students, loading, error, upsertStudent, deleteStudent, applyImportedStudents } = useStudents()
   const { sessions } = usePeSessions()
   const { sessions: testSessions } = usePeTests()
+  const { items: testItems } = useTestItems()
   const { items: scheduleItems } = useSchedule()
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null)
+  const [detailStudentId, setDetailStudentId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [showLeftRoster, setShowLeftRoster] = useState(false)
   const [classEditor, setClassEditor] = useState<ClassRecord | null | undefined>(undefined)
@@ -69,6 +73,8 @@ export default function ClassStudentsPage({
     )
   }, [students, selected, query, showLeftRoster])
 
+  const detailStudent = detailStudentId ? students.find((item) => item.id === detailStudentId) ?? null : null
+
   function requestDeleteClass(record: ClassRecord): void {
     setActionError(null)
     setPendingDeleteClass(record)
@@ -87,6 +93,74 @@ export default function ClassStudentsPage({
     return (
       <PageLayout>
         <PageHeader icon="students" title="班级与学生" description="正在读取本地数据…" />
+      </PageLayout>
+    )
+  }
+
+  if (detailStudent) {
+    return (
+      <PageLayout className="page--students page-shell">
+        <PageHeader
+          icon="students"
+          title="学生详情"
+          description={`${detailStudent.name} · ${STUDENT_GENDER_LABELS[detailStudent.gender]} · ${STUDENT_STATUS_LABELS[detailStudent.status]}`}
+          actions={
+            <>
+              {onOpenGrowth ? (
+                <button type="button" className="btn" onClick={() => onOpenGrowth(detailStudent.id)}>
+                  完整成长分析
+                </button>
+              ) : null}
+              <button type="button" className="btn" onClick={() => setStudentEditor(detailStudent)}>
+                编辑学生
+              </button>
+              <button type="button" className="btn" onClick={() => setDetailStudentId(null)}>
+                返回名单
+              </button>
+            </>
+          }
+        />
+        <dl className="pe-detail-meta">
+          <div>
+            <dt>姓名</dt>
+            <dd>{detailStudent.name}</dd>
+          </div>
+          <div>
+            <dt>学号</dt>
+            <dd>{detailStudent.studentNo || '—'}</dd>
+          </div>
+          <div>
+            <dt>性别</dt>
+            <dd>{STUDENT_GENDER_LABELS[detailStudent.gender]}</dd>
+          </div>
+          <div>
+            <dt>当前状态</dt>
+            <dd>{STUDENT_STATUS_LABELS[detailStudent.status]}</dd>
+          </div>
+          <div>
+            <dt>备注</dt>
+            <dd>{detailStudent.notes || '—'}</dd>
+          </div>
+        </dl>
+        <StudentPeTestHistoryPanel
+          student={detailStudent}
+          sessions={testSessions}
+          students={students}
+          classes={classes}
+          testItems={testItems}
+        />
+        {studentEditor !== undefined ? (
+          <StudentEditorDialog
+            record={studentEditor}
+            classes={classes}
+            defaultClassId={selectedClassId ?? undefined}
+            onClose={() => setStudentEditor(undefined)}
+            onSave={async (record) => {
+              await upsertStudent(record)
+              setStudentEditor(undefined)
+            }}
+          />
+        ) : null}
       </PageLayout>
     )
   }
@@ -213,6 +287,9 @@ export default function ClassStudentsPage({
                           <td className="data-table-notes">{item.notes || '—'}</td>
                           <td>
                             <div className="table-actions">
+                              <button type="button" className="btn btn-small btn-primary" onClick={() => setDetailStudentId(item.id)}>
+                                测试成绩
+                              </button>
                               {onOpenGrowth ? (
                                 <button type="button" className="btn btn-small" onClick={() => onOpenGrowth(item.id)}>
                                   体育成长

@@ -15,6 +15,8 @@ export type TestCategory = 'body' | 'speed' | 'endurance' | 'strength' | 'flexib
 
 export type TestRecordStatus = 'pending' | 'valid' | 'absent' | 'exempt' | 'invalid'
 
+export type PeTestSessionStatus = 'in_progress' | 'completed'
+
 export type PeTestImportSource = 'manual' | 'exam-batch'
 
 export interface TestItem {
@@ -96,6 +98,10 @@ export interface PETestSession {
   scoringVersionSnapshot: string
   /** 教师选择层组合项目，例如 800米/1000米。缺省 null。 */
   testGroupId?: string | null
+  /** 测试生命周期；旧 JSON 缺省为 in_progress；持久化后应写入。 */
+  status?: PeTestSessionStatus
+  /** 标记完成时间；进行中为 null。 */
+  completedAt?: string | null
 }
 
 export const TEST_VALUE_TYPES: TestValueType[] = ['number', 'time']
