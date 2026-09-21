@@ -79,7 +79,9 @@ export function buildPeTestSession(options: {
     scoringVersionSnapshot: '',
     testGroupId: options.testGroup?.id ?? null,
     status: 'in_progress',
-    completedAt: null
+    completedAt: null,
+    origin: 'formal',
+    peSessionId: null
   }
 
   return applyClassroomScoringBasis(session, options.examStandardId ?? null)

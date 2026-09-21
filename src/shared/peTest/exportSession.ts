@@ -8,7 +8,7 @@ import { BUILTIN_TEST_ITEMS } from './builtinItems'
 import { isGenderLinkedSession, resolveActualTestItem, sessionDisplayItemName } from './groupedItems'
 import { formatPeTestItemScoreText } from './scoringBasis'
 import { sortQuickEntryRecords } from './quickEntry/nav'
-import { testUnitDisplay, type PETestRecord, type PETestSession, type TestItem } from './types'
+import { isClassroomPeTest, testUnitDisplay, type PETestRecord, type PETestSession, type TestItem } from './types'
 
 export const PE_TEST_EXPORT_HEADERS = [
   '序号',
@@ -180,7 +180,8 @@ export function peTestExportFileBaseName(
   const itemPart = isGenderLinkedSession(session)
     ? '体育测试'
     : sessionDisplayItemName(session) || session.testItemNameSnapshot || '体育测试'
-  return sanitizePeTestExportFileName(`${classLabel}_${itemPart}_${session.date}`)
+  const originPart = isClassroomPeTest(session) ? '课堂小测_' : ''
+  return sanitizePeTestExportFileName(`${classLabel}_${originPart}${itemPart}_${session.date}`)
 }
 
 export function buildPeTestSessionExportPayload(
@@ -198,7 +199,7 @@ export function buildPeTestSessionExportPayload(
   ]
   return {
     defaultFileName: `${peTestExportFileBaseName(session, options)}.xlsx`,
-    sheets: [{ name: '成绩表', rows: dataRows }]
+    sheets: [{ name: isClassroomPeTest(session) ? '课堂小测' : '成绩表', rows: dataRows }]
   }
 }
 

@@ -3,6 +3,7 @@ import { GRADES } from '../class/types'
 import type { StudentGender } from '../student/types'
 import { STUDENT_GENDERS } from '../student/types'
 import { parsePeTestSessionStatus } from './sessionLifecycle'
+import { parsePeTestOrigin } from './types'
 import type {
   PETestRecord,
   PETestSession,
@@ -398,7 +399,10 @@ export function parsePeTestSessions(input: unknown, options: ParsePeTestOptions 
       testGroupId: typeof record.testGroupId === 'string' && record.testGroupId.trim() !== '' ? record.testGroupId.trim() : null,
       status: parsePeTestSessionStatus(record.status),
       completedAt:
-        typeof record.completedAt === 'string' && record.completedAt.trim() !== '' ? record.completedAt.trim() : null
+        typeof record.completedAt === 'string' && record.completedAt.trim() !== '' ? record.completedAt.trim() : null,
+      origin: parsePeTestOrigin(record.origin),
+      peSessionId:
+        typeof record.peSessionId === 'string' && record.peSessionId.trim() !== '' ? record.peSessionId.trim() : null
     }
 
     if (session.status !== 'completed') {

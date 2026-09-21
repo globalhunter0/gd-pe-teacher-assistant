@@ -97,6 +97,7 @@ export default function StudentPeTestHistoryPanel({
                 <tr>
                   <th>测试日期</th>
                   <th>测试项目</th>
+                  <th>来源</th>
                   <th>原始成绩</th>
                   <th>单位</th>
                   <th>换算分</th>
@@ -111,6 +112,7 @@ export default function StudentPeTestHistoryPanel({
                   <tr key={row.sessionId}>
                     <td>{row.date}</td>
                     <td>{row.actualItemName}</td>
+                    <td>{row.originLabel}</td>
                     <td>
                       {row.rawText}
                       {row.isPersonalBest ? ' · 个人最佳' : ''}

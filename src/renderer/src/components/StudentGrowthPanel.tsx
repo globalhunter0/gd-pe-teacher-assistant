@@ -148,7 +148,10 @@ export default function StudentGrowthPanel({
                 {selected.points.map((row) => (
                   <tr key={row.sessionId}>
                     <td>{row.date}</td>
-                    <td>{row.title}</td>
+                    <td>
+                      {row.title}
+                      {row.originLabel === '课堂小测' ? <span className="tag">课堂小测</span> : null}
+                    </td>
                     <td>{row.actualItemName}</td>
                     <td>{row.rawText}</td>
                     <td>{row.baseScore === null ? '—' : row.baseScore}</td>

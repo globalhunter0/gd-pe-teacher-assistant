@@ -2298,8 +2298,20 @@ button.kpi-card:hover {
   color: var(--muted, #667085);
 }
 
-.pe-history-section {
-  margin-top: 1.25rem;
+.pe-classroom-quiz {
+  margin-top: 1.5rem;
+}
+
+.pe-classroom-quiz-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 0.5rem;
+}
+
+.pe-classroom-quiz-head h3 {
+  margin: 0;
 }
 
 .pe-history-section h3,

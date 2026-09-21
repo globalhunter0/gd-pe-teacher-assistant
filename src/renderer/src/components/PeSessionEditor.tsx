@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import PageLayout, { PageHeader } from './PageLayout'
+import PeQuickEntryPanel from './PeQuickEntryPanel'
+import StatusBadge from './StatusBadge'
 import {
   ATTENDANCE_LABELS,
   ATTENDANCE_STATUSES,
@@ -13,8 +15,21 @@ import {
   type PEStudentRecord,
   type PerformanceTag
 } from '@shared/peSession'
-import type { StudentRecord } from '@shared/student'
+import {
+  PE_TEST_SESSION_STATUS_LABELS,
+  buildClassroomPeTestSession,
+  countTestRecords,
+  findClassroomTestsForPeSession,
+  findOpenClassroomTest,
+  isPeTestSessionCompleted,
+  parseTeacherTestSelection,
+  teacherSelectableTestOptions,
+  type PETestSession
+} from '@shared/peTest'
+import type { StudentGender, StudentRecord } from '@shared/student'
+import { usePeTests } from '../context/PeTestContext'
 import { useStudents } from '../context/StudentContext'
+import { useTestItems } from '../context/TestItemContext'
 
 interface PeSessionEditorProps {
   session: PEClassSession
@@ -30,6 +45,8 @@ export default function PeSessionEditor({
   planPrefillHint = null
 }: PeSessionEditorProps): React.JSX.Element {
   const { students } = useStudents()
+  const { items } = useTestItems()
+  const { sessions: peTests, upsertSession } = usePeTests()
   const [draft, setDraft] = useState<PEClassSession>(session)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [openTagId, setOpenTagId] = useState<string | null>(null)
@@ -37,6 +54,10 @@ export default function PeSessionEditor({
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dismissedSync, setDismissedSync] = useState(false)
+  const [quizPickerOpen, setQuizPickerOpen] = useState(false)
+  const [quizItemValue, setQuizItemValue] = useState('')
+  const [quizWorking, setQuizWorking] = useState(false)
+  const [quizEntryId, setQuizEntryId] = useState<string | null>(null)
 
   const records = useMemo(
     () =>
@@ -52,6 +73,23 @@ export default function PeSessionEditor({
     () => listMissingActiveStudents(draft, students as StudentRecord[]),
     [draft, students]
   )
+
+  const teacherOptions = useMemo(() => teacherSelectableTestOptions(items), [items])
+
+  const classroomTests = useMemo(
+    () => findClassroomTestsForPeSession(peTests, draft.id),
+    [peTests, draft.id]
+  )
+
+  const quizLive = quizEntryId ? peTests.find((item) => item.id === quizEntryId) ?? null : null
+
+  const genderByStudentId = useMemo(() => {
+    const map = new Map<string, StudentGender>()
+    for (const student of students) {
+      map.set(student.id, student.gender)
+    }
+    return map
+  }, [students])
 
   function touchSession(patch: Partial<PEClassSession>): void {
     const now = new Date().toISOString()
@@ -158,6 +196,68 @@ export default function PeSessionEditor({
     }
   }
 
+  function openQuizPicker(): void {
+    setQuizItemValue(teacherOptions[0]?.value ?? '')
+    setQuizPickerOpen(true)
+    setError(null)
+  }
+
+  async function confirmCreateQuiz(): Promise<void> {
+    const selection = parseTeacherTestSelection(quizItemValue, items)
+    if (!selection) {
+      setError('请选择测试项目')
+      return
+    }
+    if (draft.records.length === 0) {
+      setError('当前课堂记录没有学生，无法创建课堂测评')
+      return
+    }
+
+    const anchorItem = selection.kind === 'group' ? selection.anchor : selection.item
+    const openExisting = findOpenClassroomTest(peTests, draft.id, anchorItem.id)
+    if (openExisting) {
+      setQuizPickerOpen(false)
+      setQuizEntryId(openExisting.id)
+      setMessage('已打开本节未完成的同项目课堂测评')
+      return
+    }
+
+    setQuizWorking(true)
+    setError(null)
+    try {
+      const created = buildClassroomPeTestSession({
+        peSession: draft,
+        testItem: anchorItem,
+        testGroup: selection.kind === 'group' ? selection.group : null,
+        genderByStudentId
+      })
+      await upsertSession(created)
+      setQuizPickerOpen(false)
+      setQuizEntryId(created.id)
+      setMessage(`已创建课堂测评：${created.testItemNameSnapshot}`)
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : '无法创建课堂测评')
+    } finally {
+      setQuizWorking(false)
+    }
+  }
+
+  function openQuizSession(test: PETestSession): void {
+    setQuizEntryId(test.id)
+    setMessage(null)
+  }
+
+  if (quizLive) {
+    return (
+      <PeQuickEntryPanel
+        embedded
+        initialSession={quizLive}
+        onClose={() => setQuizEntryId(null)}
+        onOpenResult={() => setQuizEntryId(null)}
+      />
+    )
+  }
+
   return (
     <PageLayout className="page--pe-session">
       <PageHeader
@@ -249,21 +349,19 @@ export default function PeSessionEditor({
                     type="checkbox"
                     checked={selected.has(record.id)}
                     onChange={() => toggleSelect(record.id)}
-                    aria-label={`选择${record.nameSnapshot}`}
+                    aria-label={`选择 ${record.nameSnapshot}`}
                   />
                 </td>
                 <td>{record.studentNoSnapshot || '—'}</td>
-                <td>{record.nameSnapshot}</td>
+                <td className="col-name">{record.nameSnapshot}</td>
                 <td>
-                  <div className="status-buttons">
+                  <div className="attendance-buttons">
                     {ATTENDANCE_STATUSES.map((status) => (
                       <button
                         key={status}
                         type="button"
                         className={
-                          record.attendanceStatus === status
-                            ? `btn btn-small status-btn is-active is-${status}`
-                            : 'btn btn-small status-btn'
+                          record.attendanceStatus === status ? 'btn btn-small btn-primary' : 'btn btn-small'
                         }
                         onClick={() => setStatus(record.id, status)}
                       >
@@ -272,11 +370,11 @@ export default function PeSessionEditor({
                     ))}
                   </div>
                 </td>
-                <td className="tag-cell">
+                <td className="col-tags">
                   <button type="button" className="btn btn-small" onClick={() => setOpenTagId(openTagId === record.id ? null : record.id)}>
                     {record.performanceTags.length > 0
                       ? record.performanceTags.map((tag) => PERFORMANCE_TAG_LABELS[tag]).join('、')
-                      : '添加表现'}
+                      : '添加标签'}
                   </button>
                   {openTagId === record.id ? (
                     <div className="tag-popover">
@@ -306,6 +404,103 @@ export default function PeSessionEditor({
           </tbody>
         </table>
       </div>
+
+      <section className="pe-classroom-quiz">
+        <div className="pe-classroom-quiz-head">
+          <h3>课堂测评</h3>
+          <button type="button" className="btn btn-small btn-primary" onClick={openQuizPicker} disabled={quizWorking}>
+            + 新增测评
+          </button>
+        </div>
+        <p className="pe-quick-setup-hint">
+          测评名单来自本节课堂记录快照。考勤状态不会自动写入测试缺考；课堂小测成绩会进入学生历史与 PB。
+        </p>
+        {classroomTests.length === 0 ? (
+          <p className="empty-text">本节课暂无课堂测评</p>
+        ) : (
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>项目</th>
+                  <th>日期</th>
+                  <th>状态</th>
+                  <th>已录 / 总人数</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {classroomTests.map((test) => {
+                  const counts = countTestRecords(test.records)
+                  const done = isPeTestSessionCompleted(test)
+                  return (
+                    <tr key={test.id}>
+                      <td>{test.testItemNameSnapshot}</td>
+                      <td>{test.date}</td>
+                      <td>
+                        <StatusBadge tone={done ? 'ok' : 'warn'}>
+                          {PE_TEST_SESSION_STATUS_LABELS[test.status ?? 'in_progress']}
+                        </StatusBadge>
+                      </td>
+                      <td>
+                        {counts.entered}/{test.records.length}
+                      </td>
+                      <td>
+                        <button type="button" className="btn btn-small btn-primary" onClick={() => openQuizSession(test)}>
+                          {done ? '查看/继续编辑' : '继续录入'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {quizPickerOpen ? (
+        <div className="dialog-backdrop" onMouseDown={() => !quizWorking && setQuizPickerOpen(false)}>
+          <div
+            className="dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pe-classroom-quiz-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <h3 id="pe-classroom-quiz-title">新增课堂测评</h3>
+            <p className="dialog-slot">
+              将按本节课堂记录中的 {draft.records.length} 名学生创建测评名单（不读取班级最新名单）。
+            </p>
+            <label className="toolbar-field toolbar-field-grow">
+              测试项目
+              <select value={quizItemValue} onChange={(event) => setQuizItemValue(event.target.value)}>
+                {teacherOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="dialog-actions">
+              <span />
+              <div className="dialog-actions-right">
+                <button type="button" className="btn" onClick={() => setQuizPickerOpen(false)} disabled={quizWorking}>
+                  取消
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => void confirmCreateQuiz()}
+                  disabled={quizWorking || !quizItemValue}
+                >
+                  开始录入
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </PageLayout>
   )
 }
