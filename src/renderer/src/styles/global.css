@@ -3314,6 +3314,25 @@ textarea:disabled {
   margin-top: 16px;
 }
 
+.settings-health-summary {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.settings-health-list {
+  margin: 0;
+  padding-left: 18px;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+
 .app-content--workspace {
   position: relative;
   isolation: isolate;

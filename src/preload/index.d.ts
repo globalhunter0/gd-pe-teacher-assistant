@@ -41,6 +41,7 @@ import type {
   TrainingTeamMember,
   TrainingTeamSafeDeleteResult
 } from '../shared/trainingTeam'
+import type { DataIntegrityReport } from '../shared/dataIntegrity'
 import type { UserPreferences } from '../shared/userPreferences'
 
 export interface ElectronAPI {
@@ -171,6 +172,9 @@ export interface ElectronAPI {
     restore: () => Promise<
       { canceled: true } | { canceled: false; safetyBackupPath: string; restoredCount: number; keptPaths: string[] }
     >
+  }
+  dataIntegrity: {
+    audit: () => Promise<DataIntegrityReport>
   }
   userPreferences: {
     get: () => Promise<UserPreferences>

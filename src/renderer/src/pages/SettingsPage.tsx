@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { DataIntegrityReport } from '@shared/dataIntegrity'
 import { APP_VERSION_LABEL } from '../appVersionLabel'
 import PageLayout, { PageHeader } from '../components/PageLayout'
 import { useUserPreferences } from '../context/UserPreferencesContext'
@@ -9,6 +10,8 @@ export default function SettingsPage(): React.JSX.Element {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [teacherDisplayName, setTeacherDisplayName] = useState(preferences.teacherDisplayName)
+  const [healthReport, setHealthReport] = useState<DataIntegrityReport | null>(null)
+  const [healthOpen, setHealthOpen] = useState(false)
 
   useEffect(() => {
     setTeacherDisplayName(preferences.teacherDisplayName)
@@ -80,6 +83,28 @@ export default function SettingsPage(): React.JSX.Element {
     }
   }
 
+  async function handleHealthCheck(): Promise<void> {
+    setWorking(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const report = await window.electronAPI.dataIntegrity.audit()
+      setHealthReport(report)
+      setHealthOpen(true)
+      if (report.status === 'healthy') {
+        setMessage('数据健康检查通过：未发现警告或错误。')
+      } else {
+        setMessage(
+          `数据健康检查完成：错误 ${report.issueCount.error}，警告 ${report.issueCount.warning}，提示 ${report.issueCount.info}。默认只检查，不会自动修改数据。`
+        )
+      }
+    } catch (auditError) {
+      setError(auditError instanceof Error ? auditError.message : '数据健康检查失败')
+    } finally {
+      setWorking(false)
+    }
+  }
+
   return (
     <PageLayout className="page--settings">
       <PageHeader
@@ -140,6 +165,43 @@ export default function SettingsPage(): React.JSX.Element {
           <button type="button" className="btn btn-warning" disabled={working} onClick={() => void handleRestore()}>
             {working ? '处理中…' : '恢复备份'}
           </button>
+        </article>
+
+        <article className="info-panel">
+          <h3>数据健康检查</h3>
+          <p className="settings-copy">
+            只读检查班级、学生、课表、课堂、测试、教学计划与训练队等引用关系。默认不会自动修改或删除任何数据。
+          </p>
+          <button type="button" className="btn" disabled={working} onClick={() => void handleHealthCheck()}>
+            {working ? '检查中…' : '运行数据健康检查'}
+          </button>
+          {healthReport ? (
+            <div className="settings-health-summary">
+              <p>
+                状态：
+                {healthReport.status === 'healthy'
+                  ? '正常'
+                  : healthReport.status === 'warning'
+                    ? `警告 ${healthReport.issueCount.warning}`
+                    : `错误 ${healthReport.issueCount.error}`}
+                {healthReport.issueCount.warning > 0 || healthReport.issueCount.error > 0
+                  ? ` · 警告 ${healthReport.issueCount.warning} · 错误 ${healthReport.issueCount.error}`
+                  : ''}
+              </p>
+              <button type="button" className="btn btn-small" onClick={() => setHealthOpen((open) => !open)}>
+                {healthOpen ? '收起明细' : '展开明细'}
+              </button>
+              {healthOpen && healthReport.issues.length > 0 ? (
+                <ul className="settings-health-list">
+                  {healthReport.issues.slice(0, 40).map((item, index) => (
+                    <li key={`${item.code}-${item.entityId}-${index}`}>
+                      [{item.severity}] {item.domain} · {item.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
         </article>
 
         <article className="info-panel">

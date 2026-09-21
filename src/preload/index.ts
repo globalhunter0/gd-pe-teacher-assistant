@@ -187,6 +187,10 @@ const electronAPI = {
       { canceled: true } | { canceled: false; safetyBackupPath: string; restoredCount: number; keptPaths: string[] }
     > => ipcRenderer.invoke('backup:restore')
   },
+  dataIntegrity: {
+    audit: (): Promise<import('../shared/dataIntegrity').DataIntegrityReport> =>
+      ipcRenderer.invoke('dataIntegrity:audit')
+  },
   userPreferences: {
     get: (): Promise<import('../shared/userPreferences').UserPreferences> =>
       ipcRenderer.invoke('userPreferences:get'),

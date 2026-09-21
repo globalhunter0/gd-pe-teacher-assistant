@@ -19,6 +19,7 @@ import { getResourceMetaPath, loadResources } from './resourceStore'
 import { registerExamBatchIpc } from './examBatchIpc'
 import { registerTrainingIpc } from './trainingIpc'
 import { registerBackupIpc } from './backupIpc'
+import { registerDataIntegrityIpc } from './dataIntegrityIpc'
 import { registerUserPreferencesIpc } from './userPreferencesIpc'
 import {
   getTrainingItemFilePath,
@@ -89,6 +90,7 @@ app.whenReady().then(() => {
   registerExamBatchIpc()
   registerTrainingIpc()
   registerBackupIpc()
+  registerDataIntegrityIpc()
   registerUserPreferencesIpc()
   assertBuiltinExamCatalog()
   void loadSchedule().then((items) => {
