@@ -11,6 +11,7 @@ import {
   type PeSessionPrefill
 } from '@shared/peSession'
 import { workbenchClockStatus, workbenchListedClass, WORKBENCH_CLOCK_LABELS } from '@shared/schedule'
+import { buildWeeklyTeachingTask } from '@shared/teachingPlan'
 import { isActiveTrainingTeam } from '@shared/trainingTeam'
 import heroSportsTech from '@assets/dashboard/hero-sports-tech.png'
 import EmptyState from '../components/EmptyState'
@@ -20,6 +21,7 @@ import { useClasses } from '../context/ClassContext'
 import { usePeSessions } from '../context/PeSessionContext'
 import { usePeTests } from '../context/PeTestContext'
 import { useSchedule, useScheduleService } from '../context/ScheduleContext'
+import { useTeachingPlans } from '../context/TeachingPlanContext'
 import { useTraining } from '../context/TrainingContext'
 import { useUserPreferences } from '../context/UserPreferencesContext'
 import { COURSE_TYPE_LABELS, formatTimeRange, type ScheduleItem } from '../data/schedule'
@@ -155,6 +157,7 @@ export default function DashboardPage({
   const { sessions } = usePeSessions()
   const { sessions: testSessions } = usePeTests()
   const { teams } = useTraining()
+  const { plans } = useTeachingPlans()
   const { preferences } = useUserPreferences()
   const listedClasses = listedClassRecords(classes)
   const listedTeams = teams.filter(isActiveTrainingTeam)
@@ -166,6 +169,16 @@ export default function DashboardPage({
   const today = scheduleService.getTodayOverview(now)
   const todayDate = formatLocalDate(now)
   const dateLabel = formatDateLabel(now)
+  const weeklyTask = useMemo(
+    () =>
+      buildWeeklyTeachingTask({
+        plans,
+        classes: listedClasses,
+        todayLessons: today.lessons,
+        onDate: todayDate
+      }),
+    [plans, listedClasses, today.lessons, todayDate]
+  )
   const todayRecordStats = useMemo(() => {
     let unrecorded = 0
     let inProgress = 0
@@ -337,6 +350,50 @@ export default function DashboardPage({
           </p>
           <p className="kpi-hint">当前可管理的训练队</p>
         </article>
+      </div>
+
+      <div className="panel-card panel-card--glass weekly-teaching-task">
+        <AccentLine />
+        <div className="panel-card-head">
+          <h3>本周教学任务</h3>
+          <button type="button" className="btn btn-ghost btn-small" onClick={() => onNavigate('plans')}>
+            教学计划 →
+          </button>
+        </div>
+        {weeklyTask.status === 'ready' ? (
+          <div className="weekly-teaching-task-body">
+            <p className="weekly-teaching-task-week">
+              第 {weeklyTask.weekNumber} 周
+              {weeklyTask.planName ? ` · ${weeklyTask.planName}` : ''}
+            </p>
+            <p className="weekly-teaching-task-title">{weeklyTask.title || '（未填写主题）'}</p>
+            <p className="weekly-teaching-task-line">
+              <span>主要内容</span>
+              {weeklyTask.contents || '—'}
+            </p>
+            <p className="weekly-teaching-task-line">
+              <span>教学目标</span>
+              {weeklyTask.objectives || '—'}
+            </p>
+            <p className="weekly-teaching-task-meta">今日对应课程 {weeklyTask.todayLessonCount} 节</p>
+          </div>
+        ) : null}
+        {weeklyTask.status === 'none' ? (
+          <p className="weekly-teaching-task-empty">本周暂无教学计划。不影响开始课堂。</p>
+        ) : null}
+        {weeklyTask.status === 'ambiguous' ? (
+          <div className="weekly-teaching-task-body">
+            <p className="weekly-teaching-task-empty">存在多份匹配教学计划，请进入教学计划页确认。</p>
+            <button type="button" className="btn btn-small" onClick={() => onNavigate('plans')}>
+              打开教学计划
+            </button>
+          </div>
+        ) : null}
+        {weeklyTask.status === 'no-week' ? (
+          <p className="weekly-teaching-task-empty">
+            {weeklyTask.planName ? `「${weeklyTask.planName}」` : '教学计划'}当前日期不在教学周范围内。不影响开始课堂。
+          </p>
+        ) : null}
       </div>
 
       <div className="dash-primary">

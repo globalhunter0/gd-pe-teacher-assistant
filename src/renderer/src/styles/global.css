@@ -635,6 +635,55 @@ button.kpi-card:hover {
   min-width: 0;
 }
 
+.weekly-teaching-task {
+  margin-bottom: 14px;
+}
+
+.weekly-teaching-task-body {
+  padding: 0 16px 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.weekly-teaching-task-week {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.weekly-teaching-task-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.weekly-teaching-task-line {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: 8px;
+}
+
+.weekly-teaching-task-line span {
+  color: var(--text-muted);
+}
+
+.weekly-teaching-task-meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.weekly-teaching-task-empty {
+  margin: 0;
+  padding: 0 16px 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 .today-courses {
   overflow: hidden;
   background:
