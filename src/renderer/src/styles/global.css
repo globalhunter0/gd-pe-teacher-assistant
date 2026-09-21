@@ -1627,7 +1627,17 @@ button.kpi-card:hover {
   color: #8a3d12;
 }
 
+.lesson-record-status.is-in_progress {
+  color: #1d4ed8;
+}
+
+.lesson-record-status.is-completed,
 .lesson-record-status.is-recorded {
+  color: #147a4f;
+}
+
+.badge-completed {
+  background: #ecfdf3;
   color: #147a4f;
 }
 

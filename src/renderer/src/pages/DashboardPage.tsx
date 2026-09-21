@@ -6,6 +6,7 @@ import {
   formatLocalDate,
   mapScheduleCourseType,
   resolveWorkbenchLessonRecord,
+  workbenchActionLabel,
   WORKBENCH_RECORD_STATUS_LABELS,
   type PeSessionPrefill
 } from '@shared/peSession'
@@ -167,16 +168,19 @@ export default function DashboardPage({
   const dateLabel = formatDateLabel(now)
   const todayRecordStats = useMemo(() => {
     let unrecorded = 0
-    let recorded = 0
+    let inProgress = 0
+    let completed = 0
     for (const lesson of today.lessons) {
       const match = resolveWorkbenchLessonRecord(sessions, lesson, todayDate)
-      if (match.status === 'recorded') {
-        recorded += 1
+      if (match.status === 'completed') {
+        completed += 1
+      } else if (match.status === 'in_progress') {
+        inProgress += 1
       } else {
         unrecorded += 1
       }
     }
-    return { unrecorded, recorded }
+    return { unrecorded, inProgress, completed }
   }, [sessions, today.lessons, todayDate])
   const [bindLesson, setBindLesson] = useState<ScheduleItem | null>(null)
   const [bindValue, setBindValue] = useState('')
@@ -390,7 +394,15 @@ export default function DashboardPage({
                         {boundClass ? ` · ${lesson.team}` : lesson.classId ? ' · 已删除班级' : ' · 未绑定行政班'}
                       </p>
                     </div>
-                    <span className={`badge badge-${lane}${record.status === 'unrecorded' ? ' badge-unrecorded' : ' badge-recorded'}`}>
+                    <span
+                      className={`badge badge-${lane}${
+                        record.status === 'unrecorded'
+                          ? ' badge-unrecorded'
+                          : record.status === 'completed'
+                            ? ' badge-completed'
+                            : ' badge-recorded'
+                      }`}
+                    >
                       {WORKBENCH_CLOCK_LABELS[lane]} · {WORKBENCH_RECORD_STATUS_LABELS[record.status]}
                     </span>
                     <div className="today-lane-actions">
@@ -400,7 +412,7 @@ export default function DashboardPage({
                           className={emphasize ? 'btn btn-small btn-primary' : 'btn btn-small'}
                           onClick={() => onOpenSession(existingSession.id)}
                         >
-                          继续记录
+                          {workbenchActionLabel(record.status)}
                         </button>
                       ) : (
                         <button
@@ -584,8 +596,12 @@ export default function DashboardPage({
               <strong>{todayRecordStats.unrecorded}</strong>
             </li>
             <li>
-              <span>今日已记录</span>
-              <strong>{todayRecordStats.recorded}</strong>
+              <span>今日记录中</span>
+              <strong>{todayRecordStats.inProgress}</strong>
+            </li>
+            <li>
+              <span>今日已完成</span>
+              <strong>{todayRecordStats.completed}</strong>
             </li>
             <li>
               <span>课堂记录</span>

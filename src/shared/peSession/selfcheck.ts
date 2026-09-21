@@ -128,8 +128,8 @@ export function runPeSessionWorkbenchSelfCheckOrThrow(): string {
     recordId: RECORD_A
   })
   const linkedMatch = resolveWorkbenchLessonRecord([linked], lesson, TODAY)
-  assert(linkedMatch.status === 'recorded', '有 scheduleLessonId 对应记录应为已记录')
-  assert(linkedMatch.session?.id === SESSION_LINKED, '已记录必须指向原记录')
+  assert(linkedMatch.status === 'in_progress', '有 scheduleLessonId 对应记录应为记录中（旧数据无 status）')
+  assert(linkedMatch.session?.id === SESSION_LINKED, '记录中必须指向原记录')
 
   const clock = workbenchClockStatus(lesson, endedNow(), undefined, undefined)
   assert(clock === 'done', '12:00 时第3节应为已结束')
@@ -174,7 +174,7 @@ export function runPeSessionWorkbenchSelfCheckOrThrow(): string {
     recordId: RECORD_B
   })
   const oldMatch = resolveWorkbenchLessonRecord([oldMissingLink], lesson, TODAY)
-  assert(oldMatch.status === 'recorded', '旧记录缺少 scheduleLessonId 时应兼容匹配')
+  assert(oldMatch.status === 'in_progress', '旧记录缺少 scheduleLessonId 时应兼容匹配为记录中')
   assert(oldMatch.session?.id === SESSION_OLD, '旧兼容不得改写历史，只读取已有记录')
   assert(oldMissingLink.scheduleLessonId === null, '兼容匹配不得改写旧记录的 scheduleLessonId')
 
@@ -296,8 +296,10 @@ export function runPeSessionWorkbenchSelfCheckOrThrow(): string {
   const dashboard = readSrc('../renderer/src/pages/DashboardPage.tsx')
   assert(dashboard.includes('findSessionForWorkbenchLesson') || dashboard.includes('resolveWorkbenchLessonRecord'), '工作台必须用共享记录状态')
   assert(dashboard.includes('workbenchClockStatus'), '工作台必须把时间状态与记录状态分开')
-  assert(dashboard.includes('继续记录'), '已记录课程按钮应为继续记录')
+  assert(dashboard.includes('workbenchActionLabel') || dashboard.includes('继续记录'), '记录中课程按钮应为继续记录')
+  assert(dashboard.includes('查看记录') || dashboard.includes('workbenchActionLabel'), '已完成课程应有查看记录入口')
   assert(dashboard.includes('开始课堂'), '未记录课程按钮应为开始课堂')
+  assert(dashboard.includes('今日记录中') && dashboard.includes('今日已完成'), '工作台概览应区分记录中与已完成')
   assert(dashboard.includes('onOpenSession'), '近期课堂记录必须可打开')
   assert(!dashboard.includes('dashboard-status.json'), '不得派生持久化工作台状态')
   assert(dashboard.includes('今天暂无课程安排'), '空课表/周末必须保持空态文案')
@@ -307,7 +309,7 @@ export function runPeSessionWorkbenchSelfCheckOrThrow(): string {
   assert(schedulePage.includes('resolveWorkbenchLessonRecord'), '课表页必须复用 P0-1 课堂记录状态')
   assert(schedulePage.includes('resolveScheduleClassroomEligibility'), '课表页必须用共享资格判断')
   assert(schedulePage.includes('findExistingPeSession') === false, '课表页不得复制防重实现')
-  assert(schedulePage.includes('开始课堂') && schedulePage.includes('继续记录'), '课表页今日课应提供开始课堂/继续记录')
+  assert(schedulePage.includes('开始课堂') && schedulePage.includes('workbenchActionLabel'), '课表页今日课应提供开始课堂与继续/查看')
   assert(schedulePage.includes('未绑定行政班'), '未绑定行政班必须明确提示')
 
   const app = readSrc('../renderer/src/App.tsx')

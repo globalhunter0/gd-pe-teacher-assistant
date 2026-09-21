@@ -14,10 +14,12 @@ import {
   COMMON_PERIODS,
   PE_LESSON_TYPE_LABELS,
   PE_LESSON_TYPES,
+  PE_SESSION_STATUS_LABELS,
   countLessonRosterStats,
   findExistingPeSession,
   findPeSessionById,
   formatLocalDate,
+  resolvePeSessionStatus,
   type PEClassSession,
   type PeLessonType,
   type PeSessionPrefill
@@ -392,6 +394,7 @@ export default function PeLessonRecordsPage({
                 <th>班级</th>
                 <th>课程类型</th>
                 <th>主题</th>
+                <th>状态</th>
                 <th>正常</th>
                 <th>缺勤</th>
                 <th>请假</th>
@@ -403,6 +406,7 @@ export default function PeLessonRecordsPage({
             <tbody>
               {visibleSessions.map((item) => {
                 const counts = countLessonRosterStats(item.records)
+                const workflow = resolvePeSessionStatus(item)
                 return (
                   <tr key={item.id}>
                     <td>{item.date}</td>
@@ -412,6 +416,7 @@ export default function PeLessonRecordsPage({
                     </td>
                     <td>{PE_LESSON_TYPE_LABELS[item.lessonType]}</td>
                     <td>{item.topic || '—'}</td>
+                    <td>{PE_SESSION_STATUS_LABELS[workflow]}</td>
                     <td>{counts.normal}</td>
                     <td>{counts.absent}</td>
                     <td>{counts.leave}</td>

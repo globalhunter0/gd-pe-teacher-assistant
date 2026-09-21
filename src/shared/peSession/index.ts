@@ -5,6 +5,7 @@ export type {
   PEStudentRecord,
   PeLessonType,
   PeSessionPrefill,
+  PeSessionStatus,
   PerformanceTag
 } from './types'
 export {
@@ -17,7 +18,9 @@ export {
   PERFORMANCE_TAGS,
   PERFORMANCE_TAG_LABELS,
   PE_LESSON_TYPES,
-  PE_LESSON_TYPE_LABELS
+  PE_LESSON_TYPE_LABELS,
+  PE_SESSION_STATUSES,
+  PE_SESSION_STATUS_LABELS
 } from './types'
 export { formatLocalDate, mapScheduleCourseType } from './fromSchedule'
 export {
@@ -36,10 +39,18 @@ export {
   resolveParticipationStatus
 } from './participation'
 export {
+  isPeSessionCompleted,
+  markPeSessionCompleted,
+  parsePeSessionStatus,
+  reopenPeSession,
+  resolvePeSessionStatus
+} from './sessionStatus'
+export {
   findExistingPeSession,
   findPeSessionById,
   findSessionForWorkbenchLesson,
   resolveWorkbenchLessonRecord,
+  workbenchActionLabel,
   WORKBENCH_RECORD_STATUS_LABELS
 } from './workbenchToday'
 export type { WorkbenchLessonRecordMatch, WorkbenchRecordStatus } from './workbenchToday'

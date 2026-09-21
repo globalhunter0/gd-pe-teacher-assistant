@@ -6,6 +6,7 @@ import {
   formatLocalDate,
   mapScheduleCourseType,
   resolveWorkbenchLessonRecord,
+  workbenchActionLabel,
   WORKBENCH_RECORD_STATUS_LABELS,
   type PeSessionPrefill
 } from '@shared/peSession'
@@ -374,7 +375,7 @@ function ScheduleCell({
   selected: boolean
   classLabel: string | null
   trainingTeamLabel: string | null
-  recordStatus: 'unrecorded' | 'recorded' | null
+  recordStatus: 'unrecorded' | 'in_progress' | 'completed' | null
   unboundHint: boolean
   onStartClass?: () => void
   onContinueClass?: () => void
@@ -418,9 +419,9 @@ function ScheduleCell({
         <span className={`lesson-record-status is-${recordStatus}`}>
           {WORKBENCH_RECORD_STATUS_LABELS[recordStatus]}
         </span>
-        {recordStatus === 'recorded' && onContinueClass ? (
+        {recordStatus !== 'unrecorded' && onContinueClass ? (
           <button type="button" className="btn btn-small" onClick={onContinueClass}>
-            继续记录
+            {workbenchActionLabel(recordStatus)}
           </button>
         ) : null}
         {recordStatus === 'unrecorded' && onStartClass ? (

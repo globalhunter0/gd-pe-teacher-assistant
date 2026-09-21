@@ -37,6 +37,8 @@ export function buildPeSession(options: {
     teamSnapshot: options.teamSnapshot,
     startTimeSnapshot: options.startTimeSnapshot,
     endTimeSnapshot: options.endTimeSnapshot,
+    status: 'in_progress',
+    completedAt: null,
     createdAt: now,
     updatedAt: now,
     records: options.activeStudents.map((student) => ({

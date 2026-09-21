@@ -10,11 +10,16 @@ import {
   PERFORMANCE_TAG_LABELS,
   PERFORMANCE_TAGS,
   PE_LESSON_TYPE_LABELS,
+  PE_SESSION_STATUS_LABELS,
   appendActiveStudentsToSession,
   isAttendanceAway,
+  isPeSessionCompleted,
   listMissingActiveStudents,
+  markPeSessionCompleted,
+  reopenPeSession,
   resolveAttendancePresence,
   resolveParticipationStatus,
+  resolvePeSessionStatus,
   type AttendanceStatus,
   type ParticipationStatus,
   type PEClassSession,
@@ -231,6 +236,36 @@ export default function PeSessionEditor({
     }
   }
 
+  async function handleComplete(): Promise<void> {
+    setSaving(true)
+    setError(null)
+    try {
+      const completed = markPeSessionCompleted(draft)
+      setDraft(completed)
+      await onSave(completed)
+      setMessage('本节课堂已标记完成')
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '无法完成本节课堂')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleReopen(): Promise<void> {
+    setSaving(true)
+    setError(null)
+    try {
+      const reopened = reopenPeSession(draft)
+      setDraft(reopened)
+      await onSave(reopened)
+      setMessage('已重新打开本节课堂，可继续编辑')
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '无法重新打开')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   function openQuizPicker(): void {
     setQuizItemValue(teacherOptions[0]?.value ?? '')
     setQuizPickerOpen(true)
@@ -293,17 +328,29 @@ export default function PeSessionEditor({
     )
   }
 
+  const workflowStatus = resolvePeSessionStatus(draft)
+  const sessionDone = isPeSessionCompleted(draft)
+
   return (
     <PageLayout className="page--pe-session">
       <PageHeader
         icon="lessons"
         title="课堂记录"
-        description={`${draft.date} · 第${draft.period}节 · ${draft.gradeSnapshot} ${draft.classNameSnapshot} · ${PE_LESSON_TYPE_LABELS[draft.lessonType]}${draft.teamSnapshot ? ` · ${draft.teamSnapshot}` : ''}${draft.startTimeSnapshot && draft.endTimeSnapshot ? ` · ${draft.startTimeSnapshot}-${draft.endTimeSnapshot}` : ''}`}
+        description={`${draft.date} · 第${draft.period}节 · ${draft.gradeSnapshot} ${draft.classNameSnapshot} · ${PE_LESSON_TYPE_LABELS[draft.lessonType]}${draft.teamSnapshot ? ` · ${draft.teamSnapshot}` : ''}${draft.startTimeSnapshot && draft.endTimeSnapshot ? ` · ${draft.startTimeSnapshot}-${draft.endTimeSnapshot}` : ''} · ${PE_SESSION_STATUS_LABELS[workflowStatus]}`}
         actions={
           <>
             <button type="button" className="btn" onClick={onBack} disabled={saving}>
               返回列表
             </button>
+            {sessionDone ? (
+              <button type="button" className="btn" onClick={() => void handleReopen()} disabled={saving}>
+                重新打开
+              </button>
+            ) : (
+              <button type="button" className="btn" onClick={() => void handleComplete()} disabled={saving}>
+                完成本节
+              </button>
+            )}
             <button type="button" className="btn btn-primary" onClick={() => void handleSave()} disabled={saving}>
               保存
             </button>
@@ -314,11 +361,12 @@ export default function PeSessionEditor({
       {error ? <p className="page-error">{error}</p> : null}
       {message ? <p className="page-success">{message}</p> : null}
       {planPrefillHint ? <p className="edit-hint">{planPrefillHint}</p> : null}
+      {sessionDone ? <p className="edit-hint">本节已完成。需要修改时请先「重新打开」。课堂测评成绩不受完成状态影响。</p> : null}
 
       {!dismissedSync && missingStudents.length > 0 ? (
         <div className="session-sync-bar">
           <span>有 {missingStudents.length} 名在读学生尚未加入本节记录</span>
-          <button type="button" className="btn btn-small btn-primary" onClick={handleAppendMissingStudents}>
+          <button type="button" className="btn btn-small btn-primary" onClick={handleAppendMissingStudents} disabled={sessionDone}>
             补充学生
           </button>
         </div>
@@ -331,16 +379,18 @@ export default function PeSessionEditor({
             value={draft.topic}
             onChange={(event) => touchSession({ topic: event.target.value })}
             placeholder="例如：快速跑、立定跳远"
+            disabled={sessionDone}
           />
         </label>
       </div>
       <label className="session-notes-field">
-        整节课备注
+        课堂小结 / 整节课备注
         <textarea
           rows={2}
           value={draft.notes}
           onChange={(event) => touchSession({ notes: event.target.value })}
-          placeholder="例如：天气炎热降低运动强度"
+          placeholder="例如：本节完成情况、临时调整、班级总体表现、下节课提醒"
+          disabled={sessionDone}
         />
       </label>
 
