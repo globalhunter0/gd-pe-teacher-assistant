@@ -24,6 +24,8 @@ interface PeTestDetailPanelProps {
   classes: ReadonlyArray<ClassRecord>
   onBack: () => void
   onContinueEntry: () => void
+  onMakeupPending: () => void
+  onExportScores: () => boolean | void | Promise<boolean | void>
   onOpenAnalysis: () => void
   onOpenEditor?: () => void
   onCompleteTest: () => void | Promise<void>
@@ -47,6 +49,8 @@ export default function PeTestDetailPanel({
   classes,
   onBack,
   onContinueEntry,
+  onMakeupPending,
+  onExportScores,
   onOpenAnalysis,
   onOpenEditor,
   onCompleteTest,
@@ -56,6 +60,7 @@ export default function PeTestDetailPanel({
   const [query, setQuery] = useState('')
   const [completeConfirm, setCompleteConfirm] = useState(false)
   const [working, setWorking] = useState(false)
+  const [exportMessage, setExportMessage] = useState<string | null>(null)
 
   const closure = useMemo(
     () =>
@@ -101,6 +106,22 @@ export default function PeTestDetailPanel({
     void confirmComplete()
   }
 
+  async function handleExport(): Promise<void> {
+    setWorking(true)
+    setExportMessage(null)
+    try {
+      const result = await onExportScores()
+      if (result === false) {
+        return
+      }
+      setExportMessage('成绩表已导出')
+    } catch (error) {
+      setExportMessage(error instanceof Error ? error.message : '导出失败')
+    } finally {
+      setWorking(false)
+    }
+  }
+
   return (
     <PageLayout className="page--pe-test-detail">
       <PageHeader
@@ -110,10 +131,23 @@ export default function PeTestDetailPanel({
         actions={
           <>
             {!sessionCompleted && closure.pending > 0 ? (
-              <button type="button" className="btn btn-primary" onClick={onContinueEntry}>
+              <button type="button" className="btn btn-primary" onClick={onMakeupPending}>
+                补录未测学生（{closure.pending}）
+              </button>
+            ) : null}
+            {!sessionCompleted && closure.pending === 0 ? (
+              <button type="button" className="btn" disabled>
+                无未测学生
+              </button>
+            ) : null}
+            {!sessionCompleted && closure.pending > 0 ? (
+              <button type="button" className="btn" onClick={onContinueEntry}>
                 继续录入
               </button>
             ) : null}
+            <button type="button" className="btn" onClick={() => void handleExport()} disabled={working}>
+              导出成绩
+            </button>
             {sessionCompleted ? (
               <button type="button" className="btn btn-primary" onClick={() => void onReopenTest()} disabled={working}>
                 继续编辑
@@ -138,6 +172,7 @@ export default function PeTestDetailPanel({
         }
       />
 
+      {exportMessage ? <p className="pe-quick-setup-hint">{exportMessage}</p> : null}
       <p className="pe-detail-session-status">
         <StatusBadge tone={sessionCompleted ? 'ok' : 'warn'}>
           {PE_TEST_SESSION_STATUS_LABELS[session.status ?? 'in_progress']}

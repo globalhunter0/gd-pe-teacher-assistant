@@ -55,6 +55,10 @@ import {
 
 interface PeQuickEntryPanelProps {
   initialSession?: PETestSession | null
+  /** 补测等场景：打开时默认名单页签（如仅未测）。 */
+  initialRosterTab?: QuickEntryRosterTab
+  /** 补测等场景：限制可见学生；null 表示不限制。 */
+  initialGroupStudentIds?: string[] | null
   onClose: () => void
   onOpenResult: (session: PETestSession, tab: 'edit' | 'analysis') => void
 }
@@ -97,6 +101,8 @@ function formatRecordRaw(record: PETestRecord, testItem: TestItem | undefined, s
 
 export default function PeQuickEntryPanel({
   initialSession = null,
+  initialRosterTab = 'pending',
+  initialGroupStudentIds = null,
   onClose,
   onOpenResult
 }: PeQuickEntryPanelProps): React.JSX.Element {
@@ -109,15 +115,15 @@ export default function PeQuickEntryPanel({
 
   const [draft, setDraft] = useState<PETestSession | null>(initialSession)
   const [currentId, setCurrentId] = useState<string | null>(
-    initialSession ? firstUnenteredRecordId(initialSession.records) : null
+    initialSession ? firstUnenteredRecordId(initialSession.records, initialGroupStudentIds) : null
   )
   const [input, setInput] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
-  const [rosterTab, setRosterTab] = useState<QuickEntryRosterTab>('pending')
+  const [rosterTab, setRosterTab] = useState<QuickEntryRosterTab>(initialRosterTab)
   const [searchQuery, setSearchQuery] = useState('')
-  const [groupStudentIds, setGroupStudentIds] = useState<string[] | null>(null)
+  const [groupStudentIds, setGroupStudentIds] = useState<string[] | null>(initialGroupStudentIds)
   const [groupPickerOpen, setGroupPickerOpen] = useState(false)
   const [pickerSelected, setPickerSelected] = useState<string[]>([])
   const [undoStack, setUndoStack] = useState<QuickEntryUndoEntry[]>([])

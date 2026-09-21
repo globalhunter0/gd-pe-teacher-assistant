@@ -119,3 +119,19 @@ export {
   reopenPeTestSession
 } from './sessionLifecycle'
 export type { PeTestSessionProgress } from './sessionLifecycle'
+export {
+  PE_TEST_EXPORT_HEADERS,
+  buildPeTestSessionExportPayload,
+  buildPeTestSessionExportRows,
+  cloneSessionForExportGuard,
+  escapeExcelText,
+  peTestExportBandLabel,
+  peTestExportClassLabel,
+  peTestExportFileBaseName,
+  peTestExportRawText,
+  peTestExportScoreText,
+  peTestExportStatusLabel,
+  peTestExportUnitLabel,
+  sanitizePeTestExportFileName
+} from './exportSession'
+export type { PeTestExportRow, PeTestExportStatusLabel } from './exportSession'

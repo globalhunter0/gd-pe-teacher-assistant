@@ -26,6 +26,7 @@ import {
   TEST_DIRECTION_LABELS,
   TEST_GENDER_RULE_LABELS,
   TEST_VALUE_TYPE_LABELS,
+  buildPeTestSessionExportPayload,
   countTestRecords,
   formatLocalDate,
   isPeTestSessionCompleted,
@@ -72,7 +73,12 @@ export default function PeTestsPage({
   const [actionError, setActionError] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
   const [duplicateCount, setDuplicateCount] = useState(0)
-  const [quickEntry, setQuickEntry] = useState<{ sessionId?: string; seed?: PETestSession } | null>(null)
+  const [quickEntry, setQuickEntry] = useState<{
+    sessionId?: string
+    seed?: PETestSession
+    rosterTab?: 'all' | 'pending' | 'recorded' | 'absentExempt'
+    groupStudentIds?: string[] | null
+  } | null>(null)
 
   const [classId, setClassId] = useState(listedClassRecords(classes)[0]?.id ?? '')
   const [testItemId, setTestItemId] = useState(defaultTeacherTestOptionValue(items))
@@ -275,6 +281,8 @@ export default function PeTestsPage({
     return (
       <PeQuickEntryPanel
         initialSession={initialSession}
+        initialRosterTab={quickEntry.rosterTab}
+        initialGroupStudentIds={quickEntry.groupStudentIds ?? null}
         onClose={() => setQuickEntry(null)}
         onOpenResult={(session, tab) => {
           setQuickEntry(null)
@@ -303,6 +311,24 @@ export default function PeTestsPage({
         onContinueEntry={() => {
           setQuickEntry({ sessionId: live.id })
           setDetailing(null)
+        }}
+        onMakeupPending={() => {
+          setQuickEntry({
+            sessionId: live.id,
+            rosterTab: 'pending'
+          })
+          setDetailing(null)
+        }}
+        onExportScores={async () => {
+          const payload = buildPeTestSessionExportPayload(live, {
+            testItem: items.find((item) => item.id === live.testItemId),
+            items
+          })
+          const result = await window.electronAPI.examBatch.saveWorkbook(payload)
+          if (result.canceled) {
+            return false
+          }
+          return true
         }}
         onOpenAnalysis={() => {
           setEditorTab('analysis')
