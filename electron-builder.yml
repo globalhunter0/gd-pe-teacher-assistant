@@ -2,7 +2,7 @@
 # %APPDATA%/gd-pe-teacher-assistant. No previous installer/appId was configured.
 appId: com.electron.gd-pe-teacher-assistant
 productName: gd-pe-teacher-assistant
-artifactName: gd-pe-teacher-assistant-${version}-${arch}-setup.${ext}
+artifactName: gd-pe-teacher-assistant-${version}-Windows-${arch}-setup.${ext}
 directories:
   output: release
 files:

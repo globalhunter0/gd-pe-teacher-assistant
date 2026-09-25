@@ -7,11 +7,13 @@ import { spawn } from 'node:child_process'
 import { createServer } from 'node:net'
 import { createHash } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
+import { runRcUiSmoke } from './rc-ui-smoke.mjs'
 
 // Real packaged executable + real preload/IPC. Only native dialog choices are automated.
 // No app code is replaced, and all data resides below a new sentinel-protected directory.
 const root = await mkdtemp(join(tmpdir(), 'gdpe-rc-smoke-中文 空格-'))
-const report = { root, os: release(), username: userInfo().username, checks: [], startedAt: new Date().toISOString() }
+const expectedVersion = process.env.GDPE_SMOKE_VERSION ?? JSON.parse(await readFile('package.json', 'utf8')).version
+const report = { root, expectedVersion, os: release(), username: userInfo().username, checks: [], startedAt: new Date().toISOString() }
 const pass = name => { report.checks.push(name); console.log(`PASS packaged: ${name}`) }
 const delay = ms => new Promise(r => setTimeout(r, ms))
 const fixtureFile = join(root, 'fixtures.mjs')
@@ -47,8 +49,11 @@ async function launch(dataRoot) {
     await main.eval(`(() => { const e = process.getBuiltinModule('module').createRequire(process.resourcesPath + '/app.asar/package.json')('electron'); globalThis.__rcElectron = e; e.dialog.showErrorBox = (title, text) => { globalThis.__rcError = {title,text} }; return true })()`)
     for (let i = 0; i < 100; i++) { if (await page.eval(`!!window.electronAPI && !!document.body?.innerText.includes('工作台')`)) break; await delay(100) }
     assert(await page.eval(`!!window.electronAPI`), output)
-    const identity = await main.eval(`({name:__rcElectron.app.getName(), data:__rcElectron.app.getPath('userData'), packaged:__rcElectron.app.isPackaged})`)
+    const identity = await main.eval(`({name:__rcElectron.app.getName(), version:__rcElectron.app.getVersion(), data:__rcElectron.app.getPath('userData'), packaged:__rcElectron.app.isPackaged})`)
     assert.equal(identity.name, 'gd-pe-teacher-assistant'); assert.equal(identity.data, dataRoot); assert(identity.packaged)
+    assert.equal(identity.version, expectedVersion)
+    assert(await page.eval(`document.body.innerText.includes(${JSON.stringify('v' + expectedVersion)})`), 'visible application version')
+    report.electronVersion = identity.version
     const api = (name, ...args) => page.eval(`window.electronAPI.${name}(...${JSON.stringify(args)})`)
     const dialog = async (kind, path) => main.eval(`__rcElectron.dialog.${kind === 'open' ? 'showOpenDialog' : 'showSaveDialog'} = async () => (${JSON.stringify(kind === 'open' ? { canceled: false, filePaths: [path] } : { canceled: false, filePath: path })}); true`)
     return { main, page, api, dialog, output: () => output, stop: async () => {
@@ -101,12 +106,18 @@ try {
   assert.equal((await running.api('students.get')).length, 2)
   await running.dialog('open', workbook); const exam = await running.api('examBatch.pick'); const loaded = await running.api('examBatch.loadSheet', exam.sessionId, exam.sheets[0]); assert(loaded)
   pass('打包版 Excel 写出、学生预览与事务导入、成绩工作表读取')
+  await runRcUiSmoke(running, root, fixture, pass)
   const source = join(root, '教学 附件.txt'); await writeFile(source, 'RC 附件内容'); await running.dialog('open', source)
   assert(!(await running.api('resources.selectFile')).canceled)
   const resources = await running.api('resources.importFile', { title: 'RC附件', category: '其他', tags: [], description: '', notes: '' })
   assert.equal(await readFile(join(fresh, 'resources/files', resources[0].storedFileName), 'utf8'), 'RC 附件内容')
   pass('附件导入与 userData 内副本')
+  const snapshot = {}
+  for (const name of (await readdir(fresh)).filter(name => name.endsWith('.json'))) snapshot[name] = sha(await readFile(join(fresh, name)))
   const archive = join(root, '一致 快照.gdpebak'); await running.dialog('save', archive); assert(!(await running.api('backup.create')).canceled)
+  const manifest = JSON.parse(fixture.parseZip(await readFile(archive)).find(entry => entry.name === 'manifest.json').data.toString())
+  assert.equal(manifest.appVersion, expectedVersion)
+  report.backupAppVersion = manifest.appVersion
   const students = await running.api('students.get'); await running.api('students.save', students.map(s => ({ ...s, notes: '备份后修改' })), students)
   await running.dialog('open', archive); assert(!(await running.api('backup.restore')).canceled)
   assert.deepEqual(await running.api('students.get'), students)
@@ -119,6 +130,8 @@ try {
   await running.page.send('Page.captureScreenshot', { format: 'png' }).then(r => writeFile(join(root, 'packaged-standards.png'), Buffer.from(r.data, 'base64')))
   await running.stop(); running = await launch(fresh)
   assert.deepEqual(await running.api('students.get'), students); assert.equal((await running.api('peSessions.get'))[0].notes, '打包课堂保存'); assert.equal((await running.api('resources.get')).length, 1)
+  for (const [name, hash] of Object.entries(snapshot)) assert.equal(sha(await readFile(join(fresh, name))), hash, `restore/restart changed ${name}`)
+  assert.equal(await readFile(join(fresh, 'resources/files', resources[0].storedFileName), 'utf8'), 'RC 附件内容')
   pass('第二次启动与恢复后重启数据一致')
   await running.stop(); running = undefined
   const old = join(root, '旧版 数据'); await mkdir(join(old, 'resources/files'), { recursive: true })
@@ -128,9 +141,15 @@ try {
   running = await launch(old)
   for (const name of Object.keys(before)) assert.equal(sha(await readFile(join(old, name))), before[name], `upgrade modified ${name}`)
   assert.equal((await running.api('classes.get'))[0].id, fixture.klass.id)
+  assert.equal((await running.api('students.get'))[0].classId, fixture.klass.id)
+  assert.equal((await running.api('schedule.get'))[0].classId, fixture.klass.id)
+  assert.equal((await running.api('peSessions.get'))[0].classId, fixture.klass.id)
   assert.equal((await running.api('peTests.get'))[0].records[0].examScore, 71)
   assert.equal((await running.api('teachingPlans.get'))[0].name, fixture.plan.name)
   assert.equal((await running.api('trainingTeams.get'))[0].name, fixture.team.name)
+  assert.equal((await running.api('trainingMembers.get'))[0].studentId, fixture.pupil.id)
+  assert.equal((await running.api('trainingSessions.get'))[0].planId, fixture.trainingPlan.id)
+  assert.equal((await running.api('trainingResults.get'))[0].rawValue, 245)
   assert.equal((await running.api('userPreferences.get')).teacherDisplayName, '旧版老师')
   assert.equal(await readFile(join(old, 'resources/files', fixture.legacy['resources.json'][0].storedFileName), 'utf8'), '历史附件原始字节')
   const upgradeBackup = join(root, '旧版 备份.gdpebak'); await running.dialog('save', upgradeBackup); await running.api('backup.create'); await running.dialog('open', upgradeBackup); await running.api('backup.restore')
@@ -156,6 +175,7 @@ try {
   const visible = await running.main.eval('globalThis.__rcError')
   assert(visible.text.includes('数据未被自动删除')); assert(visible.text.includes('logs')); assert(!visible.text.includes('TypeError'))
   const diagnostic = await readFile(join(recovering, 'logs/startup.log'), 'utf8'); assert(diagnostic.includes('uncaughtException')); assert(diagnostic.includes('TypeError'))
+  if (expectedVersion !== '0.29.0') assert(diagnostic.includes(`appVersion=${expectedVersion}`))
   pass('主进程严重异常：本地技术日志与普通用户可见提示，无业务载荷')
   await running.stop(); running = undefined
   report.passed = true

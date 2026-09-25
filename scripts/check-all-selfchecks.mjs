@@ -9,7 +9,7 @@ const directory = await mkdtemp(join(tmpdir(), 'gdpe-pe-selfchecks-'))
 let count = 0
 let failures = 0
 try {
-  for (const folder of (await readdir(resolve('src/shared'), { withFileTypes: true })).filter(e => e.isDirectory()).map(e => e.name)) {
+  for (const folder of ['', ...(await readdir(resolve('src/shared'), { withFileTypes: true })).filter(e => e.isDirectory()).map(e => e.name)]) {
     for (const file of (await readdir(resolve('src/shared', folder))).filter(name => /selfcheck\.ts$/i.test(name))) {
       const source = resolve('src/shared', folder, file)
       const body = await readFile(source, 'utf8')

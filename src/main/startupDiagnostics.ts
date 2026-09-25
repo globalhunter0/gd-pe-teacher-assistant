@@ -16,7 +16,7 @@ export async function recordDiagnostic(kind: string, error: unknown): Promise<vo
   const technical = frames(error)
   try {
     await mkdir(join(app.getPath('userData'), 'logs'), { recursive: true })
-    await appendFile(path, `${new Date().toISOString()} ${kind}\n${technical}\n`, 'utf8')
+    await appendFile(path, `${new Date().toISOString()} appVersion=${app.getVersion()} ${kind}\n${technical}\n`, 'utf8')
   } catch { console.error('[startup] diagnostic file could not be written') }
 }
 
