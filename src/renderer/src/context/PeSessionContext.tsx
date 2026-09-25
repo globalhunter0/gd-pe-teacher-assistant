@@ -1,3 +1,4 @@
+import { assertCollectionUnchanged } from '@shared/persistence/collectionConflict'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { parsePeSessions, type PEClassSession } from '@shared/peSession'
 
@@ -6,7 +7,8 @@ interface PeSessionContextValue {
   loading: boolean
   error: string | null
   saveSessions: (items: PEClassSession[]) => Promise<void>
-  upsertSession: (item: PEClassSession) => Promise<void>
+  createSession: (item: PEClassSession) => Promise<PEClassSession>
+  upsertSession: (item: PEClassSession, expected?: PEClassSession) => Promise<void>
   deleteSession: (id: string) => Promise<void>
 }
 
@@ -46,18 +48,28 @@ export function PeSessionProvider({ children }: { children: React.ReactNode }): 
   }, [])
 
   const saveSessions = useCallback(async (nextItems: PEClassSession[]) => {
-    const saved = await window.electronAPI.peSessions.save(parsePeSessions(nextItems))
+    if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
+    const saved = await window.electronAPI.peSessions.save(parsePeSessions(nextItems), sessions)
     setSessions(saved)
     setError(null)
-  }, [])
+  }, [sessions, loading, error])
 
   const upsertSession = useCallback(
-    async (item: PEClassSession) => {
+    async (item: PEClassSession, expected?: PEClassSession) => {
+      if (expected) assertCollectionUnchanged([sessions.find(entry => entry.id === item.id)], [expected])
       const without = sessions.filter((entry) => entry.id !== item.id)
       await saveSessions([...without, item])
     },
     [sessions, saveSessions]
   )
+
+  const createSession = useCallback(async (item: PEClassSession) => {
+    if (loading || error) throw new Error('课堂数据尚未就绪，请重新加载')
+    const result = await window.electronAPI.peSessions.create(item)
+    setSessions(result.sessions)
+    setError(null)
+    return result.session
+  }, [loading, error])
 
   const deleteSession = useCallback(
     async (id: string) => {
@@ -72,10 +84,11 @@ export function PeSessionProvider({ children }: { children: React.ReactNode }): 
       loading,
       error,
       saveSessions,
+      createSession,
       upsertSession,
       deleteSession
     }),
-    [sessions, loading, error, saveSessions, upsertSession, deleteSession]
+    [sessions, loading, error, saveSessions, createSession, upsertSession, deleteSession]
   )
 
   return <PeSessionContext.Provider value={value}>{children}</PeSessionContext.Provider>

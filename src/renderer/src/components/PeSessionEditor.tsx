@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import PageLayout, { PageHeader } from './PageLayout'
 import PeQuickEntryPanel from './PeQuickEntryPanel'
 import StatusBadge from './StatusBadge'
@@ -61,6 +61,7 @@ export default function PeSessionEditor({
   const [draft, setDraft] = useState<PEClassSession>(session)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [openTagId, setOpenTagId] = useState<string | null>(null)
+  const saveLock = useRef(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -103,12 +104,14 @@ export default function PeSessionEditor({
   }, [students])
 
   function touchSession(patch: Partial<PEClassSession>): void {
+    if (saving || isPeSessionCompleted(draft)) return
     const now = new Date().toISOString()
     setDraft((current) => ({ ...current, ...patch, updatedAt: now }))
     setMessage(null)
   }
 
   function updateRecord(id: string, patch: Partial<PEStudentRecord>): void {
+    if (saving || isPeSessionCompleted(draft)) return
     const now = new Date().toISOString()
     setDraft((current) => ({
       ...current,
@@ -159,6 +162,7 @@ export default function PeSessionEditor({
   }
 
   function applyBatch(attendanceStatus: AttendanceStatus): void {
+    if (saving || isPeSessionCompleted(draft)) return
     if (selected.size === 0) {
       return
     }
@@ -203,6 +207,7 @@ export default function PeSessionEditor({
   }
 
   function handleAppendMissingStudents(): void {
+    if (saving || isPeSessionCompleted(draft)) return
     if (missingStudents.length === 0) {
       return
     }
@@ -224,6 +229,9 @@ export default function PeSessionEditor({
   }
 
   async function handleSave(): Promise<void> {
+    if (saveLock.current) return
+    saveLock.current = true
+    setMessage(null)
     setSaving(true)
     setError(null)
     try {
@@ -232,36 +240,45 @@ export default function PeSessionEditor({
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '保存失败')
     } finally {
+      saveLock.current = false
       setSaving(false)
     }
   }
 
   async function handleComplete(): Promise<void> {
+    if (saveLock.current) return
+    saveLock.current = true
+    setMessage(null)
     setSaving(true)
     setError(null)
     try {
       const completed = markPeSessionCompleted(draft)
-      setDraft(completed)
       await onSave(completed)
+      setDraft(completed)
       setMessage('本节课堂已标记完成')
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '无法完成本节课堂')
     } finally {
+      saveLock.current = false
       setSaving(false)
     }
   }
 
   async function handleReopen(): Promise<void> {
+    if (saveLock.current) return
+    saveLock.current = true
+    setMessage(null)
     setSaving(true)
     setError(null)
     try {
       const reopened = reopenPeSession(draft)
-      setDraft(reopened)
       await onSave(reopened)
+      setDraft(reopened)
       setMessage('已重新打开本节课堂，可继续编辑')
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '无法重新打开')
     } finally {
+      saveLock.current = false
       setSaving(false)
     }
   }
@@ -366,7 +383,7 @@ export default function PeSessionEditor({
       {!dismissedSync && missingStudents.length > 0 ? (
         <div className="session-sync-bar">
           <span>有 {missingStudents.length} 名在读学生尚未加入本节记录</span>
-          <button type="button" className="btn btn-small btn-primary" onClick={handleAppendMissingStudents} disabled={sessionDone}>
+          <button type="button" className="btn btn-small btn-primary" onClick={handleAppendMissingStudents} disabled={sessionDone || saving}>
             补充学生
           </button>
         </div>
@@ -379,7 +396,7 @@ export default function PeSessionEditor({
             value={draft.topic}
             onChange={(event) => touchSession({ topic: event.target.value })}
             placeholder="例如：快速跑、立定跳远"
-            disabled={sessionDone}
+            disabled={sessionDone || saving}
           />
         </label>
       </div>
@@ -398,7 +415,7 @@ export default function PeSessionEditor({
           value={draft.notes}
           onChange={(event) => touchSession({ notes: event.target.value })}
           placeholder="例如：本节完成情况、临时调整、班级总体表现、下节课提醒"
-          disabled={sessionDone}
+          disabled={sessionDone || saving}
         />
       </label>
 
@@ -406,7 +423,7 @@ export default function PeSessionEditor({
         <div className="batch-bar">
           <span>已选 {selected.size} 人，批量设为：</span>
           {ATTENDANCE_EDIT_STATUSES.map((status) => (
-            <button key={status} type="button" className="btn btn-small" onClick={() => applyBatch(status)}>
+            <button key={status} type="button" className="btn btn-small" onClick={() => applyBatch(status)} disabled={sessionDone || saving}>
               {ATTENDANCE_LABELS[status]}
             </button>
           ))}
@@ -420,7 +437,7 @@ export default function PeSessionEditor({
           <thead>
             <tr>
               <th className="col-check">
-                <input
+                <input disabled={sessionDone || saving}
                   type="checkbox"
                   checked={records.length > 0 && selected.size === records.length}
                   onChange={toggleSelectAll}
@@ -443,7 +460,7 @@ export default function PeSessionEditor({
               return (
                 <tr key={record.id}>
                   <td>
-                    <input
+                    <input disabled={sessionDone || saving}
                       type="checkbox"
                       checked={selected.has(record.id)}
                       onChange={() => toggleSelect(record.id)}
@@ -455,7 +472,7 @@ export default function PeSessionEditor({
                   <td>
                     <div className="attendance-buttons">
                       {ATTENDANCE_EDIT_STATUSES.map((status) => (
-                        <button
+                        <button disabled={sessionDone || saving}
                           key={status}
                           type="button"
                           className={presence === status ? 'btn btn-small btn-primary' : 'btn btn-small'}
@@ -470,7 +487,7 @@ export default function PeSessionEditor({
                     <select
                       className={away ? 'participation-select is-muted' : 'participation-select'}
                       value={participation}
-                      disabled={away}
+                      disabled={away || sessionDone || saving}
                       title={away ? '缺勤/请假时参与状态无课堂意义' : undefined}
                       aria-label={`${record.nameSnapshot} 参与状态`}
                       onChange={(event) => setParticipation(record.id, event.target.value as ParticipationStatus)}
@@ -483,7 +500,7 @@ export default function PeSessionEditor({
                     </select>
                   </td>
                   <td className="col-tags">
-                    <button
+                    <button disabled={sessionDone || saving}
                       type="button"
                       className="btn btn-small"
                       onClick={() => setOpenTagId(openTagId === record.id ? null : record.id)}
@@ -496,7 +513,7 @@ export default function PeSessionEditor({
                       <div className="tag-popover">
                         {PERFORMANCE_TAGS.map((tag) => (
                           <label key={tag} className="tag-option">
-                            <input
+                            <input disabled={sessionDone || saving}
                               type="checkbox"
                               checked={record.performanceTags.includes(tag)}
                               onChange={() => toggleTag(record.id, tag)}
@@ -508,7 +525,7 @@ export default function PeSessionEditor({
                     ) : null}
                   </td>
                   <td>
-                    <input
+                    <input disabled={sessionDone || saving}
                       className="row-note"
                       value={record.note}
                       onChange={(event) => updateRecord(record.id, { note: event.target.value })}

@@ -1,3 +1,4 @@
+import { assertCollectionUnchanged } from '../../persistence/collectionConflict'
 import { isListedClass } from '../../class/validate'
 import { listBuiltinExamStandards } from '../../examStandard/catalog'
 import type { ClassRecord } from '../../class/types'
@@ -134,6 +135,7 @@ export async function executeImportExamBatchToPeTests(
     {
       name: 'pe-tests.json',
       write: async () => {
+        assertCollectionUnchanged(await stores.loadPeTests(), previous)
         await stores.savePeTests(merged.next)
       },
       restore: async () => {

@@ -51,10 +51,11 @@ export function TeachingPlanProvider({ children }: { children: React.ReactNode }
   }, [])
 
   const savePlans = useCallback(async (nextItems: TeachingPlan[]) => {
-    const saved = await window.electronAPI.teachingPlans.save(parseTeachingPlans(nextItems))
+    if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
+    const saved = await window.electronAPI.teachingPlans.save(parseTeachingPlans(nextItems), plans)
     setPlans(saved)
     setError(null)
-  }, [])
+  }, [plans, loading, error])
 
   const upsertPlan = useCallback(
     async (item: TeachingPlan) => {

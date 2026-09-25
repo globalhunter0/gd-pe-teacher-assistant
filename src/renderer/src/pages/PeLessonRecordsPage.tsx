@@ -1,3 +1,5 @@
+import { useSchedule } from '../context/ScheduleContext'
+import { resolveScheduleClassroomEligibility } from '@shared/schedule'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import PeSessionEditor from '../components/PeSessionEditor'
 import PageLayout, { PageHeader } from '../components/PageLayout'
@@ -19,6 +21,7 @@ import {
   findExistingPeSession,
   findPeSessionById,
   formatLocalDate,
+  parsePeSessions,
   resolvePeSessionStatus,
   type PEClassSession,
   type PeLessonType,
@@ -39,11 +42,15 @@ export default function PeLessonRecordsPage({
   openSessionId,
   onOpenSessionConsumed
 }: PeLessonRecordsPageProps): React.JSX.Element {
-  const { classes } = useClasses()
+  const { classes, loading: classesLoading, error: classesError } = useClasses()
   const listedClasses = listedClassRecords(classes)
-  const { students } = useStudents()
-  const { plans } = useTeachingPlans()
-  const { sessions, loading, error, upsertSession, deleteSession } = usePeSessions()
+  const { students, loading: studentsLoading, error: studentsError } = useStudents()
+  const { plans, loading: plansLoading, error: plansError } = useTeachingPlans()
+  const { items: schedule, loading: scheduleLoading, error: scheduleError } = useSchedule()
+  const { sessions, loading, error, createSession, upsertSession, deleteSession } = usePeSessions()
+  const dataLoading = loading || classesLoading || studentsLoading || plansLoading || scheduleLoading
+  const dataError = error || classesError || studentsError || plansError || scheduleError
+  const createLock = useRef(false)
   const [editing, setEditing] = useState<PEClassSession | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [prefillOpen, setPrefillOpen] = useState(false)
@@ -94,7 +101,7 @@ export default function PeLessonRecordsPage({
       handledPrefillKey.current = null
       return
     }
-    if (loading) {
+    if (dataLoading) {
       return
     }
 
@@ -105,7 +112,7 @@ export default function PeLessonRecordsPage({
     handledPrefillKey.current = key
 
     const boundClassId =
-      prefill.classId && classes.some((item) => item.id === prefill.classId) ? prefill.classId : undefined
+      prefill.classId
 
     if (boundClassId) {
       setPrefillOpen(false)
@@ -124,9 +131,9 @@ export default function PeLessonRecordsPage({
     }
 
     setPrefillOpen(true)
-    setPrefillClassId(classes[0]?.id ?? '')
+    setPrefillClassId(listedClasses[0]?.id ?? '')
     setActionError(null)
-  }, [prefill, classes, loading])
+  }, [prefill, classes, students, plans, schedule, dataLoading, dataError])
 
   useEffect(() => {
     if (!openSessionId) {
@@ -166,7 +173,7 @@ export default function PeLessonRecordsPage({
 
     setActionError(null)
     setDuplicateHint(null)
-    setClassId(classes[0]?.id ?? '')
+    setClassId(listedClasses[0]?.id ?? '')
     setDate(formatLocalDate(new Date()))
     setPeriod(1)
     setLessonType('extra')
@@ -187,23 +194,13 @@ export default function PeLessonRecordsPage({
       endTimeSnapshot: string
     }
   ): Promise<void> {
-    const classRecord = classes.find((item) => item.id === targetClassId)
-    if (!classRecord) {
-      setActionError('请选择所属班级')
-      return
-    }
-
-    const active = activeStudentsOf(targetClassId)
-    if (active.length === 0) {
-      setActionError('该班级没有在读学生，请先在学生管理中录入学生')
-      return
-    }
-
+    if (createLock.current) return
     const existing = findExistingPeSession(sessions, {
       classId: targetClassId,
       date: options.date,
       period: options.period,
-      scheduleLessonId: options.scheduleLessonId
+      scheduleLessonId: options.scheduleLessonId,
+      lessonType: options.lessonType
     })
     if (existing) {
       setCreateOpen(false)
@@ -212,6 +209,25 @@ export default function PeLessonRecordsPage({
       setPlanPrefillHint(null)
       setEditing(existing)
       setActionError(`该班级 ${options.date} 第${options.period}节已有课堂记录，已打开已有记录。`)
+      return
+    }
+
+    if (dataLoading || dataError) { setActionError(dataError || '数据尚未就绪，请稍后再试'); return }
+    if (options.scheduleLessonId) {
+      const lesson = schedule.find(item => item.id === options.scheduleLessonId)
+      if (!lesson || lesson.classId !== targetClassId || !resolveScheduleClassroomEligibility(lesson, { cellWeekday: lesson.weekday, todayWeekday: lesson.weekday, classes }).eligible) {
+        setActionError('当前课表项目不符合普通课堂条件，请刷新课表'); return
+      }
+    }
+    const classRecord = listedClasses.find((item) => item.id === targetClassId)
+    if (!classRecord) {
+      setActionError('请选择所属班级')
+      return
+    }
+
+    const active = activeStudentsOf(targetClassId)
+    if (active.length === 0) {
+      setActionError('该班级没有在读学生，请先在学生管理中录入学生')
       return
     }
 
@@ -248,25 +264,27 @@ export default function PeLessonRecordsPage({
       objectivesSnapshot
     })
 
+    createLock.current = true
     setWorking(true)
     try {
-      await upsertSession(created)
+      const persisted = await createSession(created)
       setCreateOpen(false)
       setPrefillOpen(false)
       onPrefillConsumed()
       setPlanPrefillHint(nextPlanHint)
-      setEditing(created)
+      setEditing(persisted)
       setActionError(null)
     } catch (createError) {
       setActionError(createError instanceof Error ? createError.message : '创建课堂失败')
     } finally {
+      createLock.current = false
       setWorking(false)
     }
   }
 
   async function handleManualCreate(): Promise<void> {
     setDuplicateHint(null)
-    const existing = findExistingPeSession(sessions, { classId, date, period })
+    const existing = findExistingPeSession(sessions, { classId, date, period, lessonType, scheduleLessonId: null })
     if (existing) {
       setDuplicateHint(existing)
       return
@@ -336,8 +354,8 @@ export default function PeLessonRecordsPage({
           setPlanPrefillHint(null)
         }}
         onSave={async (next) => {
-          await upsertSession(next)
-          setEditing(next)
+          await upsertSession(next, editing)
+          setEditing(parsePeSessions([next])[0])
         }}
       />
     )
@@ -356,7 +374,7 @@ export default function PeLessonRecordsPage({
         }
       />
 
-      {error ? <p className="page-error">{error}</p> : null}
+      {dataError ? <p className="page-error">{dataError}</p> : null}
       {actionError ? <p className="page-error">{actionError}</p> : null}
 
       <OverviewBar

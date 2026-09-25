@@ -53,10 +53,11 @@ export function StudentProvider({ children }: { children: React.ReactNode }): Re
   }, [])
 
   const saveStudents = useCallback(async (nextItems: StudentRecord[]) => {
-    const saved = await window.electronAPI.students.save(parseStudentRecords(nextItems))
+    if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
+    const saved = await window.electronAPI.students.save(parseStudentRecords(nextItems), students)
     setStudents(saved)
     setError(null)
-  }, [])
+  }, [students, loading, error])
 
   const upsertStudent = useCallback(
     async (item: StudentRecord) => {

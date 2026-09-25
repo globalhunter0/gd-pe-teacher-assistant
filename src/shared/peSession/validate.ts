@@ -18,6 +18,7 @@ import {
 } from './types'
 import { parseParticipationStatus } from './participation'
 import { parsePeSessionStatus } from './sessionStatus'
+import { classroomIdentityKey } from './identity'
 
 const SESSION_ID_PATTERN =
   /^pe-session-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -308,7 +309,7 @@ export function parsePeSessions(input: unknown, options: ParsePeSessionOptions =
     }
     ids.add(session.id)
 
-    const key = `${session.classId}|${session.date}|${session.period}`
+    const key = classroomIdentityKey(session)
     if (keys.has(key)) {
       throw new Error(`同一班级同一天同一节次已有课堂记录：${session.date} 第${session.period}节`)
     }

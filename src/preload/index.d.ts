@@ -47,7 +47,7 @@ import type { UserPreferences } from '../shared/userPreferences'
 export interface ElectronAPI {
   schedule: {
     get: () => Promise<ScheduleItem[]>
-    save: (items: ScheduleItem[]) => Promise<ScheduleItem[]>
+    save: (items: ScheduleItem[], expected: ScheduleItem[]) => Promise<ScheduleItem[]>
     importPick: () => Promise<ImportPickResult>
     importAnalyze: (sessionId: string) => Promise<import('../shared/schedule/detectTypes').DetectedScheduleWorkbook>
     importPreview: (
@@ -64,11 +64,11 @@ export interface ElectronAPI {
   }
   classes: {
     get: () => Promise<ClassRecord[]>
-    save: (items: ClassRecord[]) => Promise<ClassRecord[]>
+    save: (items: ClassRecord[], expected: ClassRecord[]) => Promise<ClassRecord[]>
   }
   students: {
     get: () => Promise<StudentRecord[]>
-    save: (items: StudentRecord[]) => Promise<StudentRecord[]>
+    save: (items: StudentRecord[], expected: StudentRecord[]) => Promise<StudentRecord[]>
     importPick: () => Promise<ImportPickResult>
     importAnalyze: (sessionId: string) => Promise<import('../shared/student/detectTypes').DetectedWorkbook>
     importHeaders: (
@@ -103,21 +103,22 @@ export interface ElectronAPI {
     importCancel: () => Promise<void>
   }
   peSessions: {
+    create: (item: PEClassSession) => Promise<{ session: PEClassSession; sessions: PEClassSession[] }>
     get: () => Promise<PEClassSession[]>
-    save: (items: PEClassSession[]) => Promise<PEClassSession[]>
+    save: (items: PEClassSession[], expected: PEClassSession[]) => Promise<PEClassSession[]>
   }
   testItems: {
     get: () => Promise<TestItem[]>
-    save: (items: TestItem[]) => Promise<TestItem[]>
+    save: (items: TestItem[], expected: TestItem[]) => Promise<TestItem[]>
   }
   peTests: {
     get: () => Promise<PETestSession[]>
-    save: (items: PETestSession[]) => Promise<PETestSession[]>
+    save: (items: PETestSession[], expected: PETestSession[]) => Promise<PETestSession[]>
     importExamBatch: (payload: ImportExamBatchToPeTestsPayload) => Promise<ExamBatchPeTestImportResult>
   }
   teachingPlans: {
     get: () => Promise<TeachingPlan[]>
-    save: (items: TeachingPlan[]) => Promise<TeachingPlan[]>
+    save: (items: TeachingPlan[], expected: TeachingPlan[]) => Promise<TeachingPlan[]>
   }
   resources: {
     get: () => Promise<ResourceItem[]>

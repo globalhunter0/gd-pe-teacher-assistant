@@ -1,3 +1,4 @@
+import { resolveScheduleClassroomEligibility } from '@shared/schedule'
 import { useMemo, useState } from 'react'
 import { listedClassRecords, type ClassRecord } from '@shared/class'
 import { countIncompletePeTestSessions } from '@shared/peTest'
@@ -153,8 +154,8 @@ export default function DashboardPage({
   const now = useNow()
   const { items, loading, error, saveItems } = useSchedule()
   const scheduleService = useScheduleService()
-  const { classes } = useClasses()
-  const { sessions } = usePeSessions()
+  const { classes, loading: classesLoading, error: classesError } = useClasses()
+  const { sessions, loading: sessionsLoading, error: sessionsError } = usePeSessions()
   const { sessions: testSessions } = usePeTests()
   const { teams } = useTraining()
   const { plans } = useTeachingPlans()
@@ -194,6 +195,7 @@ export default function DashboardPage({
     let inProgress = 0
     let completed = 0
     for (const lesson of today.lessons) {
+      if (!resolveScheduleClassroomEligibility(lesson, { cellWeekday: lesson.weekday, todayWeekday: lesson.weekday, classes }).eligible) continue
       const match = resolveWorkbenchLessonRecord(sessions, lesson, todayDate)
       if (match.status === 'completed') {
         completed += 1
@@ -204,7 +206,7 @@ export default function DashboardPage({
       }
     }
     return { unrecorded, inProgress, completed }
-  }, [sessions, today.lessons, todayDate])
+  }, [sessions, today.lessons, todayDate, classes])
   const [bindLesson, setBindLesson] = useState<ScheduleItem | null>(null)
   const [bindValue, setBindValue] = useState('')
   const [bindError, setBindError] = useState<string | null>(null)
@@ -265,7 +267,7 @@ export default function DashboardPage({
     }
   }
 
-  if (loading) {
+  if (loading || classesLoading || sessionsLoading) {
     return (
       <PageLayout className="page--dashboard">
         <div className="page-heading">
@@ -282,7 +284,7 @@ export default function DashboardPage({
         <TechGrid />
         <GlowOrb className="dash-stage-orb" />
       </div>
-      {error ? <p className="page-error">{error}</p> : null}
+      {error || classesError || sessionsError ? <p className="page-error">{error || classesError || sessionsError}</p> : null}
 
       <div
         className="dash-hero"
@@ -445,9 +447,10 @@ export default function DashboardPage({
               {today.lessons.map((lesson) => {
                 const boundClass = workbenchListedClass(lesson, classes)
                 const classReady = Boolean(boundClass)
+                const eligible = !error && !classesError && !sessionsError && resolveScheduleClassroomEligibility(lesson, { cellWeekday: lesson.weekday, todayWeekday: lesson.weekday, classes }).eligible
                 const lane = workbenchClockStatus(lesson, now, today.currentLesson?.id, today.nextLesson?.id)
                 const record = resolveWorkbenchLessonRecord(sessions, lesson, todayDate)
-                const existingSession = record.session
+                const existingSession = eligible ? record.session : undefined
                 const emphasize = (lane === 'live' || lane === 'next') && record.status === 'unrecorded'
                 return (
                   <li key={lesson.id} className={`today-lane is-${lane}`}>
@@ -461,7 +464,7 @@ export default function DashboardPage({
                       </p>
                       <p className="today-lane-sub">
                         {COURSE_TYPE_LABELS[lesson.courseType]}
-                        {boundClass ? ` · ${lesson.team}` : lesson.classId ? ' · 已删除班级' : ' · 未绑定行政班'}
+                        {lesson.trainingTeamId ? ' · 训练队活动' : boundClass ? ` · ${lesson.team}` : lesson.classId ? ' · 已删除班级' : ' · 未绑定行政班'}
                       </p>
                     </div>
                     <span
@@ -473,7 +476,7 @@ export default function DashboardPage({
                             : ' badge-recorded'
                       }`}
                     >
-                      {WORKBENCH_CLOCK_LABELS[lane]} · {WORKBENCH_RECORD_STATUS_LABELS[record.status]}
+                      {WORKBENCH_CLOCK_LABELS[lane]} · {eligible ? WORKBENCH_RECORD_STATUS_LABELS[record.status] : lesson.trainingTeamId ? '训练队活动' : '非普通课堂目标'}
                     </span>
                     <div className="today-lane-actions">
                       {existingSession ? (
@@ -484,7 +487,7 @@ export default function DashboardPage({
                         >
                           {workbenchActionLabel(record.status)}
                         </button>
-                      ) : (
+                      ) : eligible ? (
                         <button
                           type="button"
                           className={emphasize ? 'btn btn-small btn-primary' : 'btn btn-small'}
@@ -492,7 +495,7 @@ export default function DashboardPage({
                         >
                           开始课堂
                         </button>
-                      )}
+                      ) : <span>{lesson.trainingTeamId ? '训练队活动' : '不符合普通课堂条件'}</span>}
                       <button type="button" className="btn btn-small" onClick={() => openBind(lesson)}>
                         绑定
                       </button>

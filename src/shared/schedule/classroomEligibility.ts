@@ -39,7 +39,7 @@ export function resolveScheduleClassroomEligibility(
     return { eligible: false, reason: 'not-pe-class' }
   }
 
-  if (workbenchUsesTrainingTeam(lesson) || (Boolean(lesson.trainingTeamId) && !lesson.classId)) {
+  if (workbenchUsesTrainingTeam(lesson) || Boolean(lesson.trainingTeamId)) {
     return { eligible: false, reason: 'training-only' }
   }
 

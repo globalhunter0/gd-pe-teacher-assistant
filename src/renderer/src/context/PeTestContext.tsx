@@ -49,10 +49,11 @@ export function PeTestProvider({ children }: { children: React.ReactNode }): Rea
   }, [reload])
 
   const saveSessions = useCallback(async (nextItems: PETestSession[]) => {
-    const saved = await window.electronAPI.peTests.save(parsePeTestSessions(nextItems))
+    if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
+    const saved = await window.electronAPI.peTests.save(parsePeTestSessions(nextItems), sessions)
     setSessions(saved)
     setError(null)
-  }, [])
+  }, [sessions, loading, error])
 
   const upsertSession = useCallback(
     async (item: PETestSession) => {

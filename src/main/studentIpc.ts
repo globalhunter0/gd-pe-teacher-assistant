@@ -1,3 +1,4 @@
+import { handleCollectionSave } from './collectionIpc'
 import { ipcMain } from 'electron'
 import { getStudentDeleteBlockers, parseStudentRecords } from '../shared/student/validate'
 import { loadClasses } from './classStore'
@@ -19,7 +20,7 @@ export function registerStudentIpc(): void {
     return loadStudents()
   })
 
-  ipcMain.handle('students:save', async (_event, items: unknown) => {
+  handleCollectionSave('students:save', loadStudents, async (_event, items: unknown) => {
     const classes = await loadClasses()
     const knownClassIds = new Set(classes.map((item) => item.id))
     const next = parseStudentRecords(items, { knownClassIds })

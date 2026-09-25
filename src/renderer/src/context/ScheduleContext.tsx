@@ -49,11 +49,12 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }): R
 
   const saveItems = useCallback(async (nextItems: ScheduleItem[]) => {
     parseScheduleItems(nextItems)
-    const saved = await window.electronAPI.schedule.save(nextItems)
+    if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
+    const saved = await window.electronAPI.schedule.save(nextItems, items)
     assertScheduleLinksRoundTrip(nextItems, saved)
     setItems(saved)
     setError(null)
-  }, [])
+  }, [items, loading, error])
 
   const restoreDefault = useCallback(async () => {
     await saveItems(WEEKLY_SCHEDULE.map((item) => ({ ...item })))

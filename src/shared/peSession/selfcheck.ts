@@ -142,7 +142,7 @@ export function runPeSessionWorkbenchSelfCheckOrThrow(): string {
     period: 8,
     scheduleLessonId: LESSON_ID
   })
-  assert(duplicate?.id === SESSION_LINKED, '同一 scheduleLessonId + 日期不得再创建第二条')
+  assert(duplicate === undefined, '课表 ID 相同也不能把不同班级和节次归为旧课堂')
   assert(
     findSessionForWorkbenchLesson([linked], lesson, TODAY)?.id === SESSION_LINKED,
     '继续记录目标必须是原记录'
@@ -160,9 +160,8 @@ export function runPeSessionWorkbenchSelfCheckOrThrow(): string {
   assert(extraMatch.status === 'unrecorded', '独立补课不得把正常课表格子标成已记录')
   assert(extraMatch.session === undefined, '补课不得成为课表格子的工作台记录')
   assert(
-    findExistingPeSession([extra], { classId: CLASS_A, date: TODAY, period: 3, scheduleLessonId: LESSON_ID })?.id ===
-      SESSION_EXTRA,
-    '同一班级日期节次仍应由底层防重挡住'
+    findExistingPeSession([extra], { classId: CLASS_A, date: TODAY, period: 3, scheduleLessonId: LESSON_ID }) === undefined,
+    '独立补课不占用普通课身份，普通课不得打开补课记录'
   )
 
   const oldMissingLink = session({

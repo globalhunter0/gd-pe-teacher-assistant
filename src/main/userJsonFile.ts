@@ -15,7 +15,7 @@ export async function loadUserJsonItems<T>(
   return loadJsonItemsFile(userJsonPath(fileName), parse, ifMissing)
 }
 
-export async function saveUserJsonItems<T>(fileName: string, items: T[]): Promise<T[]> {
-  await writeJsonItemsAtomic(join(getUserDataRoot(), fileName), items)
+export async function saveUserJsonItems<T>(fileName: string, items: T[], expectedItems?: T[]): Promise<T[]> {
+  await writeJsonItemsAtomic(join(getUserDataRoot(), fileName), items, expectedItems)
   return items
 }

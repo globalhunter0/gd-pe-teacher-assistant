@@ -45,10 +45,11 @@ export function TestItemProvider({ children }: { children: React.ReactNode }): R
   }, [])
 
   const saveItems = useCallback(async (nextItems: TestItem[]) => {
-    const saved = await window.electronAPI.testItems.save(parseTestItems(nextItems))
+    if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
+    const saved = await window.electronAPI.testItems.save(parseTestItems(nextItems), items)
     setItems(saved)
     setError(null)
-  }, [])
+  }, [items, loading, error])
 
   const upsertItem = useCallback(
     async (item: TestItem) => {

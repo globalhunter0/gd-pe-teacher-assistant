@@ -1,3 +1,6 @@
+import { loadPeSessions } from './peSessionStore'
+import { parsePeTestSessions } from '../shared/peTest/validate'
+import { handleCollectionSave } from './collectionIpc'
 import { ipcMain } from 'electron'
 import { loadClasses } from './classStore'
 import { loadPeTests, savePeTests } from './peTestStore'
@@ -10,7 +13,7 @@ export function registerPeTestIpc(): void {
     return loadTestItems()
   })
 
-  ipcMain.handle('testItems:save', async (_event, items: unknown) => {
+  handleCollectionSave('testItems:save', loadTestItems, async (_event, items: unknown) => {
     return saveTestItems(items)
   })
 
@@ -18,7 +21,14 @@ export function registerPeTestIpc(): void {
     return loadPeTests()
   })
 
-  ipcMain.handle('peTests:save', async (_event, items: unknown) => {
+  handleCollectionSave('peTests:save', loadPeTests, async (_event, items: unknown) => {
+    const current = await loadPeTests()
+    const classrooms = await loadPeSessions()
+    for (const test of parsePeTestSessions(items)) {
+      if (!current.some(old => old.id === test.id) && test.peSessionId && !classrooms.some(session => session.id === test.peSessionId)) {
+        throw new Error('关联课堂不存在或已删除，不能创建课堂测评')
+      }
+    }
     const classes = await loadClasses()
     const testItems = await loadTestItems()
     return savePeTests(

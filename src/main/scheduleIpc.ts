@@ -1,3 +1,4 @@
+import { handleCollectionSave } from './collectionIpc'
 import { ipcMain } from 'electron'
 import {
   analyzeScheduleExcel,
@@ -18,7 +19,7 @@ export function registerScheduleIpc(): void {
     return loadSchedule()
   })
 
-  ipcMain.handle('schedule:save', async (_event, items: unknown) => {
+  handleCollectionSave('schedule:save', loadSchedule, async (_event, items: unknown) => {
     const submitted = parseScheduleItems(items)
     const [current, trainingTeams] = await Promise.all([
       loadSchedule(),

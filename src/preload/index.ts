@@ -42,7 +42,7 @@ import type {
 const electronAPI = {
   schedule: {
     get: (): Promise<ScheduleItem[]> => ipcRenderer.invoke('schedule:get'),
-    save: (items: ScheduleItem[]): Promise<ScheduleItem[]> => ipcRenderer.invoke('schedule:save', items),
+    save: (items: ScheduleItem[], expected: ScheduleItem[]): Promise<ScheduleItem[]> => ipcRenderer.invoke('schedule:save', items, expected),
     importPick: (): Promise<ImportPickResult> => ipcRenderer.invoke('schedule:importPick'),
     importAnalyze: (sessionId: string): Promise<import('../shared/schedule/detectTypes').DetectedScheduleWorkbook> =>
       ipcRenderer.invoke('schedule:importAnalyze', sessionId),
@@ -62,11 +62,11 @@ const electronAPI = {
   },
   classes: {
     get: (): Promise<ClassRecord[]> => ipcRenderer.invoke('classes:get'),
-    save: (items: ClassRecord[]): Promise<ClassRecord[]> => ipcRenderer.invoke('classes:save', items)
+    save: (items: ClassRecord[], expected: ClassRecord[]): Promise<ClassRecord[]> => ipcRenderer.invoke('classes:save', items, expected)
   },
   students: {
     get: (): Promise<StudentRecord[]> => ipcRenderer.invoke('students:get'),
-    save: (items: StudentRecord[]): Promise<StudentRecord[]> => ipcRenderer.invoke('students:save', items),
+    save: (items: StudentRecord[], expected: StudentRecord[]): Promise<StudentRecord[]> => ipcRenderer.invoke('students:save', items, expected),
     importPick: (): Promise<ImportPickResult> => ipcRenderer.invoke('students:importPick'),
     importAnalyze: (sessionId: string): Promise<import('../shared/student/detectTypes').DetectedWorkbook> =>
       ipcRenderer.invoke('students:importAnalyze', sessionId),
@@ -103,16 +103,17 @@ const electronAPI = {
     importCancel: (): Promise<void> => ipcRenderer.invoke('students:importCancel')
   },
   peSessions: {
+    create: (item: PEClassSession): Promise<{ session: PEClassSession; sessions: PEClassSession[] }> => ipcRenderer.invoke('peSessions:create', item),
     get: (): Promise<PEClassSession[]> => ipcRenderer.invoke('peSessions:get'),
-    save: (items: PEClassSession[]): Promise<PEClassSession[]> => ipcRenderer.invoke('peSessions:save', items)
+    save: (items: PEClassSession[], expected: PEClassSession[]): Promise<PEClassSession[]> => ipcRenderer.invoke('peSessions:save', items, expected)
   },
   testItems: {
     get: (): Promise<TestItem[]> => ipcRenderer.invoke('testItems:get'),
-    save: (items: TestItem[]): Promise<TestItem[]> => ipcRenderer.invoke('testItems:save', items)
+    save: (items: TestItem[], expected: TestItem[]): Promise<TestItem[]> => ipcRenderer.invoke('testItems:save', items, expected)
   },
   peTests: {
     get: (): Promise<PETestSession[]> => ipcRenderer.invoke('peTests:get'),
-    save: (items: PETestSession[]): Promise<PETestSession[]> => ipcRenderer.invoke('peTests:save', items),
+    save: (items: PETestSession[], expected: PETestSession[]): Promise<PETestSession[]> => ipcRenderer.invoke('peTests:save', items, expected),
     importExamBatch: (
       payload: import('../shared/examBatch/peTestImport/types').ImportExamBatchToPeTestsPayload
     ): Promise<import('../shared/examBatch/peTestImport/types').ExamBatchPeTestImportResult> =>
@@ -120,7 +121,7 @@ const electronAPI = {
   },
   teachingPlans: {
     get: (): Promise<TeachingPlan[]> => ipcRenderer.invoke('teachingPlans:get'),
-    save: (items: TeachingPlan[]): Promise<TeachingPlan[]> => ipcRenderer.invoke('teachingPlans:save', items)
+    save: (items: TeachingPlan[], expected: TeachingPlan[]): Promise<TeachingPlan[]> => ipcRenderer.invoke('teachingPlans:save', items, expected)
   },
   resources: {
     get: (): Promise<ResourceItem[]> => ipcRenderer.invoke('resources:get'),

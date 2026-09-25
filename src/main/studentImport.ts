@@ -1,3 +1,4 @@
+import { assertCollectionUnchanged } from '../shared/persistence/collectionConflict'
 import { dialog } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
@@ -276,6 +277,8 @@ export async function commitStudentExcel(
     {
       name: 'classes.json',
       write: async () => {
+        assertCollectionUnchanged(await loadClasses(), previousClasses)
+        assertCollectionUnchanged(await loadStudents(), previousStudents)
         savedClasses = await saveClasses(parsedClasses)
       },
       restore: async () => {

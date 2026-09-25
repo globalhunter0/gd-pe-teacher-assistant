@@ -1,3 +1,4 @@
+import { handleCollectionSave } from './collectionIpc'
 import { ipcMain } from 'electron'
 import { parseTeachingPlans } from '../shared/teachingPlan/validate'
 import { loadTeachingPlans, saveTeachingPlans } from './teachingPlanStore'
@@ -7,7 +8,7 @@ export function registerTeachingPlanIpc(): void {
     return loadTeachingPlans()
   })
 
-  ipcMain.handle('teachingPlans:save', async (_event, items: unknown) => {
+  handleCollectionSave('teachingPlans:save', loadTeachingPlans, async (_event, items: unknown) => {
     return saveTeachingPlans(parseTeachingPlans(items))
   })
 }

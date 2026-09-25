@@ -1,3 +1,4 @@
+import { assertCollectionUnchanged } from '../shared/persistence/collectionConflict'
 import { dialog } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
@@ -226,6 +227,7 @@ export async function commitScheduleExcel(
     {
       name: 'schedule.json',
       write: async () => {
+        assertCollectionUnchanged(await loadSchedule(), previous)
         saved = await saveSchedule(target)
       },
       restore: async () => {

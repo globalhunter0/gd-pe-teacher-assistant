@@ -51,10 +51,11 @@ export function ClassProvider({ children }: { children: React.ReactNode }): Reac
   }, [])
 
   const saveClasses = useCallback(async (nextItems: ClassRecord[]) => {
-    const saved = await window.electronAPI.classes.save(parseClassRecords(nextItems))
+    if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
+    const saved = await window.electronAPI.classes.save(parseClassRecords(nextItems), classes)
     setClasses(saved)
     setError(null)
-  }, [])
+  }, [classes, loading, error])
 
   const upsertClass = useCallback(
     async (item: ClassRecord) => {

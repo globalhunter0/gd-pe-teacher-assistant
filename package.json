@@ -10,7 +10,9 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "check:data-safety": "node scripts/check-data-safety.mjs"
+    "check:data-safety": "node scripts/check-data-safety.mjs",
+    "check:classroom": "node scripts/check-classroom.mjs",
+    "check:classroom-selfchecks": "node scripts/check-classroom-selfchecks.mjs"
   },
   "dependencies": {
     "react": "^19.1.1",
