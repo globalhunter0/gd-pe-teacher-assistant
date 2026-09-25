@@ -1,4 +1,6 @@
-import { calculateExamScore, formatExamRawValue, itemSupportsAutoScore } from '../examStandard/score'
+import { explicitColumnUnit } from '../peTest/measurement'
+import { scoreImported } from './scoreImported'
+import { formatExamRawValue } from '../examStandard/score'
 import type { ExamItemDefinition, ExamStandard } from '../examStandard/types'
 import { normalizeExamColumnMapping } from './columnMapping'
 import { matchExamItem } from './matchExamItem'
@@ -199,7 +201,7 @@ function scoreRow(
   if (standard.status !== 'verified') {
     return fail(withItem, 'no_verified_standard', '当前没有可用于正式换算的已核验评分标准。')
   }
-  if (!gender && item.gender !== 'all') {
+  if (!gender) {
     return fail(withItem, 'unrecognized_gender', '无法识别性别，未评分')
   }
   const scoreGender = gender ?? 'male'
@@ -227,7 +229,7 @@ function scoreRow(
     }
   }
 
-  const parsed = parseExamBatchRawValue(display, raw, item)
+  const parsed = parseExamBatchRawValue(display, raw, item, explicitColumnUnit(sourceHeader))
   if (!parsed.ok) {
     return fail(withItem, 'invalid_raw_value', parsed.message)
   }
@@ -239,43 +241,9 @@ function scoreRow(
     rawValueParsed: parsed.value
   }
 
-  if (item.scoreRule.kind === 'unsupported' || item.verification === 'verified_unsupported') {
-    return fail(parsedItem, 'unsupported_item', '成绩读取成功，但当前版本暂不支持该项目自动换算')
-  }
-  if (!itemSupportsAutoScore(item)) {
-    return fail(parsedItem, 'no_score_table', '成绩读取成功，但当前评分标准暂无可用换算表')
-  }
+  const scored = scoreImported(standard, item, scoreGender, parsed.value)
+  return { ...parsedItem, ...scored }
 
-  const scored = calculateExamScore({
-    standard,
-    itemId: item.id,
-    rawValue: parsed.value,
-    gender: scoreGender,
-    officialOnly: true
-  })
-  if (!scored.ok) {
-    if (scored.code === 'UNSUPPORTED_MODEL') {
-      return fail(parsedItem, 'unsupported_item', '成绩读取成功，但当前版本暂不支持该项目自动换算')
-    }
-    if (scored.code === 'NOT_VERIFIED' || scored.code === 'DEPRECATED_DEFAULT' || scored.code === 'NO_TABLE') {
-      return fail(parsedItem, 'no_score_table', '成绩读取成功，但当前评分标准暂无可用换算表')
-    }
-    if (scored.code === 'GENDER_MISMATCH') {
-      return fail(parsedItem, 'unrecognized_gender', scored.message)
-    }
-    if (scored.code === 'INVALID_VALUE') {
-      return fail(parsedItem, 'invalid_raw_value', scored.message)
-    }
-    return fail(parsedItem, 'unrecognized_item', scored.message)
-  }
-
-  return {
-    ...parsedItem,
-    rawValueNormalized: formatExamRawValue(scored.rawValue, item),
-    score: scored.score,
-    status: 'success',
-    message: ''
-  }
 }
 
 export function convertExamBatch(
@@ -309,7 +277,8 @@ export function convertExamBatch(
       studentName,
       className,
       gender,
-      examStandardId: standard.id
+      examStandardId: standard.id,
+      gradeSnapshot: standard.importGrade
     }
     const missingIdentity = studentName === '' && studentNo === ''
 
@@ -354,6 +323,12 @@ export function convertExamBatch(
     }
 
     for (const [columnIndex, role] of normalized.columns.entries()) {
+      if (role.kind === 'ignore' && role.needsReview) {
+        result.push(fail({ ...identity, examItemId: null, examItemName: role.sourceHeader,
+          rawValueOriginal: cellAt(row, role.sourceColumn), rawValueNormalized: null, rawValueParsed: null },
+        'unrecognized_item', '未识别项目列，请确认映射或明确忽略'))
+        continue
+      }
       if (role.kind !== 'examItem' && role.kind !== 'examItemKey') {
         continue
       }

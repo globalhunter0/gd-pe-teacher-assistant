@@ -536,7 +536,7 @@ export function runNationalFitnessPhaseD1SelfCheck(): string {
   assert(testsPage.includes('listClassroomScoringOptions') && testsPage.includes('评分依据'), '新建测试评分依据')
   assert(panel.includes('listClassroomScoringOptions') && !panel.includes('calculateExamScore'), '课堂录入评分依据')
   assert(scoreSrc.includes('calculateNationalFitnessScore') && !scoreSrc.includes('calculateNationalFitnessItemScore'), '课堂调用 calculateNationalFitnessScore')
-  assert(editor.includes('examStandardId: draft.examStandardId') && editor.includes('评分体系'), '编辑保存走 session 评分依据')
+  assert(editor.includes('applyPeTestEdits') && readSrc('src/shared/peTest/editSession.ts').includes('applyQuickEntry') && editor.includes('评分体系'), '编辑保存走 session 评分依据')
   assert(analyticsSrc.includes('belowOfficialMinimumCount'), '统计口径含无官方分值')
   assert(nationalFitnessAllowsOfficialConvert() === false, 'Excel/考试入口仍不自动国标换算')
   assert(examScoreSrc.includes("code: 'NO_TABLE'"), '中考引擎仍 fail-close 国标 id')

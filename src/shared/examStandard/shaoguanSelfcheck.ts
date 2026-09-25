@@ -208,7 +208,7 @@ export function runShaoguanScoringSelfCheck(): string {
   assert(parseExamPerformanceInput('3:40', male1000) === 220, '1000米 3:40')
   assert(parseExamPerformanceInput("3'40", male1000) === 220, "1000米 3'40")
   assert(parseExamPerformanceInput('3.40', male1000) === 220, '1000米 3.40是分秒')
-  assert(parseExamPerformanceInput('220', male1000) === 220, '1000米 220秒')
+  assert(parseExamPerformanceInput('220秒', male1000) === 220, '1000米 220秒')
   assert(parseExamPerformanceInput('8.80', frogMale) === 8.8, '蛙跳 8.80是米不是分秒')
   assert(parseExamPerformanceInput('10.80', requireItem(shaoguan, 'male-shot-put')) === 10.8, '铅球小数是米')
 

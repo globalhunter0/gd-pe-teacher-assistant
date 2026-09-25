@@ -93,6 +93,7 @@ export function suggestColumnMapping(
       return
     }
     if (match.status === 'ambiguous') {
+      roles[index] = { kind: 'ignore', ...source(index, titles), needsReview: true }
       suggestions.push({
         index,
         title,
@@ -103,6 +104,7 @@ export function suggestColumnMapping(
       })
       return
     }
+    roles[index] = { kind: 'ignore', ...source(index, titles), needsReview: true }
     suggestions.push({
       index,
       title,
@@ -161,6 +163,7 @@ function parseRole(value: unknown, index: number): ExamColumnRole {
   const sourced = { sourceColumn, sourceHeader }
   switch (role.kind) {
     case 'ignore':
+      return { kind: 'ignore', ...sourced, needsReview: role.needsReview === true }
     case 'studentNo':
     case 'studentName':
     case 'gender':

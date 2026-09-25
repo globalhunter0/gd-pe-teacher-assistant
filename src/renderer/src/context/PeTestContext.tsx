@@ -1,3 +1,4 @@
+import { assertCollectionUnchanged } from '@shared/persistence/collectionConflict'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { parsePeTestSessions, type PETestSession } from '@shared/peTest'
 
@@ -7,7 +8,7 @@ interface PeTestContextValue {
   error: string | null
   reload: () => Promise<void>
   saveSessions: (items: PETestSession[]) => Promise<void>
-  upsertSession: (item: PETestSession) => Promise<void>
+  upsertSession: (item: PETestSession, expected?: PETestSession) => Promise<void>
   deleteSession: (id: string) => Promise<void>
 }
 
@@ -56,7 +57,8 @@ export function PeTestProvider({ children }: { children: React.ReactNode }): Rea
   }, [sessions, loading, error])
 
   const upsertSession = useCallback(
-    async (item: PETestSession) => {
+    async (item: PETestSession, expected?: PETestSession) => {
+      if (expected) assertCollectionUnchanged(sessions.filter(entry => entry.id === item.id), [expected])
       const without = sessions.filter((entry) => entry.id !== item.id)
       await saveSessions([...without, item])
     },

@@ -1,3 +1,5 @@
+import { isNationalFitnessStandardId } from '../../nationalFitness/catalog'
+import { nationalBatchStandard } from '../nationalBatch'
 import { assertCollectionUnchanged } from '../../persistence/collectionConflict'
 import { isListedClass } from '../../class/validate'
 import { listBuiltinExamStandards } from '../../examStandard/catalog'
@@ -88,7 +90,7 @@ export async function executeImportExamBatchToPeTests(
   if (!classRecord || !isListedClass(classRecord)) {
     throw new Error('班级不存在或不在当前名单')
   }
-  const standard = listBuiltinExamStandards().find((item) => item.id === payload.examStandardId)
+  const standard = isNationalFitnessStandardId(payload.examStandardId) ? nationalBatchStandard(classRecord.grade) : listBuiltinExamStandards().find((item) => item.id === payload.examStandardId)
   if (!standard) {
     throw new Error('评分标准不存在')
   }
@@ -113,7 +115,7 @@ export async function executeImportExamBatchToPeTests(
       if (!student || student.classId !== payload.classId || student.status === 'deleted') {
         throw new Error(`学生 ${record.nameSnapshot} 不属于该班或已删除`)
       }
-      if (record.status === 'valid' && (record.rawValue == null || record.examScore == null)) {
+      if (record.status === 'valid' && (record.rawValue == null || (record.examScore == null && record.scoreOutcome !== 'below_official_minimum' && !['test-item-builtin-height', 'test-item-builtin-weight'].includes(session.testItemId)))) {
         throw new Error(`学生 ${record.nameSnapshot} 缺少原始成绩或换算分`)
       }
       if (record.status !== 'valid' && (record.rawValue != null || record.examScore != null)) {
@@ -136,6 +138,9 @@ export async function executeImportExamBatchToPeTests(
       name: 'pe-tests.json',
       write: async () => {
         assertCollectionUnchanged(await stores.loadPeTests(), previous)
+        assertCollectionUnchanged(await stores.loadStudents(), students)
+        assertCollectionUnchanged(await stores.loadClasses(), classes)
+        assertCollectionUnchanged(await stores.loadTestItems(), testItems)
         await stores.savePeTests(merged.next)
       },
       restore: async () => {

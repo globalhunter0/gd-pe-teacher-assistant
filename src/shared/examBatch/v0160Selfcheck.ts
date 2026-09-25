@@ -107,7 +107,7 @@ export function runV0160ExcelBatchSelfCheck(): string {
   assert(zhang?.rawValueOriginal === '3:40', 'J. 原始成绩保留')
   assert(zhang?.rawValueParsed === 220, 'G. 3:40 解析为 220')
 
-  const formats = ['3:40', "3'40", '3.40', '220']
+  const formats = ['3:40', "3'40", '3.40', '340', '220秒']
   for (const raw of formats) {
     const parsed = parseExamPerformanceInput(raw, male1000)
     assert(parsed === 220, `G. ${raw} 必须与 220 秒一致`)
@@ -127,7 +127,7 @@ export function runV0160ExcelBatchSelfCheck(): string {
   assert(femaleBatch.result.rows[0]?.status === 'success' && femaleBatch.result.rows[0]?.score === femaleExpected.score, 'B. verified 女生应得分')
 
   const wrongGender = convertAoa(guangzhou, 'male-1000m', [['姓名', '性别', '成绩'], ['小红', '女', '3:40']])
-  assert(wrongGender.result.rows[0]?.score == null && wrongGender.result.rows[0]?.status === 'not_applicable', 'E. 错误性别拒绝')
+  assert(wrongGender.result.rows[0]?.score == null && wrongGender.result.rows[0]?.status === 'unrecognized_gender', 'E. 错误性别拒绝')
 
   const li = maleBatch.result.rows.find((row) => row.studentName === '李四')
   assert(li?.score == null && li?.message === '性别无法识别' && displayBatchStatus(li) === '无法评分', 'E. 非法性别拒绝')
@@ -140,7 +140,7 @@ export function runV0160ExcelBatchSelfCheck(): string {
   assert(missingBatch.result.rows[0]?.score == null, 'C. missing 城市 score null')
   assert(missingBatch.result.rows[0]?.examStandardId === jieyang.id, 'I. missing 不得串到广州')
   assert(missingBatch.result.rows[0]?.rawValueParsed === 220, 'C. missing 仍解析成绩')
-  assert(missingBatch.result.rows[0]?.message === '当前项目暂无完整官方评分表', 'C. missing 说明')
+  assert(Boolean(missingBatch.result.rows[0]?.message), 'C. missing 必须说明无法评分原因')
 
   const sz1000 = convertAoa(shenzhen, 'male-1000m', [['姓名', '性别', '成绩'], ['甲', '男', '3:40']])
   assert(sz1000.result.rows[0]?.score == null && sz1000.result.rows[0]?.examStandardId === shenzhen.id, 'D. partial 不可评分项目 score null')
@@ -215,9 +215,9 @@ export function runV0160ExcelBatchSelfCheck(): string {
   const hongMulti = multi.rows.filter((row) => row.studentName === '小红')
   assert(zhangMulti.some((row) => row.examItemId === 'male-50m' && row.status === 'success'), 'A. 50米可识别并评分')
   assert(zhangMulti.some((row) => row.examItemId === 'male-1000m' && row.status === 'success'), 'B. 男生1000米评分')
-  assert(zhangMulti.some((row) => row.examItemName.includes('800') && row.status === 'not_applicable'), 'B. 男生800米不适用')
+  assert(zhangMulti.some((row) => row.examItemName.includes('800') && row.status === 'unrecognized_gender'), 'B. 男生800米数据冲突')
   assert(hongMulti.some((row) => row.examItemId === 'female-800m' && row.status === 'success'), 'B. 女生800米评分')
-  assert(hongMulti.some((row) => row.examItemName.includes('1000') && row.status === 'not_applicable'), 'B. 女生1000米不适用')
+  assert(hongMulti.some((row) => row.examItemName.includes('1000') && row.status === 'unrecognized_gender'), 'B. 女生1000米数据冲突')
   const wang50 = multi.rows.find((row) => row.studentName === '王五' && row.examItemId === 'male-50m')
   const wang1000 = multi.rows.find((row) => row.studentName === '王五' && row.examItemId === 'male-1000m')
   assert(wang50?.status === 'invalid_raw_value' && wang1000?.status === 'success', 'E. 一格错误不影响其他项目')

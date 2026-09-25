@@ -194,18 +194,20 @@ export function findTeacherVisibleDuplicates(
   date: string,
   selection: TeacherTestSelection
 ): PETestSession[] {
-  if (selection.kind === 'group') {
-    return sessions.filter(
-      (session) => session.classId === classId && session.date === date && session.testGroupId === selection.group.id
-    )
-  }
+  const ids = selection.kind === 'group'
+    ? BUILTIN_TEST_ITEMS.filter(item => item.builtinKey === selection.group.maleBuiltinKey || item.builtinKey === selection.group.femaleBuiltinKey).map(item => item.id)
+    : [selection.item.id]
   return sessions.filter(
     (session) =>
       session.classId === classId &&
       session.date === date &&
-      session.testItemId === selection.item.id &&
-      !session.testGroupId
+      sessionBusinessItemIds(session).some(id => ids.includes(id))
   )
+}
+
+export function sessionBusinessItemIds(session: Pick<PETestSession, 'testItemId' | 'testGroupId'>): string[] {
+  const group = findGenderLinkedGroup(session.testGroupId)
+  return group ? BUILTIN_TEST_ITEMS.filter(item => item.builtinKey === group.maleBuiltinKey || item.builtinKey === group.femaleBuiltinKey).map(item => item.id) : [session.testItemId]
 }
 
 export function linkedGenderScoreStats(
@@ -230,7 +232,7 @@ export function linkedGenderScoreStats(
     const item = items.find((entry) => entry.builtinKey === row.builtinKey)
     const genderRecords = session.records.filter((record) => record.genderSnapshot === row.gender)
     const scores = genderRecords
-      .filter((record) => record.examScore !== null)
+      .filter((record) => record.status === 'valid' && record.examScore !== null)
       .map((record) => record.examScore as number)
     const raws = genderRecords
       .filter((record) => record.status === 'valid' && record.rawValue !== null)

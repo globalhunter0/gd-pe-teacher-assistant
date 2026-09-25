@@ -39,7 +39,7 @@ export function resolveExamItemForQuickEntry(
     }
     return resolveExamItemToTestItem(item, [testItem])?.id === testItem.id
   })
-  return hits[0] ?? null
+  return hits.length === 1 ? hits[0] : null
 }
 
 function scoreNationalFitnessRaw(options: {
@@ -52,6 +52,7 @@ function scoreNationalFitnessRaw(options: {
     return none(QUICK_ENTRY_NO_SCORE_HINT)
   }
   const scored = calculateNationalFitnessScore({
+    itemKey: options.testItem.builtinKey ?? undefined,
     grade: options.grade,
     gender: options.gender,
     testItemId: options.testItem.id,
@@ -92,6 +93,8 @@ export function scoreQuickEntryRaw(options: {
   grade?: Grade
 }): ClassroomItemScoreResult {
   const basisId = options.examStandardId !== undefined ? options.examStandardId : options.standard?.id ?? null
+  if (options.gender !== 'male' && options.gender !== 'female') return none('性别未知，不能评分')
+  if (options.testItem.genderRule !== 'all' && options.testItem.genderRule !== options.gender) return none('项目与性别不匹配')
   if (basisId && isNationalFitnessStandardId(basisId)) {
     if (!options.grade) {
       return none(QUICK_ENTRY_NO_SCORE_HINT)

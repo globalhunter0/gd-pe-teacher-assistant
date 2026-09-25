@@ -19,11 +19,15 @@ export function matchExcelStudent(options: {
     studentName: options.studentName,
     studentNo: options.studentNo
   }
+  const consistent = (student: StudentRecord): boolean =>
+    (!options.studentName.trim() || student.name.replace(/\s/g, '') === options.studentName.replace(/\s/g, '')) &&
+    (!options.studentNo.trim() || student.studentNo.replace(/\s/g, '') === options.studentNo.replace(/\s/g, '')) &&
+    (!options.gender || options.gender === 'unspecified' || student.gender === options.gender)
   const pool = options.students.filter((student) => inClassAlive(student, options.classId))
 
   if (options.studentId) {
     const hit = pool.find((student) => student.id === options.studentId)
-    if (hit) {
+    if (hit && consistent(hit)) {
       return { ...base, kind: 'studentId', student: hit, reason: 'studentId' }
     }
     return { ...base, kind: 'needs_confirm', student: null, reason: 'studentId 不在该班或已删除' }
@@ -32,6 +36,7 @@ export function matchExcelStudent(options: {
   const no = options.studentNo.replace(/\s/g, '').trim()
   if (no !== '') {
     const hits = pool.filter((student) => student.studentNo.replace(/\s/g, '') === no)
+    if (hits.length === 1 && !consistent(hits[0])) return { ...base, kind: 'needs_confirm', student: null, reason: '学号、姓名或性别不一致' }
     if (hits.length === 1) {
       return { ...base, kind: 'studentNo', student: hits[0], reason: '同班学号唯一' }
     }

@@ -116,6 +116,8 @@ export interface ExamScoringModel {
 }
 
 export interface ExamStandard {
+  /** Excel 国家体测适配器的显式年级；不扩展城市标准目录。 */
+  importGrade?: import('../class/types').Grade
   id: string
   examType: ExamType
   regionCode: 'CN-GD'

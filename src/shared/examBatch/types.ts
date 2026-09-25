@@ -37,7 +37,7 @@ export const EXAM_BATCH_STATUS_LABELS: Record<ExamBatchRowStatus, string> = {
 export type MappingConfidence = 'high' | 'medium' | 'none'
 
 export type ExamColumnRole =
-  | { kind: 'ignore'; sourceColumn: number; sourceHeader: string }
+  | { kind: 'ignore'; sourceColumn: number; sourceHeader: string; needsReview?: boolean }
   | { kind: 'studentNo'; sourceColumn: number; sourceHeader: string }
   | { kind: 'studentName'; sourceColumn: number; sourceHeader: string }
   | { kind: 'gender'; sourceColumn: number; sourceHeader: string }
@@ -76,6 +76,14 @@ export interface ExamSheetSnapshot {
 }
 
 export interface BatchAssessmentRow {
+  studentId?: string
+  sourceClassId?: string
+  sourceGrade?: string
+  gradeSnapshot?: import('../class/types').Grade
+  baseScore?: number | null
+  bonusScore?: number | null
+  scoreOutcome?: import('../peTest/types').PeTestScoreOutcome | null
+  officialMinimumScore?: number | null
   sourceRow: number
   studentNo: string
   studentName: string

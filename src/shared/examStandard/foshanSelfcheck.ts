@@ -337,7 +337,7 @@ export function runFoshanScoringSelfCheck(): string {
   assert(parseExamPerformanceInput("3'40", male1000) === 220, "1000米 3'40")
   assert(parseExamPerformanceInput('3.40', male1000) === 220, '1000米 3.40=3分40秒')
   assert(parseExamPerformanceInput('3.42', male1000) === 222, '1000米 3.42必须是3分42秒')
-  assert(parseExamPerformanceInput('220', male1000) === 220, '1000米纯秒')
+  assert(parseExamPerformanceInput('220秒', male1000) === 220, '1000米纯秒')
   assert(parseExamPerformanceInput('3:25', female800) === 205, '800米 3:25')
   assert(parseExamPerformanceInput('2:30', maleSwim) === 150, '游泳 2:30')
   let oneDigitDotFailed = false

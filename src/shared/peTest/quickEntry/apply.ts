@@ -6,6 +6,7 @@ import { nextRosterRecordId, nextUnenteredRecordId } from './nav'
 import { parseQuickEntryInput } from './parse'
 import { emptyClassroomScoreFields } from '../scoringBasis'
 import { scoreQuickEntryRaw } from './score'
+import { inputStatus } from '../measurement'
 
 export type QuickEntryAction =
   | { type: 'score'; input: string }
@@ -81,6 +82,15 @@ export function applyQuickEntry(options: {
     }
   }
 
+  if (options.action.type === 'score') {
+    const status = inputStatus(options.action.input)
+    if (status === 'absent' || status === 'exempt' || status === 'pending') {
+      const result = applyQuickEntry({ ...options, action: { type: status } })
+      if (result.ok) result.session = patchRecord(result.session, options.recordId, { rawOriginal: options.action.input.trim() }, options.nowIso)
+      return result
+    }
+  }
+
   if (options.action.type === 'skip') {
     return {
       ok: true,
@@ -133,6 +143,9 @@ export function applyQuickEntry(options: {
     }
   }
 
+  if (testItem.genderRule !== 'all' && testItem.genderRule !== current.genderSnapshot) {
+    return { ok: false, session: options.session, nextRecordId: options.recordId, message: '项目与性别不匹配', focusAgain: true }
+  }
   const parsed = parseQuickEntryInput(options.action.input, testItem)
   if (!parsed.ok) {
     return {

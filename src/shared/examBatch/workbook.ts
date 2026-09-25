@@ -1,4 +1,6 @@
-import { calculateExamScore, formatExamRawValue } from '../examStandard/score'
+import { explicitColumnUnit } from '../peTest/measurement'
+import { scoreImported } from './scoreImported'
+import { formatExamRawValue } from '../examStandard/score'
 import type { ExamItemDefinition, ExamStandard } from '../examStandard/types'
 import {
   columnAutoConfirmed,
@@ -199,8 +201,8 @@ export function detectWorkbookColumns(
       }
       continue
     }
-    ignoredColumns.push({ index, header: title, reason: detected.reason || '非评分列 / 已忽略' })
-    used.add(index)
+    pushGroup(null, index, detected, false)
+    issues.push(`未识别项目列：${title}，请确认映射`)
   }
 
   const itemColumns = projectGroups.map((group) => ({
@@ -323,7 +325,8 @@ function scoreCell(
   display: string,
   raw: unknown,
   identity: Omit<BatchAssessmentRow, 'status' | 'message' | 'score' | 'rawValueNormalized' | 'rawValueParsed' | 'examItemId' | 'examItemName' | 'rawValueOriginal'>,
-  fallbackNonScore?: ExamNonScoreLabel | null
+  fallbackNonScore?: ExamNonScoreLabel | null,
+  sourceHeader = ''
 ): BatchAssessmentRow {
   const original = originalOf(display, raw)
   const base: BatchAssessmentRow = {
@@ -358,43 +361,14 @@ function scoreCell(
       message: nonScoreRecordMessage('未测')
     }
   }
-  const parsed = parseExamBatchRawValue(display, raw, item)
+  const parsed = parseExamBatchRawValue(display, raw, item, explicitColumnUnit(sourceHeader))
   if (!parsed.ok) {
     return { ...base, status: 'invalid_raw_value', message: '成绩格式无法识别' }
   }
   const normalized = formatNormalizedResult(item, parsed.value, formatExamRawValue(parsed.value, item))
-  const scored = calculateExamScore({
-    standard,
-    itemId: item.id,
-    rawValue: parsed.value,
-    gender,
-    officialOnly: true
-  })
-  if (!scored.ok) {
-    if (scored.code === 'GENDER_MISMATCH') {
-      return { ...base, rawValueNormalized: normalized, rawValueParsed: parsed.value, status: 'not_applicable', message: '' }
-    }
-    const noTable =
-      scored.code === 'NOT_VERIFIED' ||
-      scored.code === 'NO_TABLE' ||
-      scored.code === 'DEPRECATED_DEFAULT' ||
-      scored.code === 'UNSUPPORTED_MODEL'
-    return {
-      ...base,
-      rawValueNormalized: normalized,
-      rawValueParsed: parsed.value,
-      status: noTable ? 'no_score_table' : 'invalid_raw_value',
-      message: noTable ? '当前项目暂无完整官方评分表' : '成绩格式无法识别'
-    }
-  }
-  return {
-    ...base,
-    rawValueNormalized: formatNormalizedResult(item, scored.rawValue, scored.formattedRawValue),
-    rawValueParsed: scored.rawValue,
-    score: scored.score,
-    status: 'success',
-    message: ''
-  }
+  const scored = scoreImported(standard, item, gender, parsed.value)
+  return { ...base, rawValueNormalized: normalized, rawValueParsed: parsed.value, ...scored }
+
 }
 
 function resolveGroupItem(
@@ -442,6 +416,7 @@ export function convertWorkbookExamBatch(
   const noIndex = roleIndex(detection.mapping, 'studentNo')
   const classIndex = roleIndex(detection.mapping, 'className')
   const genderIndex = roleIndex(detection.mapping, 'gender')
+  const extraIndex = (name: string) => prepared.columns.find(column => column.title.trim().toLowerCase() === name.toLowerCase())?.index
   const groups = detection.projectGroups.length > 0
     ? detection.projectGroups
     : [
@@ -482,7 +457,11 @@ export function convertWorkbookExamBatch(
       studentName,
       className,
       gender,
-      examStandardId: standard.id
+      examStandardId: standard.id,
+      gradeSnapshot: standard.importGrade,
+      studentId: cellAt(row, extraIndex('studentId')) || undefined,
+      sourceClassId: cellAt(row, extraIndex('classId')) || undefined,
+      sourceGrade: cellAt(row, extraIndex('年级')) || undefined
     }
 
     for (const group of groups) {
@@ -525,7 +504,6 @@ export function convertWorkbookExamBatch(
         continue
       }
       if (!item) {
-        if (original === '') continue
         rows.push({
           ...identity,
           examItemId: null,
@@ -535,13 +513,12 @@ export function convertWorkbookExamBatch(
           rawValueNormalized: null,
           rawValueParsed: null,
           score: null,
-          status: 'not_applicable',
-          message: ''
+          status: 'unrecognized_item',
+          message: '项目未识别或不适用当前性别，请确认映射'
         })
         continue
       }
       if (item.gender !== 'all' && item.gender !== gender) {
-        if (original === '') continue
         rows.push({
           ...identity,
           examItemId: item.id,
@@ -551,13 +528,13 @@ export function convertWorkbookExamBatch(
           rawValueNormalized: null,
           rawValueParsed: null,
           score: null,
-          status: 'not_applicable',
-          message: ''
+          status: original === '' ? 'not_applicable' : 'unrecognized_gender',
+          message: original === '' ? '空白且不适用该性别，已跳过' : '项目与性别不一致'
         })
         continue
       }
       rows.push(
-        scoreCell(standard, item, gender, display, raw, { ...identity, sourceColumn: group.resultColumnIndex }, adjacentStatusNonScore(row, group.resultColumnIndex, detection.ignoredColumns))
+        scoreCell(standard, item, gender, display, raw, { ...identity, sourceColumn: group.resultColumnIndex }, adjacentStatusNonScore(row, group.resultColumnIndex, detection.ignoredColumns), `${snapshot.columns[group.resultColumnIndex]?.title ?? ''} ${group.projectColumnIndex === null ? '' : cellAt(row, group.projectColumnIndex)}`)
       )
     }
   }

@@ -354,7 +354,7 @@ export default function PeTestsPage({
         }}
         onCompleteTest={async () => {
           const next = markPeTestSessionCompleted(live)
-          await upsertSession(next)
+          await upsertSession(next, live)
           setDetailing(next)
         }}
         onReopenTest={async () => {
@@ -379,7 +379,7 @@ export default function PeTestsPage({
           setEditing(null)
         }}
         onSave={async (next) => {
-          await upsertSession(next)
+          await upsertSession(next, editing)
           setEditing(next)
         }}
       />

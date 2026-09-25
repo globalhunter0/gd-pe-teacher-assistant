@@ -1,4 +1,4 @@
-import { parseExamPerformanceInput } from '../examStandard/score'
+import { parseMeasurement, inputStatus } from '../peTest/measurement'
 import type { ExamItemDefinition } from '../examStandard/types'
 
 export type ParseBatchRawResult = { ok: true; value: number } | { ok: false; message: string }
@@ -21,7 +21,7 @@ function originalLabel(value: unknown): string {
 
 export function expectedRawFormat(item: ExamItemDefinition): string {
   if (item.valueType === 'time' && item.timeInputMode === 'minutesSeconds') {
-    return '支持 3:45 / 3\'45 / 3.45 / 225'
+    return '支持 3:45 / 3\'45 / 3.45 / 345 / 225秒'
   }
   if (item.valueType === 'time') {
     return '请输入秒，例如 7.82 或 11.48'
@@ -47,74 +47,19 @@ function excelSerialToSeconds(value: number): number | null {
   return Math.round(value * 86400 * 1000) / 1000
 }
 
-function tryParseText(text: string, item: ExamItemDefinition): number | null {
-  const trimmed = text.replace(/\u3000/g, ' ').trim()
-  if (trimmed === '') {
-    return null
-  }
+function fromUnknown(value: unknown, item: ExamItemDefinition, columnUnit?: string): number | null {
+  if (typeof value !== 'number' && typeof value !== 'string') return null
+  if (String(value).trim() === '') return null
   try {
-    return parseExamPerformanceInput(trimmed, item)
-  } catch {
-    return null
-  }
-}
-
-function fromNumber(value: number, item: ExamItemDefinition): number | null {
-  if (!Number.isFinite(value)) {
-    return null
-  }
-
-  if (item.valueType === 'number') {
-    return value
-  }
-
-  const serial = excelSerialToSeconds(value)
-  if (serial !== null) {
-    return serial
-  }
-
-  if (item.timeInputMode === 'minutesSeconds') {
-    if (Number.isInteger(value)) {
-      return tryParseText(String(value), item)
+    // Excel fractional-day values; explicit column units take precedence.
+    if (typeof value === 'number' && item.valueType === 'time' && !columnUnit) {
+      const serial = excelSerialToSeconds(value)
+      if (serial !== null) return serial
     }
-    return tryParseText(value.toFixed(2), item)
-  }
-
-  return value
-}
-
-function fromUnknown(value: unknown, item: ExamItemDefinition): number | null {
-  if (value === null || value === undefined || value === '') {
-    return null
-  }
-
-  if (typeof value === 'number') {
-    return fromNumber(value, item)
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.replace(/\u3000/g, ' ').replace(/次$/u, '').trim()
-    if (trimmed === '') {
-      return null
-    }
-    const numeric = Number(trimmed)
-    if (item.valueType === 'time' && item.timeInputMode === 'minutesSeconds' && /^\d+\.\d+$/.test(trimmed)) {
-      const parsed = tryParseText(trimmed, item)
-      if (parsed !== null) {
-        return parsed
-      }
-      if (/^\d+\.\d$/.test(trimmed) && Number.isFinite(numeric)) {
-        return tryParseText(numeric.toFixed(2), item)
-      }
-    }
-    return tryParseText(trimmed, item)
-  }
-
-  if (typeof value === 'boolean') {
-    return null
-  }
-
-  return null
+    // Do not round input or invent dropped digits; formatted cells may supply an explicit trailing zero.
+    const text = String(value)
+    return parseMeasurement(text, item, columnUnit)
+  } catch { return null }
 }
 
 /** 按考试项目解析 Excel 单元格（number / string / 时间序列）。 */
@@ -140,6 +85,10 @@ export function normalizeExamNonScoreText(value: unknown): string {
 }
 
 export function detectExamNonScoreLabel(value: unknown): ExamNonScoreLabel | null {
+  const status = inputStatus(String(value ?? ''))
+  if (status === 'absent') return '缺考'
+  if (status === 'exempt') return '免考'
+  if (status === 'pending' && String(value ?? '').trim() !== '') return '未测'
   const text = normalizeExamNonScoreText(value)
   if (text === '') {
     return null
@@ -177,13 +126,14 @@ export function nonScoreRecordMessage(label: ExamNonScoreLabel): string {
 export function parseExamBatchRawValue(
   display: string,
   raw: unknown,
-  item: ExamItemDefinition
+  item: ExamItemDefinition,
+  columnUnit?: string
 ): ParseBatchRawResult {
   const candidates = [raw, display]
   let lastValue: unknown = display
   for (const candidate of candidates) {
     lastValue = candidate
-    const parsed = fromUnknown(candidate, item)
+    const parsed = fromUnknown(candidate, item, columnUnit)
     if (parsed !== null && Number.isFinite(parsed)) {
       return { ok: true, value: parsed }
     }

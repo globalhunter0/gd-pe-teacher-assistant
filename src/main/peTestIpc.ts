@@ -1,4 +1,5 @@
 import { loadPeSessions } from './peSessionStore'
+import { assertPeTestSaveIdentity } from '../shared/peTest/saveIdentity'
 import { parsePeTestSessions } from '../shared/peTest/validate'
 import { handleCollectionSave } from './collectionIpc'
 import { ipcMain } from 'electron'
@@ -31,6 +32,15 @@ export function registerPeTestIpc(): void {
     }
     const classes = await loadClasses()
     const testItems = await loadTestItems()
+    for (const test of parsePeTestSessions(items)) {
+      if (!current.some(old => old.id === test.id) && !test.peSessionId) {
+        const classroom = classes.find(entry => entry.id === test.classId)
+        if (!classroom || classroom.grade !== test.gradeSnapshot || classroom.className !== test.classNameSnapshot) {
+          throw new Error('新测试的班级、年级快照与当前班级不一致')
+        }
+      }
+    }
+    assertPeTestSaveIdentity(parsePeTestSessions(items), current, await loadStudents(), testItems, classrooms)
     return savePeTests(
       items,
       new Set(classes.map((item) => item.id)),

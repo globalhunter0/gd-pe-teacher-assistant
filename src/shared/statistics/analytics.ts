@@ -629,7 +629,7 @@ export function summarizeSingleTest(
   const statuses = countTestStatuses(session.records)
   const mixedRaw = isGenderLinkedSession(session)
   const values = mixedRaw ? [] : validRawValues(session.records)
-  const scores = session.records.map((item) => item.examScore).filter((item): item is number => item !== null)
+  const scores = session.records.filter(item => item.status === 'valid').map((item) => item.examScore).filter((item): item is number => item !== null)
   const avgScore = averageRaw(scores)
   let bands: ScoreBandSummary | null = null
   let bandBlockedReason: string | null = null
@@ -637,7 +637,7 @@ export function summarizeSingleTest(
     const fullScores: number[] = []
     let unresolved = false
     for (const record of session.records) {
-      if (record.examScore === null) {
+      if (record.status !== 'valid' || record.examScore === null) {
         continue
       }
       const full = resolveExamItemFullScore(session, record, standards)
@@ -654,7 +654,7 @@ export function summarizeSingleTest(
       const fullScore = unique[0]
       const counts: Record<ScoreBandId, number> = { excellent: 0, good: 0, fair: 0, pass: 0, improve: 0 }
       for (const record of session.records) {
-        if (record.examScore === null) {
+        if (record.status !== 'valid' || record.examScore === null) {
           continue
         }
         counts[classifyScoreBand(record.examScore, fullScore)] += 1
@@ -717,7 +717,7 @@ export function summarizeSingleTest(
     date: session.date,
     title: session.title,
     itemName: sessionDisplayItemName(session),
-    classLabel: classDisplayName(classes, session.classId, session),
+    classLabel: `${session.gradeSnapshot}${session.classNameSnapshot}`,
     rosterCount: session.records.length,
     statuses,
     scoredCount: scores.length,
@@ -773,7 +773,7 @@ export function summarizeClassItemTrend(
     points: listed.map((session) => {
       const matched = recordsForActualTestItem(session, testItemId, testItems)
       const values = validRawValues(matched)
-      const scores = matched.map((item) => item.examScore).filter((item): item is number => item !== null)
+      const scores = matched.filter(item => item.status === 'valid').map((item) => item.examScore).filter((item): item is number => item !== null)
       const avgRaw = averageRaw(values)
       const avgScore = averageRaw(scores)
       return {

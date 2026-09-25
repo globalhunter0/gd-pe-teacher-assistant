@@ -1,3 +1,4 @@
+import { applyPeTestEdits } from '@shared/peTest/editSession'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import PageLayout, { PageHeader } from './PageLayout'
 import { STUDENT_GENDER_LABELS } from '@shared/student'
@@ -16,10 +17,8 @@ import {
   resolveActualTestItem,
   resolvedTestItemIdOf,
   resolveTimeInputMode,
-  scoreQuickEntryRaw,
   testUnitDisplay,
   usesMinuteFormat,
-  emptyClassroomScoreFields,
   formatPeTestItemScoreText,
   classroomScoringLabel,
   type PETestRecord,
@@ -62,9 +61,12 @@ export default function PeTestEditor({
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [historyStudentId, setHistoryStudentId] = useState<string | null>(null)
+  const saveBusy = useRef(false)
+  const changedIds = useRef(new Set<string>())
   const scoreRefs = useRef<Array<HTMLInputElement | null>>([])
 
   useEffect(() => {
+    changedIds.current.clear()
     setDraft(session)
     setInputs(buildInputs(session, testItem))
     setMessage(null)
@@ -131,6 +133,10 @@ export default function PeTestEditor({
   }
 
   function updateRecord(id: string, patch: Partial<PETestRecord>): void {
+    if (patch.status !== undefined) {
+      changedIds.current.add(id)
+      if (patch.status === 'pending') setInputs(current => ({ ...current, [id]: '' }))
+    }
     const now = new Date().toISOString()
     setDraft((current) => ({
       ...current,
@@ -170,112 +176,38 @@ export default function PeTestEditor({
   }
 
   async function handleSave(): Promise<void> {
+    if (saveBusy.current) return
+    saveBusy.current = true
     setSaving(true)
     setError(null)
     setMessage(null)
 
     try {
       const now = new Date().toISOString()
-      const nextRecords: PETestRecord[] = []
-
-      for (const record of draft.records) {
-        const status = record.status
-        const text = (inputs[record.id] ?? '').trim()
-        const actual = resolveActualTestItem(draft, record, catalog)
-        const resolvedTestItemId = actual.ok ? actual.item.id : null
-        const standard =
-          listBuiltinExamStandards().find((entry) => entry.id === draft.examStandardId) ?? null
-
-        if (status === 'absent' || status === 'exempt') {
-          nextRecords.push({
-            ...record,
-            rawValue: null,
-            ...emptyClassroomScoreFields(),
-            resolvedTestItemId,
-            updatedAt: now
-          })
-          continue
-        }
-
-        if (isGenderLinkedSession(draft) && !actual.ok) {
-          nextRecords.push({
-            ...record,
-            rawValue: null,
-            ...emptyClassroomScoreFields(),
-            resolvedTestItemId: null,
-            status: text === '' ? 'pending' : 'invalid',
-            note: text === '' ? record.note : '无法确定项目，请先完善性别',
-            updatedAt: now
-          })
-          continue
-        }
-
-        if (status === 'invalid') {
-          nextRecords.push({
-            ...record,
-            rawValue: text === '' ? null : parseScoreInput(text, draft.valueTypeSnapshot, timeInputMode),
-            ...emptyClassroomScoreFields(),
-            resolvedTestItemId,
-            updatedAt: now
-          })
-          continue
-        }
-
-        if (text === '') {
-          nextRecords.push({
-            ...record,
-            rawValue: null,
-            status: 'pending',
-            ...emptyClassroomScoreFields(),
-            resolvedTestItemId,
-            updatedAt: now
-          })
-          continue
-        }
-
-        const rawValue = parseScoreInput(text, draft.valueTypeSnapshot, timeInputMode)
-        const scored = actual.ok
-          ? scoreQuickEntryRaw({
-              standard,
-              examStandardId: draft.examStandardId,
-              grade: draft.gradeSnapshot,
-              testItem: actual.item,
-              gender: record.genderSnapshot,
-              rawValue
-            })
-          : { ...emptyClassroomScoreFields(), noScoreHint: null }
-
-        nextRecords.push({
-          ...record,
-          rawValue,
-          status: 'valid',
-          examScore: scored.examScore,
-          examItemId: scored.examItemId,
-          baseScore: scored.baseScore,
-          bonusScore: scored.bonusScore,
-          scoreOutcome: scored.scoreOutcome,
-          officialMinimumScore: scored.officialMinimumScore,
-          resolvedTestItemId,
-          updatedAt: now
-        })
-      }
+      const edited = changedIds.current.size === 0 ? draft : applyPeTestEdits({
+        draft, inputs, changedIds: changedIds.current,
+        testItem: testItem ?? catalog.find(item => item.id === draft.testItemId)!,
+        items: catalog, standard: listBuiltinExamStandards().find(entry => entry.id === draft.examStandardId) ?? null,
+        nowIso: now
+      })
 
       const next: PETestSession = {
-        ...draft,
-        timeInputModeSnapshot: timeInputMode,
+        ...edited,
         title: draft.title.trim() || `${draft.classNameSnapshot} · ${draft.testItemNameSnapshot} · ${draft.date}`,
         notes: draft.notes.trim(),
         updatedAt: now,
-        records: nextRecords
+        records: edited.records
       }
 
       await onSave(next)
+      changedIds.current.clear()
       setDraft(next)
       setInputs(buildInputs(next, testItem))
       setMessage('已保存')
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '保存失败')
     } finally {
+      saveBusy.current = false
       setSaving(false)
     }
   }
@@ -287,7 +219,7 @@ export default function PeTestEditor({
       <PageHeader
         icon="tests"
         title={draft.title}
-        description={`${draft.date} · ${draft.gradeSnapshot} ${draft.classNameSnapshot} · ${draft.testItemNameSnapshot}${unitLabel ? `（${unitLabel}）` : ''} · ${classroomScoringLabel(draft)}${preferMinute ? ' · 长跑可输入 3:42、3\'42、3.42 或总秒数' : draft.valueTypeSnapshot === 'time' ? ' · 时间按秒录入，如 8.32' : ''}`}
+        description={`${draft.date} · ${draft.gradeSnapshot} ${draft.classNameSnapshot} · ${draft.testItemNameSnapshot}${unitLabel ? `（${unitLabel}）` : ''} · ${classroomScoringLabel(draft)}${preferMinute ? ' · 长跑可输入 3:42、3\'42、3.42、342 或注明秒的总秒数' : draft.valueTypeSnapshot === 'time' ? ' · 时间按秒录入，如 8.32' : ''}`}
         actions={
           <>
             <button type="button" className={tab === 'analysis' ? 'btn btn-primary' : 'btn'} onClick={() => setTab('analysis')}>
@@ -409,6 +341,7 @@ export default function PeTestEditor({
                       className="score-input"
                       value={inputs[record.id] ?? ''}
                       onChange={(event) => {
+                        changedIds.current.add(record.id)
                         setInputs((current) => ({ ...current, [record.id]: event.target.value }))
                         setMessage(null)
                       }}

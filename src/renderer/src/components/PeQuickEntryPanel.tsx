@@ -114,6 +114,8 @@ export default function PeQuickEntryPanel({
   const { students } = useStudents()
   const { items } = useTestItems()
   const { sessions, upsertSession } = usePeTests()
+  const inputDirty = useRef(false)
+  const persistBusy = useRef(false)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
   const [draft, setDraft] = useState<PETestSession | null>(initialSession)
@@ -177,9 +179,9 @@ export default function PeQuickEntryPanel({
       return
     }
     const preferMinute = usesMinuteFormat(testItem.timeInputMode, testItem.valueType)
+    inputDirty.current = false
     setInput(
-      current.rawOriginal ||
-        formatRawValue(current.rawValue, testItem.valueType, testItem.decimalPlaces, preferMinute)
+      formatRawValue(current.rawValue, testItem.valueType, testItem.decimalPlaces, preferMinute)
     )
     setError(null)
     const timer = window.setTimeout(() => inputRef.current?.focus(), 0)
@@ -194,17 +196,23 @@ export default function PeQuickEntryPanel({
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  async function persist(next: PETestSession, nextRecordId: string | null, hint: string | null): Promise<void> {
+  async function persist(next: PETestSession, nextRecordId: string | null, hint: string | null): Promise<boolean> {
+    if (persistBusy.current) return false
+    persistBusy.current = true
     setWorking(true)
     try {
-      await upsertSession(next)
+      await upsertSession(next, draft ?? undefined)
+      inputDirty.current = false
       setDraft(next)
       setCurrentId(nextRecordId)
       setMessage(hint)
       setError(null)
+      return true
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '保存失败')
+      return false
     } finally {
+      persistBusy.current = false
       setWorking(false)
       window.setTimeout(() => inputRef.current?.focus(), 0)
     }
@@ -213,10 +221,11 @@ export default function PeQuickEntryPanel({
   async function runAction(
     action: Parameters<typeof applyQuickEntry>[0]['action']
   ): Promise<void> {
-    if (!draft || !testItem || !currentId) {
+    if (persistBusy.current || !draft || !testItem || !currentId) {
       return
     }
     const beforeRecord = draft.records.find((item) => item.id === currentId)
+    if (action.type === 'score' && !inputDirty.current && beforeRecord?.status !== 'pending') action = { type: 'skip' }
     const result = applyQuickEntry({
       session: draft,
       testItem,
@@ -232,6 +241,7 @@ export default function PeQuickEntryPanel({
       window.setTimeout(() => inputRef.current?.focus(), 0)
       return
     }
+    if (!await persist(result.session, result.nextRecordId, result.message)) return
     const afterRecord = result.session.records.find((item) => item.id === currentId)
     if (beforeRecord && afterRecord && action.type !== 'skip') {
       setUndoStack((stack) =>
@@ -247,7 +257,6 @@ export default function PeQuickEntryPanel({
       setRecent((items) => pushRecentEntry(items, recentItem))
       setToast(recentItem)
     }
-    await persist(result.session, result.nextRecordId, result.message)
   }
 
   async function undoLast(): Promise<void> {
@@ -260,8 +269,7 @@ export default function PeQuickEntryPanel({
       setError(restored.message)
       return
     }
-    setUndoStack((stack) => stack.slice(0, -1))
-    await persist(restored.session, entry.recordId, '已撤销上一条')
+    if (await persist(restored.session, entry.recordId, '已撤销上一条')) setUndoStack((stack) => stack.slice(0, -1))
   }
 
   useEffect(() => {
@@ -590,7 +598,7 @@ export default function PeQuickEntryPanel({
                   autoFocus
                   autoComplete="off"
                   disabled={working || currentItemUnresolved}
-                  onChange={(event) => setInput(event.target.value)}
+                  onChange={(event) => { inputDirty.current = true; setInput(event.target.value) }}
                   onKeyDown={handleKeyDown}
                   placeholder={testItem?.timeInputMode === 'minutesSeconds' ? '342 或 3:42' : '输入成绩后按 Enter'}
                 />

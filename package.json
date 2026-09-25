@@ -10,6 +10,8 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "check:pe-test": "node scripts/check-pe-test.mjs",
+    "check:pe-test-selfchecks": "node scripts/check-pe-test-selfchecks.mjs",
     "check:data-safety": "node scripts/check-data-safety.mjs",
     "check:classroom": "node scripts/check-classroom.mjs",
     "check:classroom-selfchecks": "node scripts/check-classroom-selfchecks.mjs"

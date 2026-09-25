@@ -1,3 +1,4 @@
+import { calculateExamScore } from '../examStandard/score'
 import { BUILTIN_TEST_ITEMS } from '../peTest/builtinItems'
 import { parsePeTestSessions } from '../peTest/validate'
 import { summarizeStudentTests } from '../statistics/tests'
@@ -31,7 +32,7 @@ function student(partial: Partial<StudentRecord> & Pick<StudentRecord, 'id' | 's
 }
 
 function row(partial: Partial<BatchAssessmentRow> & Pick<BatchAssessmentRow, 'sourceRow' | 'studentName' | 'examItemId'>): BatchAssessmentRow {
-  return {
+  const result: BatchAssessmentRow = {
     studentNo: '1',
     className: '初一9班',
     gender: 'male',
@@ -45,6 +46,13 @@ function row(partial: Partial<BatchAssessmentRow> & Pick<BatchAssessmentRow, 'so
     message: '',
     ...partial
   }
+  if (result.status === 'success' && result.rawValueParsed !== null && result.gender) {
+    const standard = listBuiltinExamStandards().find(item => item.id === result.examStandardId)!
+    const scored = calculateExamScore({ standard, itemId: result.examItemId!, rawValue: result.rawValueParsed, gender: result.gender, officialOnly: true })
+    assert(scored.ok, '测试夹具须有真实评分')
+    result.score = scored.score
+  }
+  return result
 }
 
 export async function runV0170PeTestImportPlanSelfCheck(): Promise<string> {
@@ -313,7 +321,7 @@ export async function runV0170PeTestImportPlanSelfCheck(): Promise<string> {
   const ropeRec = rope.records.find((record) => record.studentId === first.id)
   assert(runRec && ropeRec && runRec.rawValue !== ropeRec.rawValue, 'C. 同一学生两项目成绩不同')
   assert(runRec.studentId === first.id, 'D. studentId 精确匹配')
-  assert(runRec.rawOriginal === '3:39' && runRec.rawValue === 219 && runRec.examScore === 20, 'G. rawResult + score 同时存在')
+  assert(runRec.rawOriginal === '3:39' && runRec.rawValue === 219 && runRec.examScore === wideRows[0].score, 'G. rawResult + score 同时存在')
   const last = classStudents[23]
   const absentRec = run.records.find((record) => record.studentId === last.id)
   assert(absentRec?.status === 'absent' && absentRec.examScore == null && absentRec.rawValue == null, 'F. 缺考 absent / score null')

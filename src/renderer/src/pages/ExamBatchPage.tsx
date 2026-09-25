@@ -1,3 +1,5 @@
+import { nationalBatchStandard, withDerivedBmi } from '@shared/examBatch/nationalBatch'
+import { JUNIOR_GRADES, type Grade } from '@shared/class'
 import { useMemo, useState } from 'react'
 import PageLayout, { PageHeader } from '../components/PageLayout'
 import {
@@ -87,7 +89,8 @@ export default function ExamBatchPage({
   const { items: testItems } = useTestItems()
   const { sessions: peSessions, reload: reloadPeTests } = usePeTests()
   const [step, setStep] = useState<Step>('setup')
-  const [examType, setExamType] = useState<ExamType>('middle_school_exam')
+  const [examType, setExamType] = useState<ExamType | 'national'>('middle_school_exam')
+  const [fitnessGrade, setFitnessGrade] = useState<Grade>('初一')
   const [citySlug, setCitySlug] = useState(initialCitySlug)
   const [standardId, setStandardId] = useState(initialStandardId)
   const [sessionId, setSessionId] = useState('')
@@ -110,12 +113,13 @@ export default function ExamBatchPage({
   const [saveResult, setSaveResult] = useState<ExamBatchPeTestImportResult | null>(null)
 
   const typeStandards = useMemo(() => {
+    if (examType === 'national') return [nationalBatchStandard(fitnessGrade)]
     if (examType === 'gaokao_sports') {
       return BUILTIN_EXAM_STANDARDS.filter((item) => item.examType === 'gaokao_sports')
     }
     if (!citySlug) return []
     return BUILTIN_EXAM_STANDARDS.filter((item) => item.examType === 'middle_school_exam' && item.citySlug === citySlug)
-  }, [citySlug, examType])
+  }, [citySlug, examType, fitnessGrade])
 
   const selectedStandard =
     typeStandards.find((item) => item.id === standardId) ?? (typeStandards.length === 1 ? typeStandards[0] : null)
@@ -124,6 +128,7 @@ export default function ExamBatchPage({
   const itemSummaries = useMemo(() => workbookItemSummaries(rows), [rows])
   const cellSuccess = rows.filter((row) => row.status === 'success').length
   const cellNonScore = rows.filter((row) => row.status === 'non_score_record').length
+  const cellSkipped = rows.filter((row) => row.status === 'not_applicable').length
   const cellError = rows.filter(
     (row) => row.status !== 'success' && row.status !== 'not_applicable' && row.status !== 'non_score_record'
   ).length
@@ -201,7 +206,8 @@ export default function ExamBatchPage({
     })
   }, [detection, groupOverrides, selectedStandard, snapshot])
 
-  function applySnapshot(standard: ExamStandard, loaded: ExamSheetSnapshot): void {
+  function applySnapshot(standard: ExamStandard, input: ExamSheetSnapshot): void {
+    const loaded = withDerivedBmi(input, standard)
     const next = detectWorkbookColumns(
       loaded.columns.map((column) => column.title),
       standard,
@@ -398,12 +404,16 @@ export default function ExamBatchPage({
             <select
               value={examType}
               onChange={(event) => {
-                const next = event.target.value as ExamType
+                const next = event.target.value as ExamType | 'national'
                 setExamType(next)
+                setRows([])
+                setDetection(null)
+                setStep('setup')
                 setStandardId('')
                 if (next === 'gaokao_sports') setCitySlug('')
               }}
             >
+              <option value="national">国家体测（初中）</option>
               {EXAM_TYPES.map((type) => (
                 <option key={type} value={type}>
                   {EXAM_TYPE_LABELS[type]}
@@ -411,7 +421,13 @@ export default function ExamBatchPage({
               ))}
             </select>
           </label>
-          {examType === 'middle_school_exam' ? (
+          {examType === 'national' ? (
+            <label className="toolbar-field">测试年级
+              <select value={fitnessGrade} onChange={event => { setFitnessGrade(event.target.value as Grade); setRows([]); setDetection(null); setStep('setup') }}>
+                {JUNIOR_GRADES.map(grade => <option key={grade} value={grade}>{grade}</option>)}
+              </select>
+            </label>
+          ) : examType === 'middle_school_exam' ? (
             <label className="toolbar-field">
               城市
               <select
@@ -466,7 +482,7 @@ export default function ExamBatchPage({
         <p className="exam-notes">城市必须由老师明确选择。不会根据 Excel 猜测城市，也不会套用其他城市评分表。</p>
       </div>
 
-      {entry === 'standards-tool' ? <ExamTemplateActions standard={selectedStandard} /> : null}
+      {entry === 'standards-tool' && examType !== 'national' ? <ExamTemplateActions standard={selectedStandard} /> : null}
 
       <div className="exam-detail">
         <h3>导入 Excel</h3>
@@ -557,20 +573,24 @@ export default function ExamBatchPage({
               <dd>{students.length}</dd>
             </div>
             <div>
-              <dt>识别项目数</dt>
+              <dt>项目列数</dt>
               <dd>{matrixColumns.length}</dd>
             </div>
             <div>
-              <dt>成功换算数</dt>
+              <dt>成功处理数</dt>
               <dd>{cellSuccess} 格</dd>
             </div>
             <div>
-              <dt>缺考/免考</dt>
+              <dt>缺考/免考/未测</dt>
               <dd>{cellNonScore} 格</dd>
             </div>
             <div>
               <dt>真正异常</dt>
               <dd>{cellError} 格</dd>
+            </div>
+            <div>
+              <dt>跳过（空白且性别不适用）</dt>
+              <dd>{cellSkipped} 格</dd>
             </div>
           </dl>
           {declaredScoreColumns.length > 0 ? (
@@ -759,7 +779,7 @@ export default function ExamBatchPage({
                   <br />
                   学生：{students.length} 人　预计创建：{skipPreview?.sessions.length ?? savePreview?.sessions.length ?? 0} 个体育测试
                   <br />
-                  有效成绩：{cellSuccess}　缺考：{cellAbsent}　免考：{cellExempt}　未测：{cellPending}　异常：{cellError}
+                  有效成绩：{cellSuccess}　缺考：{cellAbsent}　免考：{cellExempt}　未测：{cellPending}　异常：{cellError}　跳过：{cellSkipped}（空白且性别不适用）
                 </p>
                 {savePreview ? (
                   <p className="dialog-slot">

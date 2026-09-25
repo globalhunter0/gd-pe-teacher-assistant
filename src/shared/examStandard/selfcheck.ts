@@ -280,7 +280,7 @@ export function runExamScoreEngineSelfCheck(): void {
   assert(parsed === 220, '时间 3:40 解析失败')
   const parsedAlt = parseExamPerformanceInput("3'40", verified2026.items[0])
   assert(parsedAlt === 220, "时间 3'40 解析失败")
-  const parsedSeconds = parseExamPerformanceInput('220', verified2026.items[0])
+  const parsedSeconds = parseExamPerformanceInput('220秒', verified2026.items[0])
   assert(parsedSeconds === 220, '总秒数解析失败')
 
   const genderFail = calculateExamScore({

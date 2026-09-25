@@ -46,6 +46,11 @@ export function parseScoreInput(
     throw new Error('成绩不能为空')
   }
 
+  const explicitSeconds = text.match(/^(\d+(?:\.\d+)?)\s*(?:秒|s|seconds?)$/i)
+  if (valueType === 'time' && explicitSeconds) {
+    return Number(explicitSeconds[1])
+  }
+
   if (valueType === 'number') {
     if (!/^-?\d+(\.\d+)?$/.test(text)) {
       throw new Error('请输入数字成绩')
@@ -77,19 +82,17 @@ export function parseScoreInput(
     }
 
     if (!/^\d+(\.\d+)?$/.test(text)) {
-      throw new Error("长跑请输入 3:42、3'42、3.42 或总秒数")
+      throw new Error("长跑请输入342、3:42、3'42、3.42；总秒数请注明秒")
     }
 
     if (text.includes('.')) {
       throw new Error('长跑小数点格式请使用两位秒数，例如 3.42 或 4.08')
     }
 
-    const totalSeconds = Number(text)
-    if (!Number.isFinite(totalSeconds)) {
-      throw new Error('时间不正确')
+    if (text.length < 3 || Number(text.slice(-2)) >= 60) {
+      throw new Error('长跑整数按分秒录入，秒须为00–59；总秒数请注明“秒”')
     }
-
-    return totalSeconds
+    return Number(text.slice(0, -2)) * 60 + Number(text.slice(-2))
   }
 
   if (!/^\d+(\.\d+)?$/.test(text)) {

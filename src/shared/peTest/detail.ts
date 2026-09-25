@@ -78,7 +78,7 @@ export function buildPeTestClosure(options: {
     const full =
       record.examScore === null ? null : resolveExamItemFullScore(options.session, record, standards)
     const isFail =
-      record.examScore !== null && full !== null && classifyScoreBand(record.examScore, full) === 'improve'
+      record.status === 'valid' && record.examScore !== null && full !== null && classifyScoreBand(record.examScore, full) === 'improve'
     const actual = resolveActualTestItem(options.session, record, catalog)
     const resolvedItem = actual.ok ? actual.item : options.testItem
     const rawText =

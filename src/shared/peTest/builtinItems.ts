@@ -164,6 +164,11 @@ export const BUILTIN_TEST_ITEMS: TestItem[] = [
     decimalPlaces: 1,
     minValue: 80,
     maxValue: 400
+  }),
+  builtin('bmi', 'BMI', {
+    category: 'body', valueType: 'number', timeInputMode: 'seconds', unit: 'other',
+    customUnitLabel: 'kg/m²', direction: 'neutral', genderRule: 'all', decimalPlaces: 1,
+    minValue: 8, maxValue: 60
   })
 ]
 

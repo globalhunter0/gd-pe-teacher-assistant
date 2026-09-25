@@ -1,3 +1,7 @@
+import { sessionBusinessItemIds } from '../../peTest/groupedItems'
+import { convertPeTestRawToExamRaw } from '../../peTest/quickEntry/units'
+import { scoreImported } from '../scoreImported'
+import { classroomScoringSnapshots, emptyClassroomScoreFields } from '../../peTest/scoringBasis'
 import { createPeTestId, createPeTestRecordId } from '../../peTest/validate'
 import type { PETestRecord, PETestSession } from '../../peTest/types'
 import type { StudentGender } from '../../student/types'
@@ -7,6 +11,7 @@ import { mapExamRowToPeTestStatus } from './mapRecordStatus'
 import { resolveExamItemToTestItem } from './resolveTestItem'
 import type { ImportExamBatchToPeTestsPayload, PlannedPeTestImport, PlanImportContext, StudentMatchResult } from './types'
 
+const GRADE_ALIASES: Record<string, string> = { 七年级: '初一', 八年级: '初二', 九年级: '初三', '7': '初一', '8': '初二', '9': '初三' }
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 function examGenderToStudent(gender: BatchAssessmentRow['gender']): StudentGender | null {
@@ -30,8 +35,7 @@ export function findDuplicatePeTests(
     (session) =>
       session.classId === classId &&
       session.date === date &&
-      session.testItemId === testItemId &&
-      !session.testGroupId
+      sessionBusinessItemIds(session).includes(testItemId)
   )
 }
 
@@ -58,7 +62,12 @@ export function mergePeTestsAtomically(
 
   const skipKeys = new Set(duplicateAction === 'skip' ? duplicateKeys.map((item) => item.key) : [])
   const kept = [...existing]
-  const added = planned.filter((session) => !skipKeys.has(sessionKey(session.classId, session.date, session.testItemId)))
+  const added: PETestSession[] = []
+  for (const session of planned) {
+    if (skipKeys.has(sessionKey(session.classId, session.date, session.testItemId))) continue
+    if (findDuplicatePeTests(added, session.classId, session.date, session.testItemId).length) return { ok: false, reason: '导入计划内项目重复' }
+    added.push(session)
+  }
   return { ok: true, next: [...kept, ...added] }
 }
 
@@ -81,6 +90,15 @@ export function planExamBatchPeTestImport(
 
   const uniqueExcel = new Map<number, BatchAssessmentRow>()
   for (const row of payload.rows) {
+    if (row.sourceClassId && row.sourceClassId !== payload.classId) errors.push('Excel classId与目标班级不一致')
+    if (row.sourceGrade && (GRADE_ALIASES[row.sourceGrade.trim()] ?? row.sourceGrade.trim()) !== context.classRecord.grade) errors.push('Excel年级与目标班级不一致')
+    if (context.standard.importGrade && row.gradeSnapshot !== context.standard.importGrade) errors.push('缺少或不匹配的国家体测评分年级')
+    if (row.examStandardId !== payload.examStandardId) errors.push('成绩行评分标准不一致')
+    const classLabels = [context.classRecord.className, context.classRecord.grade + context.classRecord.className].map(label => label.replace(/\s/g, ''))
+    if (row.className.trim() && !classLabels.includes(row.className.replace(/\s/g, ''))) errors.push('Excel班级与目标班级不一致')
+    if (row.gradeSnapshot && row.gradeSnapshot !== context.classRecord.grade) errors.push('Excel评分年级与目标班级不一致')
+    const prior = uniqueExcel.get(row.sourceRow)
+    if (prior && [prior.studentId, prior.studentNo, prior.studentName, prior.gender, prior.className].join('|') !== [row.studentId, row.studentNo, row.studentName, row.gender, row.className].join('|')) errors.push('同一Excel行学生身份不一致')
     if (!uniqueExcel.has(row.sourceRow)) {
       uniqueExcel.set(row.sourceRow, row)
     }
@@ -93,6 +111,7 @@ export function planExamBatchPeTestImport(
       students: context.students,
       excelRow: row.sourceRow,
       studentNo: row.studentNo,
+      studentId: row.studentId,
       studentName: row.studentName,
       gender: examGenderToStudent(row.gender)
     })
@@ -189,6 +208,14 @@ export function planExamBatchPeTestImport(
           errors.push(`${matched.student.name} 有效成绩缺少 rawValue`)
           continue
         }
+        const examItem = context.standard.items.find(item => item.id === row.examItemId)!
+        if (row.gender !== matched.student.gender || (examItem.gender !== 'all' && examItem.gender !== matched.student.gender)) {
+          errors.push('学生性别与项目评分依据不一致')
+          continue
+        }
+        const rescored = mapped.rawValue === null ? null : scoreImported(context.standard, examItem, row.gender, mapped.rawValue)
+        if (rescored && rescored.status !== 'success') { errors.push(rescored.message); continue }
+        if (rescored && row.score !== rescored.score) { errors.push('预览得分与入库评分不一致，请重新换算'); continue }
         records.push({
           id: createPeTestRecordId(),
           testSessionId: sessionId,
@@ -196,14 +223,19 @@ export function planExamBatchPeTestImport(
           nameSnapshot: matched.student.name,
           studentNoSnapshot: matched.student.studentNo,
           genderSnapshot: matched.student.gender,
-          rawValue: mapped.rawValue,
+          rawValue: mapped.rawValue === null ? null : convertPeTestRawToExamRaw(examItem.unit, testItem.unit, mapped.rawValue),
           status: mapped.peStatus,
           note: mapped.note,
           createdAt: now,
           updatedAt: now,
-          examScore: mapped.examScore,
+          ...emptyClassroomScoreFields(),
+          examScore: rescored?.score ?? null,
+          baseScore: rescored?.baseScore ?? null,
+          bonusScore: rescored?.bonusScore ?? null,
+          scoreOutcome: rescored?.scoreOutcome ?? null,
+          officialMinimumScore: rescored?.officialMinimumScore ?? null,
           rawOriginal: row.rawValueOriginal,
-          examItemId: row.examItemId,
+          examItemId: rescored && (rescored.score !== null || rescored.scoreOutcome === 'below_official_minimum') ? row.examItemId : null,
           resolvedTestItemId: testItem.id
         })
       }
@@ -231,8 +263,7 @@ export function planExamBatchPeTestImport(
         records,
         importSource: 'exam-batch',
         examStandardId: payload.examStandardId,
-        scoringCitySnapshot: payload.scoringCity,
-        scoringVersionSnapshot: payload.scoringVersion,
+        ...classroomScoringSnapshots(payload.examStandardId, [context.standard]),
         status: 'in_progress',
         completedAt: null
       })

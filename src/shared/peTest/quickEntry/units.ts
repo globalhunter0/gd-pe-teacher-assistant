@@ -6,10 +6,10 @@ export function convertPeTestRawToExamRaw(testUnit: TestUnit, examUnit: TestUnit
     return rawValue
   }
   if (testUnit === 'cm' && examUnit === 'm') {
-    return rawValue / 100
+    return Number((rawValue / 100).toPrecision(15))
   }
   if (testUnit === 'm' && examUnit === 'cm') {
-    return rawValue * 100
+    return Number((rawValue * 100).toPrecision(15))
   }
-  return rawValue
+  throw new Error('评分单位与测试项目不兼容')
 }

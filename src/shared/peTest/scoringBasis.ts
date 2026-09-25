@@ -90,6 +90,7 @@ export function formatPeTestItemScoreText(
     status?: PETestRecord['status']
   }
 ): string {
+  if (record.status && record.status !== 'valid') return '—'
   if (record.scoreOutcome === 'below_official_minimum') {
     return nationalFitnessBelowOfficialMinimumMessage(record.officialMinimumScore ?? 10)
   }

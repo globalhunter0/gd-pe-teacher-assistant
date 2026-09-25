@@ -88,7 +88,7 @@ export function runExamBatchSelfCheck(): void {
   assert(timeParsed.ok && timeParsed.value === 225, '3:45 解析')
   const altTime = parseExamBatchRawValue("3'45", "3'45", male1000)
   assert(altTime.ok && altTime.value === 225, "3'45 解析")
-  const seconds = parseExamBatchRawValue('225', 225, male1000)
+  const seconds = parseExamBatchRawValue('225', 225, male1000, '秒')
   assert(seconds.ok && seconds.value === 225, '总秒数解析')
   const dotNumber = parseBatchRawValue(4.32, male1000)
   assert(dotNumber.ok && dotNumber.value === 272, '4.32(number) → 272')
@@ -98,9 +98,9 @@ export function runExamBatchSelfCheck(): void {
   assert(colon.ok && colon.value === 272, '"4:32" → 272')
   const quote = parseBatchRawValue("4'32", male1000)
   assert(quote.ok && quote.value === 272, "4'32 → 272")
-  const total = parseBatchRawValue(272, male1000)
-  assert(total.ok && total.value === 272, '272 → 272')
-  const excelDroppedZero = parseBatchRawValue(4.2, male1000)
+  const total = parseBatchRawValue('272秒', male1000)
+  assert(total.ok && total.value === 272, '明确272秒 → 272')
+  const excelDroppedZero = parseExamBatchRawValue('4.20', 4.2, male1000)
   assert(excelDroppedZero.ok && excelDroppedZero.value === 260, '4.20 Excel number 4.2 → 260')
   const eightHundred = parseBatchRawValue(3.42, female800)
   assert(eightHundred.ok && eightHundred.value === 222, '800米 3.42(number) → 222')
@@ -142,7 +142,7 @@ export function runExamBatchSelfCheck(): void {
   const schoolAoa = [
     ['姓名', '学号', '性别', '状态', '1000米', '一分钟跳绳'],
     ['蔡文轩', 1, '男', '正常', 4.32, 171],
-    ['测试学生2', 2, '男', '正常', 4.2, 176]
+    ['测试学生2', 2, '男', '正常', '4.20', 176]
   ]
   const schoolEndToEnd = convertAoa(guangzhou, schoolAoa)
   const schoolTitles = schoolEndToEnd.snapshot.columns.map((column) => column.title)
@@ -321,7 +321,7 @@ export function runExamBatchSelfCheck(): void {
   )
   assert(titledConverted.rows.find((row) => row.examItemId === 'male-1000m')?.rawValueOriginal === '4.32', '跳过标题行后 4.32 仍是成绩')
 
-  const runSamples = [4.32, 4.2, 3.49, 3.4]
+  const runSamples = [4.32, '4.20', 3.49, '3.40']
   const ropeSamples = [171, 176, 140, 178]
   const school24Aoa: unknown[][] = [
     ['姓名', '学号', '性别', '状态', '1000米', '一分钟跳绳'],
@@ -338,16 +338,16 @@ export function runExamBatchSelfCheck(): void {
   const school24Result = school24End.result
   assert(school24Result.summary.recordCount === 48, `24×2 应为48条，实际 ${school24Result.summary.recordCount}`)
   const originals = school24Result.rows.map((row) => row.rawValueOriginal)
-  for (const expected of ['4.32', '4.2', '3.49', '3.4', '171', '176', '140', '178']) {
+  for (const expected of ['4.32', '4.20', '3.49', '3.40', '171', '176', '140', '178']) {
     assert(originals.includes(expected), `24×2 原始成绩应包含 ${expected}`)
   }
   assert(!originals.includes('1000米') && !originals.includes('一分钟跳绳') && !originals.includes('1000米跑'), '24×2 不得把项目名当成绩')
   const parsedRuns = school24Result.rows.filter((row) => row.examItemId === 'male-1000m')
   const parsedRopes = school24Result.rows.filter((row) => row.examItemId === 'rope-skip-1min')
   assert(parsedRuns.some((row) => row.rawValueOriginal === '4.32' && row.rawValueParsed === 272), '4.32 → 272')
-  assert(parsedRuns.some((row) => row.rawValueOriginal === '4.2' && row.rawValueParsed === 260), '4.20 → 260')
+  assert(parsedRuns.some((row) => row.rawValueOriginal === '4.20' && row.rawValueParsed === 260), '4.20 → 260')
   assert(parsedRuns.some((row) => row.rawValueOriginal === '3.49' && row.rawValueParsed === 229), '3.49 → 229')
-  assert(parsedRuns.some((row) => row.rawValueOriginal === '3.4' && row.rawValueParsed === 220), '3.40 → 220')
+  assert(parsedRuns.some((row) => row.rawValueOriginal === '3.40' && row.rawValueParsed === 220), '3.40 → 220')
   assert(parsedRopes.some((row) => row.rawValueOriginal === '171' && row.rawValueParsed === 171), '171 → 171')
   assert(parsedRopes.some((row) => row.rawValueOriginal === '176' && row.rawValueParsed === 176), '176 → 176')
   assert(parsedRopes.some((row) => row.rawValueOriginal === '140' && row.rawValueParsed === 140), '140 → 140')

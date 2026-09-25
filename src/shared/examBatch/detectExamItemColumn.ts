@@ -1,3 +1,4 @@
+import { isNationalFitnessStandardId } from '../nationalFitness/catalog'
 import { itemSupportsAutoScore, standardAllowsOfficialConvert } from '../examStandard/score'
 import type { ExamGender, ExamItemDefinition, ExamStandard } from '../examStandard/types'
 import { matchExamItem, normalizeExamLabel } from './matchExamItem'
@@ -24,6 +25,7 @@ export interface DetectedExamItemColumn {
 }
 
 const IGNORE_HEADERS = [
+  'studentId', 'classId',
   '班级',
   '行政班',
   '班别',
@@ -64,7 +66,7 @@ export function isProjectLabelHeader(title: string): boolean {
 }
 
 export function isGenericRawHeader(title: string): boolean {
-  const normalized = normalizeExamLabel(title)
+  const normalized = normalizeExamLabel(prepareExamHeader(title))
   return GENERIC_RAW.some((alias) => normalizeExamLabel(alias) === normalized)
 }
 
@@ -89,7 +91,7 @@ function columnStatusLabel(standard: ExamStandard, items: ExamItemDefinition[]):
   scoreTableStatus: ExamStandard['scoreTableStatus']
   reason: string
 } {
-  const supported = items.filter((item) => itemSupportsAutoScore(item) && standardAllowsOfficialConvert(standard))
+  const supported = items.filter((item) => isNationalFitnessStandardId(standard.id) || (itemSupportsAutoScore(item) && standardAllowsOfficialConvert(standard)))
   if (supported.length === items.length && items.length > 0) {
     return { autoScoreSupported: true, scoreTableStatus: 'verified', reason: '可自动评分' }
   }

@@ -175,7 +175,7 @@ export function runV0150AcceptanceSelfCheck(): string {
   assert(parseExamPerformanceInput('3:40', gzRun) === 220, '3:40 解析失败')
   assert(parseExamPerformanceInput("3'40", gzRun) === 220, "3'40 解析失败")
   assert(parseExamPerformanceInput('3.40', gzRun) === 220, '3.40 必须按长跑分秒解析')
-  assert(parseExamPerformanceInput('220', gzRun) === 220, '220 秒解析失败')
+  assert(parseExamPerformanceInput('220秒', gzRun) === 220, '220 秒解析失败')
   assert(parseExamPerformanceInput('3:37', gzRun) === 217, '3:37 解析失败')
   assert(parseExamPerformanceInput('3:42', gzRun) === 222, '3:42 解析失败')
   assert(parseExamPerformanceInput('7.80', gzSprint) === 7.8, '短跑 7.80 不得解释为 7 分 80 秒')
