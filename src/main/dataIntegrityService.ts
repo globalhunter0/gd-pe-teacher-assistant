@@ -1,6 +1,6 @@
-import { access, copyFile, mkdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { APP_RELEASE_VERSION, BUSINESS_JSON_FILES } from '../shared/backup/types'
+import { readFile, readdir } from 'node:fs/promises'
+import { basename, join } from 'node:path'
+import { APP_RELEASE_VERSION } from '../shared/backup/types'
 import { createSafetyBackupArchive } from '../shared/backup/service'
 import {
   applyRawPeSessionStatusRepairs,
@@ -8,11 +8,12 @@ import {
   runDataIntegrityAudit,
   runStartupHealthAudit,
   scanRawPeSessionsForStatusRepairs,
+  summarizeIntegrityIssues,
   type DataIntegrityReport,
   type DataIntegritySnapshot,
   type SafeRepairPlan
 } from '../shared/dataIntegrity'
-import { pathExists, recoverJsonTextAtomic, UserDataCorruptError } from '../shared/persistence/jsonFile'
+import { pathExists, recoverJsonTextAtomic, UserDataCorruptError, readOnlyInspection } from '../shared/persistence/jsonFile'
 import { withExclusiveDataAccess } from '../shared/persistence/writeGate'
 import { loadClasses } from './classStore'
 import { loadPeSessions } from './peSessionStore'
@@ -29,7 +30,7 @@ import {
 } from './trainingStore'
 import { getUserDataRoot } from './userDataPaths'
 
-const CORRUPT_QUARANTINE_DIR = 'corrupt-quarantine'
+import { inspectBusinessFiles } from '../shared/persistence/inspectBusinessFiles'
 
 let lastStartupReport: DataIntegrityReport | null = null
 
@@ -37,96 +38,30 @@ export function getLastStartupHealthReport(): DataIntegrityReport | null {
   return lastStartupReport
 }
 
-async function fileStatus(
-  fileName: string
-): Promise<NonNullable<DataIntegritySnapshot['fileStatuses']>[number]> {
-  const filePath = join(getUserDataRoot(), fileName)
-  try {
-    await access(filePath)
-    return { fileName, exists: true }
-  } catch {
-    return { fileName, exists: false }
-  }
-}
-
-async function quarantineCorruptFile(fileName: string): Promise<string | null> {
-  const root = getUserDataRoot()
-  const source = join(root, fileName)
-  if (!(await pathExists(source))) {
-    return null
-  }
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const dir = join(root, CORRUPT_QUARANTINE_DIR)
-  await mkdir(dir, { recursive: true })
-  const dest = join(dir, `${fileName}.${stamp}.corrupt`)
-  await copyFile(source, dest)
-  return dest
-}
-
 async function safeLoad<T>(
   label: string,
   loader: () => Promise<T[]>,
   fileName: string
-): Promise<{ items: T[]; parseError?: string; quarantinePath?: string }> {
-  try {
-    return { items: await loader() }
-  } catch (error) {
-    const message =
-      error instanceof UserDataCorruptError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : String(error)
-    let quarantinePath: string | undefined
-    try {
-      quarantinePath = (await quarantineCorruptFile(fileName)) ?? undefined
-    } catch {
-      // 隔离失败不掩盖原错误
-    }
-    return {
-      items: [],
-      parseError: `${label}: ${message}`,
-      quarantinePath
-    }
+): Promise<{ items: T[]; fileName: string; parseError?: string }> {
+  try { return { items: await loader(), fileName } }
+  catch (error) {
+    return { items: [], fileName: error instanceof UserDataCorruptError ? basename(error.filePath) : fileName,
+      parseError: label + ': ' + (error instanceof Error ? error.message : String(error)) }
   }
 }
 
 function mapParseErrors(
-  fileStatuses: Array<{ fileName: string; exists: boolean; parseError?: string }>,
-  entries: Array<{ parseError?: string; quarantinePath?: string }>
+  fileStatuses: Array<import('../shared/dataIntegrity').DataIntegrityFileStatus>,
+  entries: Array<{ fileName: string; parseError?: string }>
 ): void {
   for (const entry of entries) {
     if (!entry.parseError) continue
-    const name = entry.parseError.split(':')[0]
-    const fileName =
-      name === 'classes'
-        ? 'classes.json'
-        : name === 'students'
-          ? 'students.json'
-          : name === 'schedule'
-            ? 'schedule.json'
-            : name === 'pe-sessions'
-              ? 'pe-sessions.json'
-              : name === 'pe-tests'
-                ? 'pe-tests.json'
-                : name === 'teaching-plans'
-                  ? 'teaching-plans.json'
-                  : name === 'training-teams'
-                    ? 'training-teams.json'
-                    : name === 'training-members'
-                      ? 'training-members.json'
-                      : name === 'training-sessions'
-                        ? 'training-sessions.json'
-                        : name === 'training-results'
-                          ? 'training-results.json'
-                          : name === 'resources'
-                            ? 'resources.json'
-                            : `${name}.json`
-    const target = fileStatuses.find((item) => item.fileName === fileName)
-    if (target) {
-      target.parseError = entry.quarantinePath
-        ? `${entry.parseError}（已保留原文件并复制到 ${entry.quarantinePath}）`
-        : entry.parseError
+    const target = fileStatuses.find(item => item.fileName === entry.fileName)
+    if (target && !target.parseError) {
+      target.parseError = entry.parseError
+      target.errorType = 'invalid_structure_or_reference'
+      target.structureInvalid = true
+      target.writeBlocked = true
     }
   }
 }
@@ -144,7 +79,7 @@ async function buildSnapshot(): Promise<DataIntegritySnapshot> {
   const trainingResults = await safeLoad('training-results', loadTrainingResults, 'training-results.json')
   const resources = await safeLoad('resources', loadResources, 'resources.json')
 
-  const fileStatuses = await Promise.all(BUSINESS_JSON_FILES.map((name) => fileStatus(name)))
+  const fileStatuses = await inspectBusinessFiles(getUserDataRoot())
   mapParseErrors(fileStatuses, [
     classes,
     students,
@@ -211,11 +146,11 @@ async function buildSnapshot(): Promise<DataIntegritySnapshot> {
 }
 
 export async function buildAndRunDataIntegrityAudit(): Promise<DataIntegrityReport> {
-  return runDataIntegrityAudit(await buildSnapshot())
+  return withAttachmentIssues(runDataIntegrityAudit(await readOnlyInspection.run(true, buildSnapshot)))
 }
 
 export async function buildAndRunStartupHealthCheck(): Promise<DataIntegrityReport> {
-  const report = runStartupHealthAudit(await buildSnapshot())
+  const report = await withAttachmentIssues(runStartupHealthAudit(await readOnlyInspection.run(true, buildSnapshot)))
   lastStartupReport = report
   return report
 }
@@ -233,6 +168,18 @@ export async function runSafeRepairWithBackup(options?: {
   createSafetyBackup?: () => Promise<string>
 }): Promise<SafeRepairResult> {
   return withExclusiveDataAccess(() => runSafeRepairExclusive(options))
+}
+
+async function withAttachmentIssues(report: DataIntegrityReport): Promise<DataIntegrityReport> {
+  const issues = [...report.issues]
+  let names: string[] = []
+  try { names = (await readdir(join(getUserDataRoot(), 'resources', 'files'), { withFileTypes: true })).filter(e => e.isFile()).map(e => e.name) }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
+  let referenced: string[] = []
+  try { referenced = (await readOnlyInspection.run(true, loadResources)).flatMap(r => r.storedFileName ? [r.storedFileName] : []) } catch { /* unreadable index: every file stays unknown */ }
+  for (const name of names.filter(n => !referenced.includes(n))) issues.push({ severity: 'warning', domain: 'resources', code: 'unknown_attachment', entityId: name, message: `附件归属未确认，已保留：${name}`, repairable: false })
+  for (const name of referenced.filter(n => !names.includes(n))) issues.push({ severity: 'warning', domain: 'resources', code: 'missing_attachment', entityId: name, message: `索引引用的附件缺失：${name}`, repairable: false })
+  return summarizeIntegrityIssues(issues)
 }
 
 async function runSafeRepairExclusive(options?: {

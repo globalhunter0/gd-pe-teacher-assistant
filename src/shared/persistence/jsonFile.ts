@@ -10,6 +10,7 @@ import { assertCollectionUnchanged } from './collectionConflict'
 const corruptFiles = new Set<string>()
 const validators = new Map<string, (parsed: unknown) => unknown>()
 export const stagedJsonWrites = new AsyncLocalStorage<Map<string, string>>()
+export const readOnlyInspection = new AsyncLocalStorage<boolean>()
 
 export class UserDataCorruptError extends Error {
   readonly filePath: string
@@ -60,6 +61,7 @@ async function saveJsonText(
   document = false,
   options: { onlyIfMissing?: boolean; expectedItems?: unknown[] } = {}
 ): Promise<void> {
+  if (readOnlyInspection.getStore()) return
   await withWrite(filePath, async () => {
     await assertNoPendingTransactions(dirname(filePath))
     if (corruptFiles.has(resolve(filePath))) throw new UserDataCorruptError(filePath)
@@ -120,6 +122,7 @@ export async function loadJsonItemsFile<T>(filePath: string, parse: (input: unkn
   assertDataAccess(filePath)
   validators.set(resolve(filePath), (parsed) => parse(itemsFromParsed(parsed)))
   if (!(await pathExists(filePath))) {
+    if (readOnlyInspection.getStore()) return parse(ifMissing)
     const payload: JsonEnvelope<T> = { version: 1, updatedAt: new Date().toISOString(), items: ifMissing }
     await saveJsonText(filePath, `${JSON.stringify(payload, null, 2)}\n`, false, { onlyIfMissing: true })
   }
@@ -129,6 +132,7 @@ export async function loadJsonDocumentFile<T>(filePath: string, parse: (input: u
   assertDataAccess(filePath)
   validators.set(resolve(filePath), (parsed) => parse(documentFromParsed(parsed)))
   if (!(await pathExists(filePath))) {
+    if (readOnlyInspection.getStore()) return parse(ifMissing)
     const payload: JsonDocumentEnvelope<T> = { version: 1, updatedAt: new Date().toISOString(), data: ifMissing }
     await saveJsonText(filePath, `${JSON.stringify(payload, null, 2)}\n`, true, { onlyIfMissing: true })
   }

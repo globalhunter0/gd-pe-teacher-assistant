@@ -1,6 +1,9 @@
 import { app, BrowserWindow, Menu, shell } from 'electron'
 import { join } from 'node:path'
-import { inspect } from 'node:util'
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { initializeUserData } from '../shared/persistence/initializeUserData'
+import { registerStartupDiagnostics, showStartupFailure } from './startupDiagnostics'
 import { registerClassIpc } from './classIpc'
 import { getClassFilePath, loadClasses } from './classStore'
 import { setMainWindow } from './mainWindow'
@@ -38,9 +41,21 @@ import {
   loadTrainingTeams
 } from './trainingStore'
 import { recoverPendingTransactions } from '../shared/persistence/diskTransaction'
-import { replaceFileAtomic } from '../shared/persistence/atomicFile'
+
 import { getUserDataRoot } from './userDataPaths'
 import { assertBuiltinExamCatalog } from '@shared/examStandard'
+
+// Explicit isolated smoke mode; a missing sentinel fails before any business access.
+const testRoot = process.env.GDPE_RC_TEST_ROOT
+if (testRoot) {
+  const target = resolve(testRoot)
+  if (!existsSync(join(target, '.rc-test-root')) || readFileSync(join(target, '.rc-test-root'), 'utf8') !== 'isolated-rc-test' || target === resolve(app.getPath('userData'))) {
+    throw new Error('Invalid isolated RC test directory')
+  }
+  app.setPath('userData', target)
+  app.setPath('sessionData', join(target, 'chromium'))
+}
+registerStartupDiagnostics()
 
 function createMainWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -61,6 +76,11 @@ function createMainWindow(): void {
     }
   })
 
+  mainWindow.webContents.on('did-fail-load', (_event, code, _description, _url, isMainFrame) => {
+    if (isMainFrame && code !== -3) void showStartupFailure('renderer-load-failed', new Error('Renderer load failed'))
+  })
+  mainWindow.webContents.on('render-process-gone', () => { void showStartupFailure('renderer-process-gone', new Error('Renderer exited')) })
+  mainWindow.webContents.on('preload-error', (_event, _path, error) => { void showStartupFailure('preload-failed', error) })
   setMainWindow(mainWindow)
   mainWindow.on('closed', () => {
     setMainWindow(null)
@@ -89,21 +109,8 @@ if (!ownsDataLock) app.quit()
 
 app.whenReady().then(async () => {
   if (!ownsDataLock) return
-  try {
-    await recoverPendingTransactions(getUserDataRoot())
-  } catch (error) {
-    console.error('[data-safety] startup recovery blocked', error)
-    try {
-      await replaceFileAtomic(
-        join(getUserDataRoot(), 'data-safety-startup-error.log'),
-        `${new Date().toISOString()}\n${inspect(error, { depth: 8 })}\n`
-      )
-    } catch (logError) {
-      console.error('[data-safety] failed to persist recovery diagnostic', logError)
-    }
-    app.quit()
-    return
-  }
+  await recoverPendingTransactions(getUserDataRoot())
+  await initializeUserData(getUserDataRoot())
   registerScheduleIpc()
   registerClassIpc()
   registerStudentIpc()
@@ -117,7 +124,7 @@ app.whenReady().then(async () => {
   registerDataIntegrityIpc()
   registerUserPreferencesIpc()
   assertBuiltinExamCatalog()
-  void buildAndRunStartupHealthCheck().then((report) => {
+  await buildAndRunStartupHealthCheck().then((report) => {
     if (report.status === 'healthy') {
       console.log('[data-integrity] startup health: healthy')
     } else {
@@ -175,6 +182,9 @@ app.whenReady().then(async () => {
       createMainWindow()
     }
   })
+}).catch(async error => {
+  await showStartupFailure('main-startup-failed', error)
+  app.quit()
 })
 
 app.on('window-all-closed', () => {

@@ -42,8 +42,12 @@ export function runStudentImportIpcSelfCheck(): void {
     [...preloadSource.matchAll(/ipcRenderer\.invoke\(\s*'([^']+)'/g)].map((item) => item[1])
   )
   const mainChannels = uniqueSorted(
-    [...mainSource.matchAll(/ipcMain\.handle\(\s*'([^']+)'/g)].map((item) => item[1])
+    // Collection saves now register through the conflict-checking IPC adapter.
+    // Its runtime behavior is covered by classroom-regression (including stale saves).
+    [...mainSource.matchAll(/(?:ipcMain\.handle|handleCollectionSave)\(\s*'([^']+)'/g)].map((item) => item[1])
   )
+  const collectionAdapter = readFileSync(join(root, 'src/main/collectionIpc.ts'), 'utf8')
+  assert(/ipcMain\.handle\(channel,/.test(collectionAdapter), '集合保存适配器必须实际注册 IPC handler')
   const studentPreloadChannels = preloadChannels.filter((channel) => channel.startsWith('students:'))
   const studentMainChannels = mainChannels.filter((channel) => channel.startsWith('students:'))
 

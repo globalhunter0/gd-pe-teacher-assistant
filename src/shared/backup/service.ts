@@ -18,8 +18,8 @@ import {
 import { buildZip, parseZip, type ZipEntry } from './zip'
 import { pathExists, validateJsonText, clearCorruptProtection } from '../persistence/jsonFile'
 import { replaceFileAtomic } from '../persistence/atomicFile'
-import { commitFileTransaction, type FileChange } from '../persistence/diskTransaction'
-import { withExclusiveDataAccess } from '../persistence/writeGate'
+import { assertNoPendingTransactions, commitFileTransaction, type FileChange } from '../persistence/diskTransaction'
+import { withDataSnapshot, withExclusiveDataAccess } from '../persistence/writeGate'
 
 const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 
@@ -119,6 +119,17 @@ export async function createDataBackup(
   archivePath: string,
   appVersion: string = APP_RELEASE_VERSION
 ): Promise<BackupResult> {
+  const output = relative(resolve(userDataRoot), resolve(archivePath)).replace(/\\/g, '/').toLowerCase()
+  if (BUSINESS_JSON_FILES.some(name => name === output) || output.startsWith(`${RESOURCE_FILES_DIR}/`) || output.startsWith('.data-transactions/')) {
+    throw new Error('备份目标不能覆盖业务文件、附件或事务日志，请另选备份位置。')
+  }
+  return withDataSnapshot(userDataRoot, async () => {
+    await assertNoPendingTransactions(userDataRoot)
+    return createDataBackupSnapshot(userDataRoot, archivePath, appVersion)
+  })
+}
+
+async function createDataBackupSnapshot(userDataRoot: string, archivePath: string, appVersion: string): Promise<BackupResult> {
   const relativePaths = await listManagedRelativePaths(userDataRoot)
   const files = await buildManifestEntries(userDataRoot, relativePaths)
   const manifest: BackupManifest = {

@@ -1,5 +1,6 @@
+import { withExclusiveDataAccess } from '../shared/persistence/writeGate'
 import { shell } from 'electron'
-import { copyFile, mkdir, readdir, realpath, rename, stat, unlink } from 'node:fs/promises'
+import { copyFile, mkdir, realpath, rename, stat, unlink } from 'node:fs/promises'
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { loadJsonItemsFile, writeJsonItemsAtomic } from '../shared/persistence/jsonFile'
 import { getUserDataRoot } from './userDataPaths'
@@ -49,51 +50,9 @@ async function removeIfExists(filePath: string): Promise<void> {
   }
 }
 
-async function sweepOrphans(items: ResourceItem[]): Promise<void> {
-  const filesDir = getResourceFilesDir()
-  const tmpDir = getResourceTmpDir()
-  await mkdir(filesDir, { recursive: true })
-  await mkdir(tmpDir, { recursive: true })
-
-  const referenced = new Set(items.map((item) => item.storedFileName).filter((name): name is string => Boolean(name)))
-
-  try {
-    const names = await readdir(filesDir)
-    for (const name of names) {
-      if (name === '.tmp') {
-        continue
-      }
-      if (referenced.has(name)) {
-        continue
-      }
-      const target = join(filesDir, name)
-      if (!isInsideDirectory(target, filesDir)) {
-        continue
-      }
-      await removeIfExists(target)
-    }
-  } catch {
-    // ignore missing directory
-  }
-
-  try {
-    const tmpNames = await readdir(tmpDir)
-    for (const name of tmpNames) {
-      const target = join(tmpDir, name)
-      if (!isInsideDirectory(target, tmpDir)) {
-        continue
-      }
-      await removeIfExists(target)
-    }
-  } catch {
-    // ignore
-  }
-}
-
+/** Reading an incomplete index never authorizes deleting user attachments. */
 export async function loadResources(): Promise<ResourceItem[]> {
-  const items = await readResourceItems()
-  await sweepOrphans(items)
-  return items
+  return readResourceItems()
 }
 
 async function resolveManagedFile(storedFileName: string): Promise<string> {
@@ -114,6 +73,10 @@ async function resolveManagedFile(storedFileName: string): Promise<string> {
 }
 
 export async function createNoteResource(input: unknown): Promise<ResourceItem[]> {
+  return withExclusiveDataAccess(() => createNoteResourceExclusive(input))
+}
+
+async function createNoteResourceExclusive(input: unknown): Promise<ResourceItem[]> {
   const parsed = parseResourceNoteInput(input)
   const now = new Date().toISOString()
   const item: ResourceItem = {
@@ -137,6 +100,10 @@ export async function createNoteResource(input: unknown): Promise<ResourceItem[]
 }
 
 export async function createLinkResource(input: unknown): Promise<ResourceItem[]> {
+  return withExclusiveDataAccess(() => createLinkResourceExclusive(input))
+}
+
+async function createLinkResourceExclusive(input: unknown): Promise<ResourceItem[]> {
   const parsed = parseResourceLinkInput(input)
   const now = new Date().toISOString()
   const item: ResourceItem = {
@@ -160,6 +127,10 @@ export async function createLinkResource(input: unknown): Promise<ResourceItem[]
 }
 
 export async function importFileResource(sourcePath: string, input: unknown): Promise<ResourceItem[]> {
+  return withExclusiveDataAccess(() => importFileResourceExclusive(sourcePath, input))
+}
+
+async function importFileResourceExclusive(sourcePath: string, input: unknown): Promise<ResourceItem[]> {
   const parsed = parseResourceFileImportInput(input)
   const extension = extname(sourcePath).toLowerCase()
   if (!isAllowedResourceExtension(extension)) {
@@ -228,6 +199,10 @@ export async function importFileResource(sourcePath: string, input: unknown): Pr
 }
 
 export async function updateResource(id: unknown, input: unknown): Promise<ResourceItem[]> {
+  return withExclusiveDataAccess(() => updateResourceExclusive(id, input))
+}
+
+async function updateResourceExclusive(id: unknown, input: unknown): Promise<ResourceItem[]> {
   if (typeof id !== 'string') {
     throw new Error('资料编号不正确')
   }
@@ -287,6 +262,10 @@ export async function updateResource(id: unknown, input: unknown): Promise<Resou
 }
 
 export async function deleteResource(id: unknown): Promise<{ items: ResourceItem[]; warning: string | null }> {
+  return withExclusiveDataAccess(() => deleteResourceExclusive(id))
+}
+
+async function deleteResourceExclusive(id: unknown): Promise<{ items: ResourceItem[]; warning: string | null }> {
   if (typeof id !== 'string') {
     throw new Error('资料编号不正确')
   }
@@ -306,7 +285,7 @@ export async function deleteResource(id: unknown): Promise<{ items: ResourceItem
       const managed = await resolveManagedFile(existing.storedFileName)
       await unlink(managed)
     } catch {
-      warning = '资料已删除，应用内副本未能清除。下次打开资料中心时会尝试清理残留文件。'
+      warning = '资料已删除，应用内副本未能清除。残留文件已保留，不会自动清理。'
     }
   }
 

@@ -1,4 +1,5 @@
-import { ipcMain } from 'electron'
+import { ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { runStagedJsonWrites } from '../shared/importTransaction/stagedWrite'
 import {
   applyTrainingTeamSafeDelete,
   assertTrainingPlanChanges,
@@ -33,9 +34,21 @@ import {
   saveTrainingTeams
 } from './trainingStore'
 
+/** Keep multi-file training mutations inside the same snapshot/restore boundary.
+ * Existing domain validation stays unchanged; only disk commit is coordinated. */
+function handleTraining(channel: string, handler: (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>): void {
+  ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+    if (channel.endsWith(':get') || channel.endsWith(':deleteCheck')) return handler(event, ...args)
+    let value: unknown
+    const result = await runStagedJsonWrites([{ name: channel, restore: async () => {}, write: async () => { value = await handler(event, ...args) } }])
+    if (!result.ok) throw result.error
+    return value
+  })
+}
+
 export function registerTrainingIpc(): void {
-  ipcMain.handle('trainingTeams:get', async () => loadTrainingTeams())
-  ipcMain.handle('trainingTeams:save', async (_event, items: unknown) => {
+  handleTraining('trainingTeams:get', async () => loadTrainingTeams())
+  handleTraining('trainingTeams:save', async (_event, items: unknown) => {
     const next = parseTrainingTeams(items)
     const current = await loadTrainingTeams()
     const nextIds = new Set(next.map((item) => item.id))
@@ -56,7 +69,7 @@ export function registerTrainingIpc(): void {
     }
     return saveTrainingTeams(next)
   })
-  ipcMain.handle('trainingTeams:archive', async (_event, teamId: unknown) => {
+  handleTraining('trainingTeams:archive', async (_event, teamId: unknown) => {
     if (typeof teamId !== 'string') {
       throw new Error('训练队编号不正确')
     }
@@ -86,7 +99,7 @@ export function registerTrainingIpc(): void {
       throw error
     }
   })
-  ipcMain.handle('trainingTeams:deleteCheck', async (_event, teamId: unknown) => {
+  handleTraining('trainingTeams:deleteCheck', async (_event, teamId: unknown) => {
     if (typeof teamId !== 'string') {
       throw new Error('训练队编号不正确')
     }
@@ -101,7 +114,7 @@ export function registerTrainingIpc(): void {
     return checkTrainingTeamSafeDelete(teams, members, teamId, sessions, results, schedule, plans)
   })
 
-  ipcMain.handle('trainingTeams:safeDelete', async (_event, teamId: unknown) => {
+  handleTraining('trainingTeams:safeDelete', async (_event, teamId: unknown) => {
     if (typeof teamId !== 'string') {
       throw new Error('训练队编号不正确')
     }
@@ -147,8 +160,8 @@ export function registerTrainingIpc(): void {
     return { ...next, teams: savedTeams, members: savedMembers, plans: savedPlans }
   })
 
-  ipcMain.handle('trainingPlans:get', async () => loadTrainingPlans())
-  ipcMain.handle('trainingPlans:save', async (_event, items: unknown) => {
+  handleTraining('trainingPlans:get', async () => loadTrainingPlans())
+  handleTraining('trainingPlans:save', async (_event, items: unknown) => {
     const [current, teams, sessions] = await Promise.all([
       loadTrainingPlans(),
       loadTrainingTeams(),
@@ -160,7 +173,7 @@ export function registerTrainingIpc(): void {
     assertTrainingPlanChanges(current, next, teams, sessions)
     return saveTrainingPlans(next)
   })
-  ipcMain.handle(
+  handleTraining(
     'trainingPlans:completeWithSession',
     async (_event, planId: unknown, sessionInput: unknown) => {
       if (typeof planId !== 'string') {
@@ -193,20 +206,20 @@ export function registerTrainingIpc(): void {
     }
   )
 
-  ipcMain.handle('trainingMembers:get', async () => loadTrainingMembers())
-  ipcMain.handle('trainingMembers:save', async (_event, items: unknown) => {
+  handleTraining('trainingMembers:get', async () => loadTrainingMembers())
+  handleTraining('trainingMembers:save', async (_event, items: unknown) => {
     const students = await loadStudents()
     return saveTrainingMembers(items, new Set(students.map((item) => item.id)))
   })
 
-  ipcMain.handle('trainingSessions:get', async () => loadTrainingSessions())
-  ipcMain.handle('trainingSessions:save', async (_event, items: unknown) => saveTrainingSessions(items))
+  handleTraining('trainingSessions:get', async () => loadTrainingSessions())
+  handleTraining('trainingSessions:save', async (_event, items: unknown) => saveTrainingSessions(items))
 
-  ipcMain.handle('trainingItems:get', async () => loadTrainingItems())
-  ipcMain.handle('trainingItems:save', async (_event, items: unknown) => saveTrainingItems(items))
+  handleTraining('trainingItems:get', async () => loadTrainingItems())
+  handleTraining('trainingItems:save', async (_event, items: unknown) => saveTrainingItems(items))
 
-  ipcMain.handle('trainingResults:get', async () => loadTrainingResults())
-  ipcMain.handle('trainingResults:save', async (_event, items: unknown) => {
+  handleTraining('trainingResults:get', async () => loadTrainingResults())
+  handleTraining('trainingResults:save', async (_event, items: unknown) => {
     const students = await loadStudents()
     return saveTrainingResults(items, new Set(students.map((item) => item.id)))
   })

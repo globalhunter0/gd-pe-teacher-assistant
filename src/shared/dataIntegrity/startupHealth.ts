@@ -130,8 +130,8 @@ export function runStartupHealthAudit(snapshot: DataIntegritySnapshot): DataInte
             domain: 'files',
             code: 'corrupt_json',
             entityId: file.fileName,
-            message: `无法解析 ${file.fileName}：${file.parseError}`,
-            details: { exists: file.exists, repairHint: '请从备份恢复；原文件已保留' }
+            message: `文件检查失败 ${file.fileName}：${file.parseError}`,
+            details: { ...file, repairHint: '请从已校验备份恢复；原文件已保留，扫描未移动或删除数据' }
           })
         )
       }

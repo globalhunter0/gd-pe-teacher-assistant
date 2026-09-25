@@ -14,7 +14,15 @@
     "check:pe-test-selfchecks": "node scripts/check-pe-test-selfchecks.mjs",
     "check:data-safety": "node scripts/check-data-safety.mjs",
     "check:classroom": "node scripts/check-classroom.mjs",
-    "check:classroom-selfchecks": "node scripts/check-classroom-selfchecks.mjs"
+    "check:classroom-selfchecks": "node scripts/check-classroom-selfchecks.mjs",
+    "check:node": "tsc --noEmit -p tsconfig.node.json",
+    "check:web": "tsc --noEmit -p tsconfig.web.json",
+    "package:win": "npm run build && node scripts/package-windows.mjs dir",
+    "dist:win": "npm run build && node scripts/package-windows.mjs nsis",
+    "check:selfchecks": "node scripts/check-all-selfchecks.mjs",
+    "check:rc": "node scripts/check-rc.mjs",
+    "check:packaged": "node scripts/packaged-smoke.mjs",
+    "check:release": "node scripts/check-release.mjs"
   },
   "dependencies": {
     "react": "^19.1.1",
@@ -27,6 +35,7 @@
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",
     "electron": "^37.3.1",
+    "electron-builder": "26.15.0",
     "electron-vite": "^4.0.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.3"

@@ -6,23 +6,7 @@ export const BACKUP_FILE_EXTENSION = 'gdpebak'
 
 export const APP_RELEASE_VERSION = APP_VERSION
 
-export const BUSINESS_JSON_FILES = [
-  'schedule.json',
-  'classes.json',
-  'students.json',
-  'pe-sessions.json',
-  'test-items.json',
-  'pe-tests.json',
-  'teaching-plans.json',
-  'resources.json',
-  'training-teams.json',
-  'training-members.json',
-  'training-plans.json',
-  'training-sessions.json',
-  'training-items.json',
-  'training-results.json',
-  'settings.json'
-] as const
+export { BUSINESS_JSON_FILES } from '../persistence/businessFiles'
 
 export const RESOURCE_FILES_DIR = 'resources/files'
 

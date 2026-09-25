@@ -312,8 +312,8 @@ export function runDataIntegrityAudit(snapshot: DataIntegritySnapshot): DataInte
             domain: 'files',
             code: 'corrupt_json',
             entityId: file.fileName,
-            message: `无法解析 ${file.fileName}：${file.parseError}`,
-            details: { exists: file.exists }
+            message: `文件检查失败 ${file.fileName}：${file.parseError}`,
+            details: { ...file }
           })
         )
       } else if (!file.exists && expected.has(file.fileName)) {

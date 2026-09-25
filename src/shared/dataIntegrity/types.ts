@@ -39,6 +39,12 @@ export interface DataIntegrityFileStatus {
   fileName: string
   exists: boolean
   parseError?: string
+  errorType?: string
+  parseable?: boolean
+  structureInvalid?: boolean
+  quarantined?: boolean
+  writeBlocked?: boolean
+  recoverySource?: string
 }
 
 export interface DataIntegritySnapshot {

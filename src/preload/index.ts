@@ -1,4 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
+contextBridge.exposeInMainWorld('startupDiagnostics', {
+  report: () => ipcRenderer.send('diagnostics:rendererFailure', 'render')
+})
 import type { ClassRecord } from '../shared/class/types'
 import type { PEClassSession } from '../shared/peSession/types'
 import type { ScheduleItem } from '../shared/schedule/types'

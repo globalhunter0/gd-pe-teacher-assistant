@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { StartupErrorBoundary } from './components/StartupErrorBoundary'
 import './styles/global.css'
 
 const rootElement = document.getElementById('root')
@@ -11,6 +12,6 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App />
+    <StartupErrorBoundary><App /></StartupErrorBoundary>
   </StrictMode>
 )

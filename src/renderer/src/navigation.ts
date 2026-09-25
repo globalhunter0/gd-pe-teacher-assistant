@@ -33,7 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'plans', label: '教学计划' },
   { key: 'stats', label: '数据统计' },
   { key: 'resources', label: '资料中心' },
-  { key: 'ai', label: 'AI 助手' },
+  { key: 'ai', label: 'AI 助手（暂未开放）' },
   { key: 'settings', label: '备份与恢复' }
 ]
 
@@ -49,7 +49,7 @@ export const PAGE_TITLES: Record<NavKey, string> = {
   exams: PE_TEST_CENTER_MODULE_LABEL,
   stats: '数据统计',
   resources: '资料中心',
-  ai: 'AI 助手',
+  ai: 'AI 助手（暂未开放）',
   settings: '备份与恢复'
 }
 
