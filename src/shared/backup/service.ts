@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { sha256Buffer, sha256File } from './checksum'
 import { parseBackupManifest } from './manifest'
@@ -16,7 +16,10 @@ import {
   type RestoreResult
 } from './types'
 import { buildZip, parseZip, type ZipEntry } from './zip'
-import { pathExists } from '../persistence/jsonFile'
+import { pathExists, validateJsonText, clearCorruptProtection } from '../persistence/jsonFile'
+import { replaceFileAtomic } from '../persistence/atomicFile'
+import { commitFileTransaction, type FileChange } from '../persistence/diskTransaction'
+import { withExclusiveDataAccess } from '../persistence/writeGate'
 
 const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 
@@ -145,9 +148,7 @@ export async function createDataBackup(
   }
 
   await mkdir(dirname(archivePath), { recursive: true })
-  const tmpPath = `${archivePath}.${process.pid}.tmp`
-  await writeFile(tmpPath, zip)
-  await rename(tmpPath, archivePath)
+  await replaceFileAtomic(archivePath, zip)
 
   await verifyBackupArchive(archivePath)
   return { archivePath, fileCount: files.length, manifest }
@@ -253,131 +254,6 @@ export async function listKeptManagedPaths(
   return kept
 }
 
-async function removeIfExists(target: string): Promise<void> {
-  await rm(target, { recursive: true, force: true })
-}
-
-async function containsAnyFile(dir: string): Promise<boolean> {
-  const entries = await readdir(dir, { withFileTypes: true })
-  for (const entry of entries) {
-    if (entry.isDirectory()) {
-      if (await containsAnyFile(join(dir, entry.name))) {
-        return true
-      }
-    } else {
-      return true
-    }
-  }
-  return false
-}
-
-// 回滚后才会调用：只有确认目录里没有剩余文件才删除，避免清掉尚未归位的业务数据。
-async function removeIfNoFilesLeft(target: string): Promise<void> {
-  if (!(await pathExists(target))) {
-    return
-  }
-  if (!(await containsAnyFile(target))) {
-    await rm(target, { recursive: true, force: true })
-  }
-}
-
-interface MoveAsideResult {
-  filesDirMoved: boolean
-}
-
-async function moveManagedAside(
-  userDataRoot: string,
-  outgoingDir: string,
-  backupPaths: readonly string[]
-): Promise<MoveAsideResult> {
-  const jsonToReplace = listReplaceableBusinessJson(backupPaths)
-  const coversResources = backupCoversResources(backupPaths)
-  await mkdir(outgoingDir, { recursive: true })
-  for (const name of jsonToReplace) {
-    const source = join(userDataRoot, name)
-    if (await pathExists(source)) {
-      await rename(source, join(outgoingDir, name))
-    }
-  }
-
-  let filesDirMoved = false
-  if (coversResources) {
-    const filesDir = join(userDataRoot, RESOURCE_FILES_DIR)
-    if (await pathExists(filesDir)) {
-      const dest = join(outgoingDir, RESOURCE_FILES_DIR)
-      await mkdir(dirname(dest), { recursive: true })
-      await rename(filesDir, dest)
-      filesDirMoved = true
-    }
-  }
-
-  return { filesDirMoved }
-}
-
-async function restoreOutgoing(userDataRoot: string, outgoingDir: string): Promise<void> {
-  if (!(await pathExists(outgoingDir))) {
-    return
-  }
-  for (const name of BUSINESS_JSON_FILES) {
-    const saved = join(outgoingDir, name)
-    const dest = join(userDataRoot, name)
-    if (await pathExists(saved)) {
-      if (await pathExists(dest)) {
-        await removeIfExists(dest)
-      }
-      await rename(saved, dest)
-    }
-  }
-  const savedFiles = join(outgoingDir, RESOURCE_FILES_DIR)
-  const destFiles = join(userDataRoot, RESOURCE_FILES_DIR)
-  if (await pathExists(savedFiles)) {
-    if (await pathExists(destFiles)) {
-      await removeIfExists(destFiles)
-    }
-    await mkdir(dirname(destFiles), { recursive: true })
-    await rename(savedFiles, destFiles)
-  }
-}
-
-async function removeNewlyPlacedPaths(
-  userDataRoot: string,
-  outgoingDir: string,
-  placedPaths: readonly string[],
-  filesDirMoved: boolean
-): Promise<void> {
-  for (const rel of placedPaths) {
-    const normalized = normalizeBackupPath(rel)
-    const isResourceFile =
-      normalized === RESOURCE_FILES_DIR || normalized.startsWith(RESOURCE_FILES_PREFIX)
-    if (isResourceFile && filesDirMoved) {
-      continue
-    }
-    const saved = join(outgoingDir, normalized)
-    if (await pathExists(saved)) {
-      continue
-    }
-    const dest = join(userDataRoot, normalized)
-    if (!isInside(userDataRoot, dest)) {
-      continue
-    }
-    if (await pathExists(dest)) {
-      await removeIfExists(dest)
-    }
-  }
-}
-
-async function placeStaging(userDataRoot: string, stagingDir: string, relativePaths: string[]): Promise<void> {
-  for (const rel of relativePaths) {
-    const source = join(stagingDir, rel)
-    const dest = join(userDataRoot, rel)
-    if (!isInside(userDataRoot, dest) || !isInside(stagingDir, source)) {
-      throw new Error(`恢复路径不安全：${rel}`)
-    }
-    await mkdir(dirname(dest), { recursive: true })
-    await rename(source, dest)
-  }
-}
-
 export interface RestoreOptions {
   appVersion?: string
   createSafetyBackup?: (userDataRoot: string) => Promise<string>
@@ -412,6 +288,14 @@ export async function restoreDataBackup(
   archivePath: string,
   options: RestoreOptions = {}
 ): Promise<RestoreResult> {
+  return withExclusiveDataAccess(() => restoreDataBackupExclusive(userDataRoot, archivePath, options))
+}
+
+async function restoreDataBackupExclusive(
+  userDataRoot: string,
+  archivePath: string,
+  options: RestoreOptions
+): Promise<RestoreResult> {
   const appVersion = options.appVersion ?? APP_RELEASE_VERSION
   const manifest = await verifyBackupArchive(archivePath)
 
@@ -429,75 +313,35 @@ export async function restoreDataBackup(
     throw new Error('恢复前安全备份失败，已停止恢复。未生成安全备份文件。')
   }
 
-  const token = `${process.pid}-${Date.now()}`
-  const stagingDir = join(userDataRoot, `.restore-staging-${token}`)
-  const outgoingDir = join(userDataRoot, `.restore-outgoing-${token}`)
-  await mkdir(stagingDir, { recursive: true })
+  const entries = parseZip(await readFile(archivePath))
+  const changes: FileChange[] = []
   const relativePaths: string[] = []
-  let moved: MoveAsideResult | undefined
-  let placedAttempted = false
-
-  try {
-    const zipBuf = await readFile(archivePath)
-    const entries = parseZip(zipBuf)
-    for (const entry of entries) {
-      const rel = relPathFromZipName(entry.name.replace(/\\/g, '/'))
-      if (!rel) {
-        continue
-      }
-      const dest = join(stagingDir, rel)
-      if (!isInside(stagingDir, dest)) {
-        throw new Error(`恢复路径不安全：${rel}`)
-      }
-      await mkdir(dirname(dest), { recursive: true })
-      await writeFile(dest, entry.data)
-      relativePaths.push(rel)
+  for (const entry of entries) {
+    const rel = relPathFromZipName(entry.name.replace(/\\/g, '/'))
+    if (!rel) continue
+    if (BUSINESS_JSON_FILES.includes(rel as typeof BUSINESS_JSON_FILES[number])) {
+      validateJsonText(join(userDataRoot, rel), entry.data.toString('utf8'), rel === 'settings.json')
     }
-
-    const keptPaths = await listKeptManagedPaths(userDataRoot, relativePaths)
-    moved = await moveManagedAside(userDataRoot, outgoingDir, relativePaths)
-    placedAttempted = true
-    await placeStaging(userDataRoot, stagingDir, relativePaths)
-    if (options.injectFailure === 'after-place') {
-      throw new Error('injected restore failure')
-    }
-
-    for (const file of manifest.files) {
-      const restored = join(userDataRoot, file.path)
-      if (!(await pathExists(restored))) {
-        throw new Error(`恢复后缺少文件：${file.path}`)
-      }
-      const digest = await sha256File(restored)
-      if (digest !== file.sha256) {
-        throw new Error(`恢复后校验失败：${file.path}`)
-      }
-    }
-
-    for (const kept of keptPaths) {
-      if (!(await pathExists(join(userDataRoot, kept)))) {
-        throw new Error(`恢复后丢失了备份未包含的现有数据：${kept}`)
-      }
-    }
-
-    await removeIfExists(outgoingDir)
-    await removeIfExists(stagingDir)
-    return { safetyBackupPath, restoredCount: manifest.files.length, keptPaths }
-  } catch (error) {
-    try {
-      if (placedAttempted) {
-        await removeNewlyPlacedPaths(
-          userDataRoot,
-          outgoingDir,
-          relativePaths,
-          moved?.filesDirMoved ?? false
-        )
-      }
-      await restoreOutgoing(userDataRoot, outgoingDir)
-      await removeIfNoFilesLeft(outgoingDir)
-    } catch {
-      // keep original error
-    }
-    await removeIfExists(stagingDir)
-    throw error
+    changes.push({ path: rel, data: entry.data })
+    relativePaths.push(rel)
   }
+  const keptPaths = await listKeptManagedPaths(userDataRoot, relativePaths)
+  // Preserve existing restore semantics: a resource-covering archive replaces
+  // the attachment set, including removing attachments absent from the archive.
+  if (backupCoversResources(relativePaths)) {
+    for (const rel of await collectResourceFileRelPaths(userDataRoot)) {
+      if (!relativePaths.includes(rel)) changes.push({ path: rel, data: null })
+    }
+  }
+  await commitFileTransaction(userDataRoot, changes, async () => {
+    if (options.injectFailure === 'after-place') throw new Error('injected restore failure')
+    for (const file of manifest.files) {
+      if (await sha256File(join(userDataRoot, file.path)) !== file.sha256) throw new Error('恢复后校验失败：' + file.path)
+    }
+    for (const kept of keptPaths) {
+      if (!(await pathExists(join(userDataRoot, kept)))) throw new Error('恢复后丢失保留数据：' + kept)
+    }
+  })
+  for (const rel of relativePaths) clearCorruptProtection(join(userDataRoot, rel))
+  return { safetyBackupPath, restoredCount: manifest.files.length, keptPaths }
 }

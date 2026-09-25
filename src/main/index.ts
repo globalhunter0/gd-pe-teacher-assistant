@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, shell } from 'electron'
 import { join } from 'node:path'
+import { inspect } from 'node:util'
 import { registerClassIpc } from './classIpc'
 import { getClassFilePath, loadClasses } from './classStore'
 import { setMainWindow } from './mainWindow'
@@ -36,6 +37,9 @@ import {
   loadTrainingSessions,
   loadTrainingTeams
 } from './trainingStore'
+import { recoverPendingTransactions } from '../shared/persistence/diskTransaction'
+import { replaceFileAtomic } from '../shared/persistence/atomicFile'
+import { getUserDataRoot } from './userDataPaths'
 import { assertBuiltinExamCatalog } from '@shared/examStandard'
 
 function createMainWindow(): void {
@@ -80,7 +84,26 @@ function createMainWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+const ownsDataLock = app.requestSingleInstanceLock()
+if (!ownsDataLock) app.quit()
+
+app.whenReady().then(async () => {
+  if (!ownsDataLock) return
+  try {
+    await recoverPendingTransactions(getUserDataRoot())
+  } catch (error) {
+    console.error('[data-safety] startup recovery blocked', error)
+    try {
+      await replaceFileAtomic(
+        join(getUserDataRoot(), 'data-safety-startup-error.log'),
+        `${new Date().toISOString()}\n${inspect(error, { depth: 8 })}\n`
+      )
+    } catch (logError) {
+      console.error('[data-safety] failed to persist recovery diagnostic', logError)
+    }
+    app.quit()
+    return
+  }
   registerScheduleIpc()
   registerClassIpc()
   registerStudentIpc()

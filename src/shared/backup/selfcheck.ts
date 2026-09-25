@@ -225,9 +225,12 @@ export async function runBackupRestoreSelfCheckOrThrow(): Promise<string> {
       throw new Error('损坏 JSON 被自动覆盖了')
     }
 
-    await writeJsonItemsAtomic(join(root, 'students.json'), [
-      { id: 'student-1', name: '张三', classId: 'class-1' }
-    ])
+    let overwriteBlocked = false
+    try { await writeJsonItemsAtomic(corruptPath, []) } catch { overwriteBlocked = true }
+    if (!overwriteBlocked || await readFile(corruptPath, 'utf8') !== beforeCorrupt) {
+      throw new Error('损坏文件必须禁止普通覆盖')
+    }
+    await restoreDataBackup(root, archivePath)
 
     const beforeSafety = await readFile(join(root, 'students.json'), 'utf8')
     let stopped = false

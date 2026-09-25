@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "preview": "electron-vite preview"
+    "preview": "electron-vite preview",
+    "check:data-safety": "node scripts/check-data-safety.mjs"
   },
   "dependencies": {
     "react": "^19.1.1",

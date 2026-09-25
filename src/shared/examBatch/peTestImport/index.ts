@@ -12,6 +12,6 @@ export { matchExcelStudent } from './matchStudent'
 export { mapExamRowToPeTestStatus } from './mapRecordStatus'
 export { resolveExamItemToTestItem } from './resolveTestItem'
 export { findDuplicatePeTests, mergePeTestsAtomically, planExamBatchPeTestImport } from './planImport'
-export { executeImportExamBatchToPeTests } from './execute'
+// The executor uses Node persistence; main-process callers import ./execute directly.
 export type { ExamBatchPeTestImportStores } from './execute'
 export { buildExamBatchPeTestImportPayload, PE_TEST_PRIMARY_IMPORT_LABEL, PE_TEST_WRITE_PIPELINE } from './entry'

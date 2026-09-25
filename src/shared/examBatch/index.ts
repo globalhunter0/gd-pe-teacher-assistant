@@ -52,7 +52,6 @@ export {
   findDuplicatePeTests,
   mergePeTestsAtomically,
   planExamBatchPeTestImport,
-  executeImportExamBatchToPeTests,
   buildExamBatchPeTestImportPayload,
   PE_TEST_PRIMARY_IMPORT_LABEL,
   PE_TEST_WRITE_PIPELINE

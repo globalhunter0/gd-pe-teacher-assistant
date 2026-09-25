@@ -1,4 +1,4 @@
-import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, copyFile, mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { APP_RELEASE_VERSION, BUSINESS_JSON_FILES } from '../shared/backup/types'
 import { createSafetyBackupArchive } from '../shared/backup/service'
@@ -12,7 +12,8 @@ import {
   type DataIntegritySnapshot,
   type SafeRepairPlan
 } from '../shared/dataIntegrity'
-import { pathExists, UserDataCorruptError } from '../shared/persistence/jsonFile'
+import { pathExists, recoverJsonTextAtomic, UserDataCorruptError } from '../shared/persistence/jsonFile'
+import { withExclusiveDataAccess } from '../shared/persistence/writeGate'
 import { loadClasses } from './classStore'
 import { loadPeSessions } from './peSessionStore'
 import { loadPeTests } from './peTestStore'
@@ -231,6 +232,12 @@ export interface SafeRepairResult {
 export async function runSafeRepairWithBackup(options?: {
   createSafetyBackup?: () => Promise<string>
 }): Promise<SafeRepairResult> {
+  return withExclusiveDataAccess(() => runSafeRepairExclusive(options))
+}
+
+async function runSafeRepairExclusive(options?: {
+  createSafetyBackup?: () => Promise<string>
+}): Promise<SafeRepairResult> {
   const before = await buildAndRunDataIntegrityAudit()
   const peSessionPath = join(getUserDataRoot(), 'pe-sessions.json')
   let rawExtra = [] as ReturnType<typeof scanRawPeSessionsForStatusRepairs>
@@ -309,7 +316,7 @@ export async function runSafeRepairWithBackup(options?: {
     }
   }
 
-  await writeFile(peSessionPath, nextText, 'utf8')
+  await recoverJsonTextAtomic(peSessionPath, nextText)
   const reportAfter = await buildAndRunStartupHealthCheck()
   return {
     ok: true,
