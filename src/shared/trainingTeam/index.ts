@@ -13,6 +13,7 @@ export type {
   TrainingResultKind,
   TrainingResultStatus,
   TrainingSession,
+  TrainingSessionRecordResult,
   TrainingSport,
   TrainingTeam,
   TrainingTeamDeleteAction,
@@ -109,6 +110,7 @@ export {
   linkedTrainingSessionForPlan,
   parseTrainingResults,
   parseTrainingSessions,
-  parseTrainingTeams
+  parseTrainingTeams,
+  recordTrainingSession
 } from './validate'
 export type { TrainingTeamDeleteImpact } from './validate'

@@ -155,7 +155,7 @@ async function main() {
     const invoke = (name: string, ...args: unknown[]) => handlers.get(name)!({}, ...args)
     const now = new Date().toISOString()
     const team = { id: 'training-team-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', parentTeamId: null, name: '事务训练队', sport: 'track', coach: '', notes: '', status: 'active', createdAt: now, updatedAt: now }
-    await invoke('trainingTeams:save', [team])
+    await invoke('trainingTeams:save', [team], [])
     const result = await invoke('trainingTeams:archive', team.id)
     assert.equal(result.teams[0].status, 'archived')
     await createDataBackup(root, join(root, 'training.gdpebak'))

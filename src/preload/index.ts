@@ -33,9 +33,9 @@ import type {
 import type {
   TrainingItem,
   TrainingPlan,
-  TrainingPlanSessionResult,
   TrainingResult,
   TrainingSession,
+  TrainingSessionRecordResult,
   TrainingTeam,
   TrainingTeamDeleteCheck,
   TrainingTeamMember,
@@ -150,7 +150,8 @@ const electronAPI = {
   },
   trainingTeams: {
     get: (): Promise<TrainingTeam[]> => ipcRenderer.invoke('trainingTeams:get'),
-    save: (items: TrainingTeam[]): Promise<TrainingTeam[]> => ipcRenderer.invoke('trainingTeams:save', items),
+    save: (items: TrainingTeam[], expected: TrainingTeam[]): Promise<TrainingTeam[]> =>
+      ipcRenderer.invoke('trainingTeams:save', items, expected),
     archive: (teamId: string): Promise<{ teams: TrainingTeam[]; plans: TrainingPlan[] }> =>
       ipcRenderer.invoke('trainingTeams:archive', teamId),
     deleteCheck: (teamId: string): Promise<TrainingTeamDeleteCheck> =>
@@ -160,29 +161,31 @@ const electronAPI = {
   },
   trainingPlans: {
     get: (): Promise<TrainingPlan[]> => ipcRenderer.invoke('trainingPlans:get'),
-    save: (items: TrainingPlan[]): Promise<TrainingPlan[]> => ipcRenderer.invoke('trainingPlans:save', items),
-    completeWithSession: (
-      planId: string,
-      session: TrainingSession
-    ): Promise<TrainingPlanSessionResult> =>
-      ipcRenderer.invoke('trainingPlans:completeWithSession', planId, session)
+    save: (items: TrainingPlan[], expected: TrainingPlan[]): Promise<TrainingPlan[]> =>
+      ipcRenderer.invoke('trainingPlans:save', items, expected)
   },
   trainingMembers: {
     add: (items: TrainingTeamMember[]): Promise<TrainingTeamMember[]> => ipcRenderer.invoke('trainingMembers:add', items),
     get: (): Promise<TrainingTeamMember[]> => ipcRenderer.invoke('trainingMembers:get'),
-    save: (items: TrainingTeamMember[]): Promise<TrainingTeamMember[]> => ipcRenderer.invoke('trainingMembers:save', items)
+    save: (items: TrainingTeamMember[], expected: TrainingTeamMember[]): Promise<TrainingTeamMember[]> =>
+      ipcRenderer.invoke('trainingMembers:save', items, expected)
   },
   trainingSessions: {
     get: (): Promise<TrainingSession[]> => ipcRenderer.invoke('trainingSessions:get'),
-    save: (items: TrainingSession[]): Promise<TrainingSession[]> => ipcRenderer.invoke('trainingSessions:save', items)
+    save: (items: TrainingSession[], expected: TrainingSession[]): Promise<TrainingSession[]> =>
+      ipcRenderer.invoke('trainingSessions:save', items, expected),
+    record: (session: TrainingSession, results: TrainingResult[]): Promise<TrainingSessionRecordResult> =>
+      ipcRenderer.invoke('trainingSessions:record', session, results)
   },
   trainingItems: {
     get: (): Promise<TrainingItem[]> => ipcRenderer.invoke('trainingItems:get'),
-    save: (items: TrainingItem[]): Promise<TrainingItem[]> => ipcRenderer.invoke('trainingItems:save', items)
+    save: (items: TrainingItem[], expected: TrainingItem[]): Promise<TrainingItem[]> =>
+      ipcRenderer.invoke('trainingItems:save', items, expected)
   },
   trainingResults: {
     get: (): Promise<TrainingResult[]> => ipcRenderer.invoke('trainingResults:get'),
-    save: (items: TrainingResult[]): Promise<TrainingResult[]> => ipcRenderer.invoke('trainingResults:save', items)
+    save: (items: TrainingResult[], expected: TrainingResult[]): Promise<TrainingResult[]> =>
+      ipcRenderer.invoke('trainingResults:save', items, expected)
   },
   backup: {
     create: (): Promise<

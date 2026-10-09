@@ -292,13 +292,7 @@ export default function TrainingTeamsPage({
       setActionError('该训练队已停用或已删除，不能再保存训练')
       return
     }
-    if (session.planId && !sessionRecord?.id) {
-      await training.completePlanWithSession(session.planId, session)
-    } else {
-      await training.upsertSession(session)
-    }
-    const retained = training.results.filter((item) => item.sessionId !== session.id)
-    await training.saveResults([...retained, ...sessionResults])
+    await training.recordSession(session, sessionResults)
     setSessionRecord(undefined)
     setSourcePlan(null)
     setTab(session.planId ? 'plans' : 'sessions')

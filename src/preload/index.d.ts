@@ -33,9 +33,9 @@ import type {
 import type {
   TrainingItem,
   TrainingPlan,
-  TrainingPlanSessionResult,
   TrainingResult,
   TrainingSession,
+  TrainingSessionRecordResult,
   TrainingTeam,
   TrainingTeamDeleteCheck,
   TrainingTeamMember,
@@ -140,32 +140,32 @@ export interface ElectronAPI {
   }
   trainingTeams: {
     get: () => Promise<TrainingTeam[]>
-    save: (items: TrainingTeam[]) => Promise<TrainingTeam[]>
+    save: (items: TrainingTeam[], expected: TrainingTeam[]) => Promise<TrainingTeam[]>
     archive: (teamId: string) => Promise<{ teams: TrainingTeam[]; plans: TrainingPlan[] }>
     deleteCheck: (teamId: string) => Promise<TrainingTeamDeleteCheck>
     safeDelete: (teamId: string) => Promise<TrainingTeamSafeDeleteResult & { plans: TrainingPlan[] }>
   }
   trainingPlans: {
     get: () => Promise<TrainingPlan[]>
-    save: (items: TrainingPlan[]) => Promise<TrainingPlan[]>
-    completeWithSession: (planId: string, session: TrainingSession) => Promise<TrainingPlanSessionResult>
+    save: (items: TrainingPlan[], expected: TrainingPlan[]) => Promise<TrainingPlan[]>
   }
   trainingMembers: {
     add: (items: TrainingTeamMember[]) => Promise<TrainingTeamMember[]>
     get: () => Promise<TrainingTeamMember[]>
-    save: (items: TrainingTeamMember[]) => Promise<TrainingTeamMember[]>
+    save: (items: TrainingTeamMember[], expected: TrainingTeamMember[]) => Promise<TrainingTeamMember[]>
   }
   trainingSessions: {
     get: () => Promise<TrainingSession[]>
-    save: (items: TrainingSession[]) => Promise<TrainingSession[]>
+    save: (items: TrainingSession[], expected: TrainingSession[]) => Promise<TrainingSession[]>
+    record: (session: TrainingSession, results: TrainingResult[]) => Promise<TrainingSessionRecordResult>
   }
   trainingItems: {
     get: () => Promise<TrainingItem[]>
-    save: (items: TrainingItem[]) => Promise<TrainingItem[]>
+    save: (items: TrainingItem[], expected: TrainingItem[]) => Promise<TrainingItem[]>
   }
   trainingResults: {
     get: () => Promise<TrainingResult[]>
-    save: (items: TrainingResult[]) => Promise<TrainingResult[]>
+    save: (items: TrainingResult[], expected: TrainingResult[]) => Promise<TrainingResult[]>
   }
   backup: {
     create: () => Promise<

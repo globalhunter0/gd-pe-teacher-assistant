@@ -1,16 +1,18 @@
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { runStagedJsonWrites } from '../shared/importTransaction/stagedWrite'
+import { assertCollectionUnchanged } from '../shared/persistence/collectionConflict'
 import {
   applyTrainingTeamSafeDelete,
   assertTrainingPlanChanges,
   cancelPlannedTrainingPlansForTeams,
   checkTrainingTeamSafeDelete,
-  completeTrainingPlanWithSession,
   hasTrainingTeamIdentityRefs,
   parseTrainingPlans,
   parseTrainingMembers,
+  parseTrainingResults,
   parseTrainingSessions,
-  parseTrainingTeams
+  parseTrainingTeams,
+  recordTrainingSession
 } from '../shared/trainingTeam/validate'
 import { loadSchedule } from './scheduleStore'
 import { loadStudents } from './studentStore'
@@ -47,9 +49,20 @@ function handleTraining(channel: string, handler: (event: IpcMainInvokeEvent, ..
   })
 }
 
+function handleTrainingSave<T>(
+  channel: string,
+  load: () => Promise<T[]>,
+  save: (event: IpcMainInvokeEvent, items: unknown) => Promise<T[]>
+): void {
+  handleTraining(channel, async (event, items: unknown, expected: unknown) => {
+    assertCollectionUnchanged(await load(), expected)
+    return save(event, items)
+  })
+}
+
 export function registerTrainingIpc(): void {
   handleTraining('trainingTeams:get', async () => loadTrainingTeams())
-  handleTraining('trainingTeams:save', async (_event, items: unknown) => {
+  handleTrainingSave('trainingTeams:save', loadTrainingTeams, async (_event, items: unknown) => {
     const next = parseTrainingTeams(items)
     const current = await loadTrainingTeams()
     const nextIds = new Set(next.map((item) => item.id))
@@ -92,13 +105,8 @@ export function registerTrainingIpc(): void {
       item.id === teamId ? { ...item, status: 'archived' as const, updatedAt: now } : item
     )
     const savedPlans = await saveTrainingPlans(nextPlans)
-    try {
-      const savedTeams = await saveTrainingTeams(nextTeams)
-      return { teams: savedTeams, plans: savedPlans }
-    } catch (error) {
-      await saveTrainingPlans(plans)
-      throw error
-    }
+    const savedTeams = await saveTrainingTeams(nextTeams)
+    return { teams: savedTeams, plans: savedPlans }
   })
   handleTraining('trainingTeams:deleteCheck', async (_event, teamId: unknown) => {
     if (typeof teamId !== 'string') {
@@ -162,7 +170,7 @@ export function registerTrainingIpc(): void {
   })
 
   handleTraining('trainingPlans:get', async () => loadTrainingPlans())
-  handleTraining('trainingPlans:save', async (_event, items: unknown) => {
+  handleTrainingSave('trainingPlans:save', loadTrainingPlans, async (_event, items: unknown) => {
     const [current, teams, sessions] = await Promise.all([
       loadTrainingPlans(),
       loadTrainingTeams(),
@@ -174,38 +182,34 @@ export function registerTrainingIpc(): void {
     assertTrainingPlanChanges(current, next, teams, sessions)
     return saveTrainingPlans(next)
   })
-  handleTraining(
-    'trainingPlans:completeWithSession',
-    async (_event, planId: unknown, sessionInput: unknown) => {
-      if (typeof planId !== 'string') {
-        throw new Error('训练计划编号不正确')
-      }
-      const [plans, sessions, teams] = await Promise.all([
-        loadTrainingPlans(),
-        loadTrainingSessions(),
-        loadTrainingTeams()
-      ])
-      const [session] = parseTrainingSessions([sessionInput], {
-        knownTeamIds: new Set(teams.map((item) => item.id)),
-        knownPlanIds: new Set(plans.map((item) => item.id))
-      })
-      const next = completeTrainingPlanWithSession(
-        plans,
-        sessions,
-        planId,
-        session,
-        new Date().toISOString()
-      )
-      const savedSessions = await saveTrainingSessions(next.sessions)
-      try {
-        const savedPlans = await saveTrainingPlans(next.plans)
-        return { sessions: savedSessions, plans: savedPlans }
-      } catch (error) {
-        await saveTrainingSessions(sessions)
-        throw error
-      }
-    }
-  )
+
+  handleTraining('trainingSessions:record', async (_event, sessionInput: unknown, resultsInput: unknown) => {
+    const [plans, sessions, results, teams, students] = await Promise.all([
+      loadTrainingPlans(),
+      loadTrainingSessions(),
+      loadTrainingResults(),
+      loadTrainingTeams(),
+      loadStudents()
+    ])
+    const [session] = parseTrainingSessions([sessionInput], {
+      knownTeamIds: new Set(teams.map((item) => item.id)),
+      knownPlanIds: new Set(plans.map((item) => item.id))
+    })
+    const next = recordTrainingSession(
+      plans,
+      sessions,
+      results,
+      session,
+      parseTrainingResults(resultsInput),
+      new Date().toISOString()
+    )
+    // Sessions first: result validation reads the staged session file.
+    const savedSessions = await saveTrainingSessions(next.sessions)
+    const savedPlans =
+      JSON.stringify(next.plans) === JSON.stringify(plans) ? plans : await saveTrainingPlans(next.plans)
+    const savedResults = await saveTrainingResults(next.results, new Set(students.map((item) => item.id)))
+    return { plans: savedPlans, sessions: savedSessions, results: savedResults }
+  })
 
   handleTraining('trainingMembers:add', async (_event, input: unknown) => {
     const [members, students, teams] = await Promise.all([loadTrainingMembers(), loadStudents(), loadTrainingTeams()])
@@ -216,19 +220,19 @@ export function registerTrainingIpc(): void {
     return saveTrainingMembers([...members, ...additions], new Set(students.map((student) => student.id)))
   })
   handleTraining('trainingMembers:get', async () => loadTrainingMembers())
-  handleTraining('trainingMembers:save', async (_event, items: unknown) => {
+  handleTrainingSave('trainingMembers:save', loadTrainingMembers, async (_event, items: unknown) => {
     const students = await loadStudents()
     return saveTrainingMembers(items, new Set(students.map((item) => item.id)))
   })
 
   handleTraining('trainingSessions:get', async () => loadTrainingSessions())
-  handleTraining('trainingSessions:save', async (_event, items: unknown) => saveTrainingSessions(items))
+  handleTrainingSave('trainingSessions:save', loadTrainingSessions, async (_event, items: unknown) => saveTrainingSessions(items))
 
   handleTraining('trainingItems:get', async () => loadTrainingItems())
-  handleTraining('trainingItems:save', async (_event, items: unknown) => saveTrainingItems(items))
+  handleTrainingSave('trainingItems:save', loadTrainingItems, async (_event, items: unknown) => saveTrainingItems(items))
 
   handleTraining('trainingResults:get', async () => loadTrainingResults())
-  handleTraining('trainingResults:save', async (_event, items: unknown) => {
+  handleTrainingSave('trainingResults:save', loadTrainingResults, async (_event, items: unknown) => {
     const students = await loadStudents()
     return saveTrainingResults(items, new Set(students.map((item) => item.id)))
   })

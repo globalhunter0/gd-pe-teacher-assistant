@@ -39,7 +39,7 @@ interface TrainingContextValue {
   upsertSession: (item: TrainingSession) => Promise<void>
   upsertPlan: (item: TrainingPlan) => Promise<void>
   deletePlan: (id: string) => Promise<void>
-  completePlanWithSession: (planId: string, session: TrainingSession) => Promise<void>
+  recordSession: (session: TrainingSession, sessionResults: TrainingResult[]) => Promise<void>
   upsertResult: (item: TrainingResult) => Promise<void>
   upsertItem: (item: TrainingItem) => Promise<void>
   deleteItem: (id: string) => Promise<void>
@@ -105,9 +105,9 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
   }, [])
 
   const saveTeams = useCallback(async (next: TrainingTeam[]) => {
-    const saved = await trainingBridge().trainingTeams.save(parseTrainingTeams(next))
+    const saved = await trainingBridge().trainingTeams.save(parseTrainingTeams(next), teams)
     setTeams(saved)
-  }, [])
+  }, [teams])
 
   const memberAddQueue = useRef<Promise<void>>(Promise.resolve())
   const addMembers = useCallback((next: TrainingTeamMember[]) => {
@@ -120,29 +120,29 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
   }, [])
 
   const saveMembers = useCallback(async (next: TrainingTeamMember[]) => {
-    const saved = await trainingBridge().trainingMembers.save(parseTrainingMembers(next))
+    const saved = await trainingBridge().trainingMembers.save(parseTrainingMembers(next), members)
     setMembers(saved)
-  }, [])
+  }, [members])
 
   const saveSessions = useCallback(async (next: TrainingSession[]) => {
-    const saved = await trainingBridge().trainingSessions.save(parseTrainingSessions(next))
+    const saved = await trainingBridge().trainingSessions.save(parseTrainingSessions(next), sessions)
     setSessions(saved)
-  }, [])
+  }, [sessions])
 
   const savePlans = useCallback(async (next: TrainingPlan[]) => {
-    const saved = await trainingBridge().trainingPlans.save(parseTrainingPlans(next))
+    const saved = await trainingBridge().trainingPlans.save(parseTrainingPlans(next), plans)
     setPlans(saved)
-  }, [])
+  }, [plans])
 
   const saveItems = useCallback(async (next: TrainingItem[]) => {
-    const saved = await trainingBridge().trainingItems.save(parseTrainingItems(next))
+    const saved = await trainingBridge().trainingItems.save(parseTrainingItems(next), items)
     setItems(saved)
-  }, [])
+  }, [items])
 
   const saveResults = useCallback(async (next: TrainingResult[]) => {
-    const saved = await trainingBridge().trainingResults.save(parseTrainingResults(next))
+    const saved = await trainingBridge().trainingResults.save(parseTrainingResults(next), results)
     setResults(saved)
-  }, [])
+  }, [results])
 
   const upsertTeam = useCallback(
     async (item: TrainingTeam) => {
@@ -197,11 +197,15 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
     [plans, savePlans]
   )
 
-  const completePlanWithSession = useCallback(
-    async (planId: string, session: TrainingSession) => {
-      const result = await trainingBridge().trainingPlans.completeWithSession(planId, session)
+  const recordSession = useCallback(
+    async (session: TrainingSession, sessionResults: TrainingResult[]) => {
+      const result = await trainingBridge().trainingSessions.record(
+        parseTrainingSessions([session])[0],
+        parseTrainingResults(sessionResults)
+      )
       setPlans(result.plans)
       setSessions(result.sessions)
+      setResults(result.results)
     },
     []
   )
@@ -255,7 +259,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
       upsertSession,
       upsertPlan,
       deletePlan,
-      completePlanWithSession,
+      recordSession,
       upsertResult,
       upsertItem,
       deleteItem
@@ -285,7 +289,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
       upsertResult,
       upsertSession,
       upsertPlan,
-      completePlanWithSession,
+      recordSession,
       upsertTeam
     ]
   )

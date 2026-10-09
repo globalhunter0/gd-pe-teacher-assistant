@@ -16,6 +16,7 @@ import type {
   TrainingResultKind,
   TrainingResultStatus,
   TrainingSession,
+  TrainingSessionRecordResult,
   TrainingSport,
   TrainingTeam,
   TrainingTeamDeleteCheck,
@@ -398,6 +399,34 @@ export function completeTrainingPlanWithSession(
         : item
     ),
     sessions: [...sessions, session]
+  }
+}
+
+/** A new session started from a plan completes that plan; the session's bound results are replaced as a whole. */
+export function recordTrainingSession(
+  plans: ReadonlyArray<TrainingPlan>,
+  sessions: ReadonlyArray<TrainingSession>,
+  results: ReadonlyArray<TrainingResult>,
+  session: TrainingSession,
+  sessionResults: ReadonlyArray<TrainingResult>,
+  now: string
+): TrainingSessionRecordResult {
+  if (sessionResults.some((item) => item.sessionId !== session.id)) {
+    throw new Error('当堂成绩必须绑定到本次训练记录')
+  }
+  const isNew = !sessions.some((item) => item.id === session.id)
+  const next: TrainingPlanSessionResult =
+    session.planId && isNew
+      ? completeTrainingPlanWithSession(plans, sessions, session.planId, session, now)
+      : {
+          plans: [...plans],
+          sessions: isNew
+            ? [...sessions, session]
+            : sessions.map((item) => (item.id === session.id ? session : item))
+        }
+  return {
+    ...next,
+    results: [...results.filter((item) => item.sessionId !== session.id), ...sessionResults]
   }
 }
 

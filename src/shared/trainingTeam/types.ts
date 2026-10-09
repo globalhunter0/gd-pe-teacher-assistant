@@ -192,6 +192,10 @@ export interface TrainingPlanSessionResult {
   sessions: TrainingSession[]
 }
 
+export interface TrainingSessionRecordResult extends TrainingPlanSessionResult {
+  results: TrainingResult[]
+}
+
 export const TRAINING_SPORTS: TrainingSport[] = ['track', 'basketball', 'football', 'other']
 export const TRAINING_TEAM_STATUSES: TrainingTeamStatus[] = ['active', 'archived', 'deleted']
 export const TRAINING_MEMBER_STATUSES: TrainingMemberStatus[] = ['active', 'left']
