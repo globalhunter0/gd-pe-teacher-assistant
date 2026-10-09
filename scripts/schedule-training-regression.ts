@@ -8,6 +8,8 @@ import { detectScheduleWorkbook, extractScheduleWorkbook } from '../src/shared/s
 import { applyScheduleSync, emptyScheduleResolutions } from '../src/shared/schedule/reconcile'
 import { parseScheduleItems } from '../src/shared/schedule/validate'
 import { saveSchedule, loadSchedule } from '../src/main/scheduleStore'
+import { loadTrainingItems, loadTrainingResults } from '../src/main/trainingStore'
+import { withExclusiveDataAccess } from '../src/shared/persistence/writeGate'
 import { klass, pupil, team, trainingMember, trainingPlan, trainingSession, trainingResult } from './rc-smoke-fixtures'
 
 async function main() {
@@ -109,5 +111,34 @@ async function main() {
   assert.equal(noTime.rows.length, 2)
   assert(noTime.rows.every((row) => row.startTime === '' && row.endTime === ''))
   console.log('PASS 自定义作息、第9–13节、周末、缺少时间及保存重载')
+
+  const [itemsA, itemsB, resultsFromLoad] = await Promise.all([
+    loadTrainingItems(),
+    loadTrainingItems(),
+    loadTrainingResults()
+  ])
+  assert(itemsA.length > 0)
+  assert.deepEqual(itemsA, itemsB)
+  assert(resultsFromLoad.length >= 0)
+  console.log('PASS 启动并行加载训练项目只合并一次内置项，不因写锁忙碌误失败')
+
+  let releaseHold!: () => void
+  const hold = withExclusiveDataAccess(() => new Promise<void>((done) => { releaseHold = done }))
+  const queuedAdd = invoke('trainingMembers:add', [{
+    ...manual,
+    id: `training-member-${randomUUID()}`,
+    studentId: `student-${randomUUID()}`,
+    nameSnapshot: '排队队员'
+  }])
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  let addSettled = false
+  void queuedAdd.then(() => { addSettled = true })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert(!addSettled, '写锁忙碌时应排队等待')
+  releaseHold()
+  await hold
+  await queuedAdd
+  assert.equal((await invoke('trainingMembers:get')).some((m: { nameSnapshot: string }) => m.nameSnapshot === '排队队员'), true)
+  console.log('PASS 写锁忙碌时训练写入排队提交，不立即失败')
 }
 main().catch((error) => { console.error(error); process.exitCode = 1 })

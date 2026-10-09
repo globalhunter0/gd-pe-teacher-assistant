@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process'
 import { replaceFileAtomic } from './atomicFile'
 import { commitFileTransaction, recoverPendingTransactions } from './diskTransaction'
 import { loadJsonItemsFile, readJsonItemsFile, recoverJsonTextAtomic, writeJsonDocumentAtomic, writeJsonItemsAtomic } from './jsonFile'
-import { withExclusiveDataAccess } from './writeGate'
+import { withExclusiveDataAccess, withWrite } from './writeGate'
 import { runStagedJsonWrites } from '../importTransaction/stagedWrite'
 import { runBackupRestoreSelfCheckOrThrow } from '../backup/selfcheck'
 import { runV0290P02ImportTransactionSelfCheckOrThrow } from '../importTransaction/v0290P02Selfcheck'
@@ -141,6 +141,22 @@ async function main(): Promise<void> {
     await assert.rejects(writeJsonItemsAtomic(a, []), /事务正在执行/)
     await assert.rejects(readJsonItemsFile(a, parse), /事务正在执行/)
     release(); await paused; passed('L 提交/恢复期间阻止并发业务读写')
+    await writeJsonItemsAtomic(a, [{ n: 1 }])
+    let releaseWriter!: () => void
+    const writing = withWrite(a, () => new Promise<void>((done) => { releaseWriter = done }))
+    await new Promise<void>((done) => setTimeout(done, 0))
+    let exclusiveDone = false
+    const queued = withExclusiveDataAccess(async () => {
+      await writeJsonItemsAtomic(b, [{ n: 2 }])
+      exclusiveDone = true
+    })
+    assert(!exclusiveDone)
+    releaseWriter()
+    await writing
+    await queued
+    assert(exclusiveDone)
+    assert.deepEqual(await readJsonItemsFile(b, parse), [{ n: 2 }])
+    passed('M 同文件写入忙碌时独占事务排队等待而非立即失败')
     for (const mode of ['--crash-prepare', '--crash-commit', '--crash-rollback', '--crash-committed', '--crash-cleanup']) {
       await replaceFileAtomic(a, json(1)); await replaceFileAtomic(b, json(1))
       const crash = spawnSync(process.execPath, [process.argv[1], mode, root], { encoding: 'utf8' })

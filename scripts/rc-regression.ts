@@ -163,8 +163,16 @@ async function main() {
     assert.deepEqual(await fs.readdir(join(root, '.data-transactions')), [])
     const lock = deferred(), entered = deferred()
     const holder = withExclusiveDataAccess(async () => { entered.resolve(); await lock.promise })
-    await entered.promise; await assert.rejects(invoke('trainingTeams:archive', team.id), /保存|恢复/)
-    lock.resolve(); await holder
+    await entered.promise
+    const pendingArchive = invoke('trainingTeams:archive', team.id)
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    let settled = false
+    void pendingArchive.then(() => { settled = true })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    assert(!settled, '训练写入应在独占事务结束后才提交')
+    lock.resolve()
+    await holder
+    await pendingArchive
   })
   console.log(`RC regression passed: ${count} groups`)
 }

@@ -17,6 +17,8 @@ import type {
 } from '../shared/trainingTeam/types'
 import { loadUserJsonItems, saveUserJsonItems, userJsonPath } from './userJsonFile'
 
+let trainingItemsLoad: Promise<TrainingItem[]> | undefined
+
 export function getTrainingTeamFilePath(): string {
   return userJsonPath('training-teams.json')
 }
@@ -112,13 +114,23 @@ export async function saveTrainingSessions(input: unknown): Promise<TrainingSess
   return saveUserJsonItems('training-sessions.json', items)
 }
 
-export async function loadTrainingItems(): Promise<TrainingItem[]> {
+async function loadTrainingItemsOnce(): Promise<TrainingItem[]> {
   const loaded = await loadUserJsonItems('training-items.json', parseTrainingItems, '训练项目')
   const merged = mergeBuiltinTrainingItems(loaded)
   if (merged.length !== loaded.length) {
     await saveUserJsonItems('training-items.json', merged)
   }
   return merged
+}
+
+/** Startup and IPC may request items concurrently; coalesce to one merge/save pass. */
+export async function loadTrainingItems(): Promise<TrainingItem[]> {
+  if (!trainingItemsLoad) {
+    trainingItemsLoad = loadTrainingItemsOnce().finally(() => {
+      trainingItemsLoad = undefined
+    })
+  }
+  return trainingItemsLoad
 }
 
 export async function saveTrainingItems(input: unknown): Promise<TrainingItem[]> {

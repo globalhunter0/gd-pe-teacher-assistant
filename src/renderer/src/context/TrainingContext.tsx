@@ -47,13 +47,26 @@ interface TrainingContextValue {
 
 const TrainingContext = createContext<TrainingContextValue | null>(null)
 
-function trainingBridge(): Window['electronAPI'] {
-  const api = window.electronAPI
-  if (!api || !api.trainingTeams || !api.trainingPlans || !api.trainingMembers || !api.trainingSessions || !api.trainingItems || !api.trainingResults) {
-    const keys = api ? Object.keys(api).join(', ') : '(无 electronAPI)'
-    throw new Error(`训练队接口未加载。请完全退出应用后重新打开，不要只刷新页面。当前接口：${keys}`)
+function hasTrainingBridge(api: Window['electronAPI'] | undefined): api is Window['electronAPI'] {
+  return Boolean(
+    api?.trainingTeams &&
+      api.trainingPlans &&
+      api.trainingMembers &&
+      api.trainingSessions &&
+      api.trainingItems &&
+      api.trainingResults
+  )
+}
+
+async function trainingBridge(): Promise<Window['electronAPI']> {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const api = window.electronAPI
+    if (hasTrainingBridge(api)) return api
+    await new Promise((resolve) => setTimeout(resolve, 50))
   }
-  return api
+  const api = window.electronAPI
+  const keys = api ? Object.keys(api).join(', ') : '(无 electronAPI)'
+  throw new Error(`训练队接口未加载。请完全退出应用后重新打开，不要只刷新页面。当前接口：${keys}`)
 }
 
 export function TrainingProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -65,12 +78,13 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
   const [results, setResults] = useState<TrainingResult[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const loadGeneration = useRef(0)
 
   useEffect(() => {
-    let cancelled = false
+    const generation = ++loadGeneration.current
     async function load(): Promise<void> {
       try {
-        const api = trainingBridge()
+        const api = await trainingBridge()
         const [nextTeams, nextPlans, nextMembers, nextSessions, nextItems, nextResults] = await Promise.all([
           api.trainingTeams.get(),
           api.trainingPlans.get(),
@@ -79,40 +93,38 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
           api.trainingItems.get(),
           api.trainingResults.get()
         ])
-        if (!cancelled) {
-          setTeams(nextTeams)
-          setPlans(nextPlans)
-          setMembers(nextMembers)
-          setSessions(nextSessions)
-          setItems(nextItems)
-          setResults(nextResults)
-          setError(null)
-        }
+        if (generation !== loadGeneration.current) return
+        setTeams(nextTeams)
+        setPlans(nextPlans)
+        setMembers(nextMembers)
+        setSessions(nextSessions)
+        setItems(nextItems)
+        setResults(nextResults)
+        setError(null)
       } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '训练队数据读取失败')
-        }
+        if (generation !== loadGeneration.current) return
+        setError(loadError instanceof Error ? loadError.message : '训练队数据读取失败')
       } finally {
-        if (!cancelled) {
+        if (generation === loadGeneration.current) {
           setLoading(false)
         }
       }
     }
     void load()
     return () => {
-      cancelled = true
+      loadGeneration.current++
     }
   }, [])
 
   const saveTeams = useCallback(async (next: TrainingTeam[]) => {
-    const saved = await trainingBridge().trainingTeams.save(parseTrainingTeams(next), teams)
+    const saved = await (await trainingBridge()).trainingTeams.save(parseTrainingTeams(next), teams)
     setTeams(saved)
   }, [teams])
 
   const memberAddQueue = useRef<Promise<void>>(Promise.resolve())
   const addMembers = useCallback((next: TrainingTeamMember[]) => {
     const operation = memberAddQueue.current.then(async () => {
-      const saved = await trainingBridge().trainingMembers.add(parseTrainingMembers(next))
+      const saved = await (await trainingBridge()).trainingMembers.add(parseTrainingMembers(next))
       setMembers(saved)
     })
     memberAddQueue.current = operation.catch(() => {})
@@ -120,27 +132,27 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
   }, [])
 
   const saveMembers = useCallback(async (next: TrainingTeamMember[]) => {
-    const saved = await trainingBridge().trainingMembers.save(parseTrainingMembers(next), members)
+    const saved = await (await trainingBridge()).trainingMembers.save(parseTrainingMembers(next), members)
     setMembers(saved)
   }, [members])
 
   const saveSessions = useCallback(async (next: TrainingSession[]) => {
-    const saved = await trainingBridge().trainingSessions.save(parseTrainingSessions(next), sessions)
+    const saved = await (await trainingBridge()).trainingSessions.save(parseTrainingSessions(next), sessions)
     setSessions(saved)
   }, [sessions])
 
   const savePlans = useCallback(async (next: TrainingPlan[]) => {
-    const saved = await trainingBridge().trainingPlans.save(parseTrainingPlans(next), plans)
+    const saved = await (await trainingBridge()).trainingPlans.save(parseTrainingPlans(next), plans)
     setPlans(saved)
   }, [plans])
 
   const saveItems = useCallback(async (next: TrainingItem[]) => {
-    const saved = await trainingBridge().trainingItems.save(parseTrainingItems(next), items)
+    const saved = await (await trainingBridge()).trainingItems.save(parseTrainingItems(next), items)
     setItems(saved)
   }, [items])
 
   const saveResults = useCallback(async (next: TrainingResult[]) => {
-    const saved = await trainingBridge().trainingResults.save(parseTrainingResults(next), results)
+    const saved = await (await trainingBridge()).trainingResults.save(parseTrainingResults(next), results)
     setResults(saved)
   }, [results])
 
@@ -153,7 +165,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
 
   const archiveTeam = useCallback(
     async (id: string) => {
-      const result = await trainingBridge().trainingTeams.archive(id)
+      const result = await (await trainingBridge()).trainingTeams.archive(id)
       setTeams(result.teams)
       setPlans(result.plans)
     },
@@ -162,7 +174,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
 
   const deleteTeam = useCallback(
     async (id: string) => {
-      const result = await trainingBridge().trainingTeams.safeDelete(id)
+      const result = await (await trainingBridge()).trainingTeams.safeDelete(id)
       setTeams(result.teams)
       setMembers(result.members)
       setPlans(result.plans)
@@ -172,7 +184,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
   )
 
   const checkDeleteTeam = useCallback(
-    async (id: string) => trainingBridge().trainingTeams.deleteCheck(id),
+    async (id: string) => await (await trainingBridge()).trainingTeams.deleteCheck(id),
     []
   )
 
@@ -199,7 +211,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
 
   const recordSession = useCallback(
     async (session: TrainingSession, sessionResults: TrainingResult[]) => {
-      const result = await trainingBridge().trainingSessions.record(
+      const result = await (await trainingBridge()).trainingSessions.record(
         parseTrainingSessions([session])[0],
         parseTrainingResults(sessionResults)
       )
