@@ -4,7 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 if (!process.env.npm_execpath) throw new Error('Run with npm run check:release')
 await mkdir('release', { recursive: true })
 const results = []
-for (const script of ['check:node', 'check:web', 'build', 'check:data-safety', 'check:classroom', 'check:pe-test', 'check:selfchecks', 'check:rc']) {
+for (const script of ['check:node', 'check:web', 'build', 'check:data-safety', 'check:classroom', 'check:pe-test', 'check:selfchecks', 'check:schedule-training', 'check:rc']) {
   const start = Date.now()
   const result = spawnSync(process.execPath, [process.env.npm_execpath, 'run', script], { encoding: 'utf8', timeout: 240000 })
   await writeFile(`release/${script.replaceAll(':', '-')}.log`, `${result.stdout ?? ''}${result.stderr ?? ''}`)

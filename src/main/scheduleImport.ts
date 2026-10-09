@@ -19,7 +19,7 @@ import { getMainWindow } from './mainWindow'
 import { loadSchedule, saveSchedule } from './scheduleStore'
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024
-const MAX_DATA_ROWS = 80
+const MAX_DATA_ROWS = 210
 const ALLOWED_EXTENSIONS = new Set(['.xlsx', '.xls'])
 
 interface ScheduleImportSession {

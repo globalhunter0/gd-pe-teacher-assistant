@@ -1,9 +1,10 @@
 import type { ScheduleItem } from './types'
 import { isListedClass, type ClassRecord } from '../class'
 
-export type WorkbenchClockStatus = 'done' | 'live' | 'next' | 'later'
+export type WorkbenchClockStatus = 'done' | 'live' | 'next' | 'later' | 'untimed'
 
 export const WORKBENCH_CLOCK_LABELS: Record<WorkbenchClockStatus, string> = {
+  untimed: '时间待填写',
   done: '已结束',
   live: '进行中',
   next: '下一节',
@@ -43,6 +44,7 @@ export function workbenchClockStatus(
   currentId: string | undefined,
   nextId: string | undefined
 ): WorkbenchClockStatus {
+  if (!lesson.startTime || !lesson.endTime) return 'untimed'
   if (currentId === lesson.id) {
     return 'live'
   }

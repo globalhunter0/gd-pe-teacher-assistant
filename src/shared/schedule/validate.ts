@@ -17,6 +17,7 @@ function optionalId(value: unknown, pattern: RegExp, message: string): string | 
 }
 
 function normalizeTime(value: unknown): string {
+  if (value === '') return ''
   if (typeof value !== 'string') {
     throw new Error('上课时间格式不正确')
   }
@@ -41,11 +42,11 @@ function normalizeTime(value: unknown): string {
 }
 
 function isWeekday(value: unknown): value is Weekday {
-  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 7
 }
 
 function isPeriod(value: unknown): value is Period {
-  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6 || value === 7 || value === 8
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 30
 }
 
 function isCourseType(value: unknown): value is CourseType {
@@ -83,7 +84,8 @@ export function parseScheduleItems(input: unknown): ScheduleItem[] {
       throw new Error('课表条目字段不正确')
     }
 
-    if (toMinutes(startTime) >= toMinutes(endTime)) {
+    if (Boolean(startTime) !== Boolean(endTime)) throw new Error('请同时填写开始和结束时间，或同时留空')
+    if (startTime && toMinutes(startTime) >= toMinutes(endTime)) {
       throw new Error('结束时间必须晚于开始时间')
     }
 

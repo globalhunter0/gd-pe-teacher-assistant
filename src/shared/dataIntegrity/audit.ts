@@ -240,8 +240,9 @@ export function runDataIntegrityAudit(snapshot: DataIntegritySnapshot): DataInte
     }
   }
 
+  const athleteIds = new Set([...studentIds, ...snapshot.trainingMembers.filter((member) => member.source === 'manual').map((member) => member.studentId)])
   for (const member of snapshot.trainingMembers) {
-    if (!studentIds.has(member.studentId)) {
+    if (!athleteIds.has(member.studentId)) {
       issues.push(
         issue({
           severity: member.status === 'left' ? 'info' : 'warning',
@@ -256,7 +257,7 @@ export function runDataIntegrityAudit(snapshot: DataIntegritySnapshot): DataInte
   }
 
   for (const result of snapshot.trainingResults) {
-    if (!studentIds.has(result.studentId)) {
+    if (!athleteIds.has(result.studentId)) {
       issues.push(
         issue({
           severity: 'warning',

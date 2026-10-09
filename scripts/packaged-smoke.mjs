@@ -13,7 +13,9 @@ import { runRcUiSmoke } from './rc-ui-smoke.mjs'
 // No app code is replaced, and all data resides below a new sentinel-protected directory.
 const root = await mkdtemp(join(tmpdir(), 'gdpe-rc-smoke-中文 空格-'))
 const expectedVersion = process.env.GDPE_SMOKE_VERSION ?? JSON.parse(await readFile('package.json', 'utf8')).version
-const report = { root, expectedVersion, os: release(), username: userInfo().username, checks: [], startedAt: new Date().toISOString() }
+let smokeUsername = process.env.USERNAME ?? 'unknown'
+try { smokeUsername = userInfo().username } catch { /* Restricted Windows sessions may not expose account details. */ }
+const report = { root, expectedVersion, os: release(), username: smokeUsername, checks: [], startedAt: new Date().toISOString() }
 const pass = name => { report.checks.push(name); console.log(`PASS packaged: ${name}`) }
 const delay = ms => new Promise(r => setTimeout(r, ms))
 const fixtureFile = join(root, 'fixtures.mjs')
@@ -71,7 +73,7 @@ try {
     const bytes = await readFile(join(previous, 'students.json'))
     running = await launch(previous)
     assert.equal((await running.api('students.get')).length, 2)
-    assert.equal((await running.api('peSessions.get'))[0].notes, '打包课堂保存')
+    assert.equal((await running.api('peSessions.get')).find(session => session.id === fixture.session.id)?.notes, '打包课堂保存')
     assert.deepEqual(await readFile(join(previous, 'students.json')), bytes)
     await running.stop(); running = undefined
     pass('NSIS 覆盖安装后读取前次隔离数据，未重置或迁移')
@@ -84,6 +86,10 @@ try {
     const clicked = await running.page.eval(`(() => {const b=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(label)}); if(!b)return false;b.click();return true})()`)
     assert(clicked, `navigation missing: ${label}`); await delay(150)
     assert(!(await running.page.eval(`document.body.innerText.includes('启动失败')`)))
+    if (label === '我的课表' && expectedVersion !== '0.29.0') {
+      assert(!(await running.page.eval(`document.body.innerText.includes('恢复默认课表')`)), '示例课表恢复入口必须移除')
+      assert(!(await running.page.eval(`document.body.innerText.includes('团队1')`)), '空课表不得显示旧示例团队')
+    }
   }
   pass('空数据页面与 AI 暂未开放标识')
   await running.api('classes.save', [fixture.klass], [])
@@ -129,7 +135,7 @@ try {
   pass('内置评分标准在打包主进程校验并在 Renderer 加载')
   await running.page.send('Page.captureScreenshot', { format: 'png' }).then(r => writeFile(join(root, 'packaged-standards.png'), Buffer.from(r.data, 'base64')))
   await running.stop(); running = await launch(fresh)
-  assert.deepEqual(await running.api('students.get'), students); assert.equal((await running.api('peSessions.get'))[0].notes, '打包课堂保存'); assert.equal((await running.api('resources.get')).length, 1)
+  assert.deepEqual(await running.api('students.get'), students); assert.equal((await running.api('peSessions.get')).find(session => session.id === fixture.session.id)?.notes, '打包课堂保存'); assert.equal((await running.api('resources.get')).length, 1)
   for (const [name, hash] of Object.entries(snapshot)) assert.equal(sha(await readFile(join(fresh, name))), hash, `restore/restart changed ${name}`)
   assert.equal(await readFile(join(fresh, 'resources/files', resources[0].storedFileName), 'utf8'), 'RC 附件内容')
   pass('第二次启动与恢复后重启数据一致')
@@ -182,5 +188,5 @@ try {
 } catch (error) { report.passed = false; report.error = String(error.stack); console.error(error); process.exitCode = 1 }
 finally {
   if (running) await running.stop().catch(() => {})
-  report.finishedAt = new Date().toISOString(); await mkdir('release', { recursive: true }); await writeFile('release/rc-smoke-results.json', JSON.stringify(report, null, 2)); console.log(`Smoke artifacts: ${root}`)
+  report.finishedAt = new Date().toISOString(); await mkdir('release', { recursive: true }); await writeFile(process.env.GDPE_SMOKE_REPORT ?? 'release/rc-smoke-results.json', JSON.stringify(report, null, 2)); console.log(`Smoke artifacts: ${root}`)
 }

@@ -6,7 +6,6 @@ export {
   PERIODS,
   WEEKDAYS,
   WEEKDAY_LABELS,
-  WEEKLY_SCHEDULE,
   getDefaultSlotTime,
   parseScheduleItems
 } from './types'

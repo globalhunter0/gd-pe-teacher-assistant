@@ -68,7 +68,7 @@ export interface DataIntegritySnapshot {
   }>
   teachingPlans: ReadonlyArray<{ id: string }>
   trainingTeams: ReadonlyArray<{ id: string; status: string }>
-  trainingMembers: ReadonlyArray<{ id: string; teamId: string; studentId: string; status: string }>
+  trainingMembers: ReadonlyArray<{ id: string; teamId: string; studentId: string; status: string; source?: string }>
   trainingSessions: ReadonlyArray<{ id: string; teamId: string; planId?: string | null }>
   trainingResults: ReadonlyArray<{
     id: string

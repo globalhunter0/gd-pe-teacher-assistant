@@ -37,13 +37,14 @@ function currentMinutes(now: Date): number {
 }
 
 function toWeekday(day: number): Weekday | null {
-  if (day >= 1 && day <= 5) {
-    return day as Weekday
+  if (day >= 0 && day <= 6) {
+    return (day === 0 ? 7 : day) as Weekday
   }
   return null
 }
 
 export function formatTimeRange(startTime: string, endTime: string): string {
+  if (!startTime || !endTime) return '时间待填写'
   const start = startTime.replace(/^0/, '')
   const end = endTime.replace(/^0/, '')
   return `${start}-${end}`
@@ -111,6 +112,9 @@ export function createScheduleService(items: ScheduleItem[]) {
       }
     }
 
+    if (lessons.some((item) => !item.startTime || !item.endTime)) {
+      return { weekday, weekdayLabel, lessons, lessonCount: lessons.length, currentLesson: null, nextLesson: null, status: 'between', statusLabel: '课表时间待完善', nextLessonLabel: '请补充课表时间', nextLessonHint: weekdayLabel }
+    }
     const minutes = currentMinutes(now)
     const currentLesson =
       lessons.find((item) => minutes >= toMinutes(item.startTime) && minutes <= toMinutes(item.endTime)) ??

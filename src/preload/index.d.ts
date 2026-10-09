@@ -151,6 +151,7 @@ export interface ElectronAPI {
     completeWithSession: (planId: string, session: TrainingSession) => Promise<TrainingPlanSessionResult>
   }
   trainingMembers: {
+    add: (items: TrainingTeamMember[]) => Promise<TrainingTeamMember[]>
     get: () => Promise<TrainingTeamMember[]>
     save: (items: TrainingTeamMember[]) => Promise<TrainingTeamMember[]>
   }

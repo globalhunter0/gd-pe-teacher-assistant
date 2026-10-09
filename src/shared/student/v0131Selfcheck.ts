@@ -10,7 +10,7 @@ import {
 } from '../class/validate'
 import { parsePeSessions } from '../peSession/validate'
 import { parsePeTestSessions } from '../peTest/validate'
-import { DEFAULT_SCHEDULE } from '../schedule/defaultSchedule'
+import { LEGACY_SCHEDULE_FIXTURE } from '../schedule/__fixtures__/legacySchedule'
 import { parseScheduleItems } from '../schedule/validate'
 import { workbenchBoundClassId, workbenchListedClass, workbenchUsesTrainingTeam } from '../schedule/workbench'
 import { collectStudentOptions } from '../statistics/students'
@@ -82,10 +82,10 @@ export function runV0131RegressionSelfCheck(): void {
   assert(!dashboard.includes('训练队：'), '工作台卡片不得显示训练队绑定')
   assert(dashboard.includes('workbenchListedClass'), '工作台只读取当前行政班')
 
-  const parsedSchedule = parseScheduleItems(DEFAULT_SCHEDULE)
+  const parsedSchedule = parseScheduleItems(LEGACY_SCHEDULE_FIXTURE)
   assert(parsedSchedule.length === 17, '默认课表仍为 17 节')
-  for (let i = 0; i < DEFAULT_SCHEDULE.length; i++) {
-    const original = DEFAULT_SCHEDULE[i]
+  for (let i = 0; i < LEGACY_SCHEDULE_FIXTURE.length; i++) {
+    const original = LEGACY_SCHEDULE_FIXTURE[i]
     const item = parsedSchedule[i]
     assert(
       item.team === original.team &&
@@ -98,7 +98,7 @@ export function runV0131RegressionSelfCheck(): void {
     )
   }
 
-  const legacy = parseScheduleItems([{ ...DEFAULT_SCHEDULE[0], trainingTeamId: 'training-team-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }])
+  const legacy = parseScheduleItems([{ ...LEGACY_SCHEDULE_FIXTURE[0], trainingTeamId: 'training-team-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }])
   assert(legacy[0].trainingTeamId, 'legacy trainingTeamId 仍可读取')
   assert(workbenchBoundClassId(legacy[0]) === undefined, '工作台忽略仅有训练队的格子')
   assert(!workbenchUsesTrainingTeam(legacy[0]), '工作台不使用 trainingTeamId')
@@ -274,9 +274,9 @@ export function runV0131RegressionSelfCheck(): void {
   assert(parsePeSessions(lessonSessions)[0].classId === class1, '删除班级不删除课堂历史')
   assert(parsePeTestSessions(testSessions)[0].classId === class1, '删除班级不删除体育测试历史')
   assert(membersBefore[0].studentId === studentA && membersBefore[0].teamId === 'training-team-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '删除班级不删除训练队 membership')
-  const boundLesson = parseScheduleItems([{ ...DEFAULT_SCHEDULE[0], classId: class1 }])[0]
+  const boundLesson = parseScheduleItems([{ ...LEGACY_SCHEDULE_FIXTURE[0], classId: class1 }])[0]
   assert(workbenchListedClass(boundLesson, afterClassDelete) === undefined, '删除后工作台不把已删除班级当作当前绑定')
-  assert(parseScheduleItems(DEFAULT_SCHEDULE).length === 17, '删除后课表 17 节仍存在')
+  assert(parseScheduleItems(LEGACY_SCHEDULE_FIXTURE).length === 17, '删除后课表 17 节仍存在')
   assert(summarizeClassLessons(lessonSessions).lessonCount === 1, '删除后历史统计可读取')
   assert(tombstoneClass?.studentCount === 40, '删除后 studentCount 手工值仍保留')
 

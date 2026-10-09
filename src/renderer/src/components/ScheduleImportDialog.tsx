@@ -133,7 +133,7 @@ export default function ScheduleImportDialog({ onClose, onImported }: ScheduleIm
       <div className="dialog dialog--import" role="dialog" aria-labelledby={titleId} onMouseDown={(event) => event.stopPropagation()}>
         <h3 id={titleId}>导入/更新课表</h3>
         <p className="dialog-slot">
-          选择 Excel 后自动识别课位（星期 + 节次）。已有课表会显示保留 / 新增 / 更新 / 待移除，确认前不会写入。
+          上传学校 Excel 课表，按实际星期、节次和时间读取（支持周末及第1–30节）。缺少时间会标为待填写，不套用默认作息。已有课表会显示保留 / 新增 / 更新 / 待移除，确认前不会写入。
         </p>
 
         {result ? (

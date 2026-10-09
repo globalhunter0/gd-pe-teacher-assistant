@@ -7,7 +7,7 @@ import {
   shouldShowScheduleUnboundHint
 } from '../schedule/classroomEligibility'
 import { isScheduleSpecialEventText } from '../schedule/specialEvent'
-import { DEFAULT_SCHEDULE } from '../schedule/defaultSchedule'
+import { LEGACY_SCHEDULE_FIXTURE } from '../schedule/__fixtures__/legacySchedule'
 import type { ScheduleItem } from '../schedule/types'
 import type { PEClassSession, PEStudentRecord, PeLessonType } from './types'
 import {
@@ -207,7 +207,7 @@ export function runPeSessionWorkbenchSelfCheckOrThrow(): string {
   assert(resolveWorkbenchLessonRecord([], todayLesson(), TODAY).status === 'unrecorded', '空课堂记录列表正常')
   assert(findSessionForWorkbenchLesson([], todayLesson(), TODAY) === undefined, '空课表关联查找不得崩溃')
   assert(parseScheduleItems([]).length === 0, '空课表正常')
-  assert(DEFAULT_SCHEDULE.every((item) => item.weekday >= 1 && item.weekday <= 5), '默认课表不含周末格子')
+  assert(LEGACY_SCHEDULE_FIXTURE.every((item) => item.weekday >= 1 && item.weekday <= 5), '默认课表不含周末格子')
 
   const weekendProbe = workbenchClockStatus(
     { id: 'w1-p1', startTime: '08:00', endTime: '08:40' },

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
   getTrainingItemDeleteBlockers,
   parseTrainingItems,
@@ -26,6 +26,7 @@ interface TrainingContextValue {
   loading: boolean
   error: string | null
   saveTeams: (items: TrainingTeam[]) => Promise<void>
+  addMembers: (items: TrainingTeamMember[]) => Promise<void>
   saveMembers: (items: TrainingTeamMember[]) => Promise<void>
   saveSessions: (items: TrainingSession[]) => Promise<void>
   savePlans: (items: TrainingPlan[]) => Promise<void>
@@ -106,6 +107,16 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
   const saveTeams = useCallback(async (next: TrainingTeam[]) => {
     const saved = await trainingBridge().trainingTeams.save(parseTrainingTeams(next))
     setTeams(saved)
+  }, [])
+
+  const memberAddQueue = useRef<Promise<void>>(Promise.resolve())
+  const addMembers = useCallback((next: TrainingTeamMember[]) => {
+    const operation = memberAddQueue.current.then(async () => {
+      const saved = await trainingBridge().trainingMembers.add(parseTrainingMembers(next))
+      setMembers(saved)
+    })
+    memberAddQueue.current = operation.catch(() => {})
+    return operation
   }, [])
 
   const saveMembers = useCallback(async (next: TrainingTeamMember[]) => {
@@ -232,6 +243,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
       error,
       saveTeams,
       saveMembers,
+      addMembers,
       saveSessions,
       savePlans,
       saveItems,
@@ -262,6 +274,7 @@ export function TrainingProvider({ children }: { children: React.ReactNode }): R
       results,
       saveItems,
       saveMembers,
+      addMembers,
       saveResults,
       saveSessions,
       savePlans,

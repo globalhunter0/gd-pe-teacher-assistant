@@ -27,7 +27,7 @@ export async function runRcUiSmoke(app, root, fixture, pass) {
     await pause()
   }
   const weekday = new Date().getDay()
-  assert(weekday >= 1 && weekday <= 5, 'Run classroom workbench smoke on a teaching weekday')
+  // Uploaded schedules also support Saturday and Sunday.
   const schedulePath = join(root, 'RC课表.xlsx')
   await app.dialog('save', schedulePath)
   await app.api('examBatch.saveWorkbook', { defaultFileName: 'RC课表.xlsx', sheets: [{ name: '课表', rows: [
@@ -56,7 +56,8 @@ export async function runRcUiSmoke(app, root, fixture, pass) {
   const recorded = sessions.find(s => s.period === 2)
   assert(recorded); assert.equal(recorded.records[0].attendanceStatus, 'absent')
   assert.equal(recorded.records[0].note, 'RC界面考勤备注'); assert.equal(recorded.records[0].performanceTags.length, 1)
-  await click('工作台'); await wait(`document.querySelectorAll('.badge-recorded').length === 2 && document.body.innerText.includes('继续记录')`)
+  const expectedRecorded = schedule.filter(lesson => lesson.weekday === (weekday || 7) && sessions.some(session => session.scheduleLessonId === lesson.id && session.date === recorded.date)).length
+  await click('工作台'); await wait(`document.querySelectorAll('.badge-recorded').length === ${expectedRecorded} && document.body.innerText.includes('继续记录')`)
   pass('RC 真实界面开始课堂、考勤、标签、备注、保存，工作台进入已记录状态（界面文案：记录中）')
 
   await click('体育测试'); await click('快速录入')
@@ -104,4 +105,24 @@ export async function runRcUiSmoke(app, root, fixture, pass) {
   assert.equal((await app.api('trainingTeams.get'))[0].id, fixture.team.id)
   pass('RC 训练队与教学计划创建读取')
   await reload()
+  await click('训练队')
+  await wait(`!!document.querySelector('.training-list button')`)
+  await app.page.eval(`document.querySelector('.training-list button').click()`)
+  await click('队员')
+  await wait(`!!document.querySelector('.manual-members-form textarea')`)
+  await app.page.eval(`(() => { const field = document.querySelector('.manual-members-form textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(field, ${JSON.stringify('手动甲\n手动乙')}); field.dispatchEvent(new Event('input', { bubbles: true })); })()`)
+  await click('添加 2 名队员')
+  await wait(`document.querySelector('.team-member-roster-heading h3 span')?.textContent === '2'`)
+  const manualMembers = await app.api('trainingMembers.get')
+  assert.equal(manualMembers.length, 2)
+  assert(manualMembers.every(member => member.source === 'manual'))
+  await app.page.eval(`(() => { const panel = document.querySelector('.team-member-add'); if (!panel.open) panel.querySelector('summary').click(); })()`)
+  await click('从名单选择')
+  assert(await app.page.eval(`document.querySelector('.team-member-picker').getBoundingClientRect().height > 0`))
+  await app.page.eval(`document.querySelector('.team-member-picker button:not(:disabled)').click()`)
+  await wait(`document.querySelector('.team-member-roster-heading h3 span')?.textContent === '3'`)
+  assert.equal((await app.api('trainingMembers.get')).length, 3)
+  await reload()
+  assert.equal((await app.api('trainingMembers.get')).length, 3)
+  pass('RC 队员新界面：手动批量添加、来源切换、已有学生加入、人数更新与重启保存')
 }

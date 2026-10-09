@@ -42,6 +42,8 @@ export function parseWeekdayCell(raw: string): Weekday | null {
   if (text === '') {
     return null
   }
+  if (/^(星期|周|礼拜)?[日天七7]$/.test(text)) return 7
+  if (/^(星期|周|礼拜)?[六6]$/.test(text)) return 6
   const named: Array<[RegExp, Weekday]> = [
     [/(星期|周|礼拜)?一|星期1|周1/, 1],
     [/(星期|周|礼拜)?二|星期2|周2/, 2],
@@ -62,30 +64,14 @@ export function parseWeekdayCell(raw: string): Weekday | null {
 
 export function parsePeriodCell(raw: string): Period | null {
   const text = raw.replace(/\s+/g, '')
-  const match = text.match(/^第?([1-8一二三四五六七八])节?$/)
-  if (!match) {
-    return null
-  }
+  const match = text.match(/^第?(\d{1,2}|[一二三四五六七八九十]{1,3})节?$/)
+  if (!match) return null
   const token = match[1]
-  const mapped: Record<string, Period> = {
-    '1': 1,
-    '2': 2,
-    '3': 3,
-    '4': 4,
-    '5': 5,
-    '6': 6,
-    '7': 7,
-    '8': 8,
-    一: 1,
-    二: 2,
-    三: 3,
-    四: 4,
-    五: 5,
-    六: 6,
-    七: 7,
-    八: 8
-  }
-  return mapped[token] ?? null
+  const digits = '零一二三四五六七八九'
+  const number = /^\d+$/.test(token) ? Number(token) : token.includes('十')
+    ? (token.split('十')[0] ? digits.indexOf(token.split('十')[0]) : 1) * 10 + (token.split('十')[1] ? digits.indexOf(token.split('十')[1]) : 0)
+    : digits.indexOf(token)
+  return Number.isInteger(number) && number >= 1 && number <= 30 ? number : null
 }
 
 export function parseCourseTypeCell(raw: string): CourseType {
@@ -238,10 +224,10 @@ function weeklyGridHeader(cells: string[]): NonNullable<DetectedScheduleTable['g
     const weekday = parseWeekdayCell(cell)
     return weekday ? [{ weekday, column }] : []
   })
-  if (periodColumn < 0 || timeColumn < 0 || weekdayColumns.length < 2) {
+  if (periodColumn < 0 || weekdayColumns.length < 2) {
     return null
   }
-  return { periodColumn, timeColumn, weekdayColumns }
+  return { periodColumn, timeColumn: timeColumn < 0 ? null : timeColumn, weekdayColumns }
 }
 
 function detectHeaderRow(rows: string[][]): LocatedHeader | null {
@@ -436,7 +422,7 @@ export function extractScheduleWorkbook(
           incoming.push({
             sheetName: table.sheetName,
             excelRow: row.excelRow,
-            weekdayRaw: `星期${'一二三四五'[weekday - 1]}`,
+            weekdayRaw: `星期${'一二三四五六日'[weekday - 1]}`,
             periodRaw,
             teamRaw,
             weekday,
@@ -506,8 +492,8 @@ export function extractScheduleWorkbook(
         teamRaw,
         weekday,
         period,
-        startTime: range?.startTime ?? parseTimeCell(startRaw) ?? defaults.startTime,
-        endTime: range?.endTime ?? parseTimeCell(cellAt(row.cells, mapping.endTime)) ?? defaults.endTime,
+        startTime: range?.startTime ?? parseTimeCell(startRaw) ?? (startRaw || defaults.startTime),
+        endTime: range?.endTime ?? parseTimeCell(cellAt(row.cells, mapping.endTime)) ?? (cellAt(row.cells, mapping.endTime) || defaults.endTime),
         team: teamRaw.trim(),
         courseType: parseCourseTypeCell(cellAt(row.cells, mapping.courseType) || teamRaw)
       })

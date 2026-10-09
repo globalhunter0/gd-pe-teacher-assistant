@@ -168,6 +168,7 @@ const electronAPI = {
       ipcRenderer.invoke('trainingPlans:completeWithSession', planId, session)
   },
   trainingMembers: {
+    add: (items: TrainingTeamMember[]): Promise<TrainingTeamMember[]> => ipcRenderer.invoke('trainingMembers:add', items),
     get: (): Promise<TrainingTeamMember[]> => ipcRenderer.invoke('trainingMembers:get'),
     save: (items: TrainingTeamMember[]): Promise<TrainingTeamMember[]> => ipcRenderer.invoke('trainingMembers:save', items)
   },

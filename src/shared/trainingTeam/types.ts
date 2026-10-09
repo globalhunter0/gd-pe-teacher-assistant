@@ -32,6 +32,7 @@ export interface TrainingTeam {
 }
 
 export interface TrainingTeamMember {
+  source?: 'student' | 'manual'
   id: string
   teamId: string
   studentId: string

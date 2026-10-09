@@ -1,6 +1,6 @@
-export type Weekday = 1 | 2 | 3 | 4 | 5
+export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7
 
-export type Period = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
+export type Period = number
 
 export type CourseType = 'regular' | 'big' | 'other'
 
@@ -21,7 +21,9 @@ export const WEEKDAY_LABELS: Record<Weekday, string> = {
   2: '星期二',
   3: '星期三',
   4: '星期四',
-  5: '星期五'
+  5: '星期五',
+  6: '星期六',
+  7: '星期日'
 }
 
 export const COURSE_TYPE_LABELS: Record<CourseType, string> = {

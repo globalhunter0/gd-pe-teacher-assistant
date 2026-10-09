@@ -142,11 +142,13 @@ export async function loadTrainingResults(): Promise<TrainingResult[]> {
 
 export async function saveTrainingResults(input: unknown, knownStudentIds: ReadonlySet<string>): Promise<TrainingResult[]> {
   const [teams, items, sessions] = await Promise.all([loadTrainingTeams(), loadTrainingItems(), loadTrainingSessions()])
+  const members = await loadTrainingMembers()
+  const athleteIds = new Set([...knownStudentIds, ...members.filter((item) => item.source === 'manual').map((item) => item.studentId)])
   const parsed = parseTrainingResults(input, {
     knownTeamIds: new Set(teams.map((item) => item.id)),
     knownItemIds: new Set(items.map((item) => item.id)),
     knownSessionIds: new Set(sessions.map((item) => item.id)),
-    knownStudentIds
+    knownStudentIds: athleteIds
   })
   return saveUserJsonItems('training-results.json', parsed)
 }

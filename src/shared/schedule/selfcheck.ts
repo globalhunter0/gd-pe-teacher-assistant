@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readJsonItemsFile, writeJsonItemsAtomic } from '../persistence/jsonFile'
-import { DEFAULT_SCHEDULE } from './defaultSchedule'
+import { LEGACY_SCHEDULE_FIXTURE } from './__fixtures__/legacySchedule'
 import {
   assertScheduleLinksRoundTrip,
   assertScheduleTrainingTeamSelections,
@@ -37,7 +37,7 @@ function trainingTeam(
 }
 
 function oldFormatItems(): Array<Omit<ScheduleItem, 'id' | 'classId' | 'trainingTeamId'>> {
-  return DEFAULT_SCHEDULE.map((item) => ({
+  return LEGACY_SCHEDULE_FIXTURE.map((item) => ({
     weekday: item.weekday,
     period: item.period,
     startTime: item.startTime,
@@ -51,8 +51,8 @@ function assertUnchangedCore(loaded: ScheduleItem[]): void {
   if (loaded.length !== 17) {
     throw new Error(`旧课表应仍为 17 节，实际 ${loaded.length}`)
   }
-  for (let i = 0; i < DEFAULT_SCHEDULE.length; i++) {
-    const original = DEFAULT_SCHEDULE[i]
+  for (let i = 0; i < LEGACY_SCHEDULE_FIXTURE.length; i++) {
+    const original = LEGACY_SCHEDULE_FIXTURE[i]
     const item = loaded[i]
     if (
       item.team !== original.team ||

@@ -50,6 +50,7 @@ export {
   classLabelOf,
   currentMemberCount,
   currentRosterStudents,
+  trainingRosterStudents,
   filterSchoolWideStudents,
   hasActiveMembership,
   isActiveMembership,

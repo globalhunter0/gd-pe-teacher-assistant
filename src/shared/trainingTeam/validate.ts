@@ -510,7 +510,8 @@ export function parseTrainingMembers(input: unknown, options: ParseMemberOptions
     if (options.knownTeamIds && !options.knownTeamIds.has(record.teamId)) {
       throw new Error('队员所属训练队不存在')
     }
-    if (options.knownStudentIds && !options.knownStudentIds.has(record.studentId)) {
+    if (record.source !== undefined && record.source !== 'student' && record.source !== 'manual') throw new Error('队员来源不正确')
+    if (record.source !== 'manual' && options.knownStudentIds && !options.knownStudentIds.has(record.studentId)) {
       throw new Error('队员关联的学生不存在')
     }
     if (!isMemberStatus(record.status) || !isGender(record.genderSnapshot)) {
@@ -530,6 +531,7 @@ export function parseTrainingMembers(input: unknown, options: ParseMemberOptions
       id: record.id,
       teamId: record.teamId,
       studentId: record.studentId,
+      ...(record.source === 'manual' ? { source: 'manual' as const } : {}),
       joinedAt: record.joinedAt,
       leftAt,
       status: record.status,

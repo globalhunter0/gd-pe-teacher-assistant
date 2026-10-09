@@ -44,13 +44,25 @@ export function activeMembersOfTeam(members: ReadonlyArray<TrainingTeamMember>, 
   return members.filter((item) => item.teamId === teamId && isActiveMembership(item))
 }
 
+/** Manual athletes live in the training roster, without creating administrative classes. */
+export function trainingRosterStudents(students: ReadonlyArray<StudentRecord>, members: ReadonlyArray<TrainingTeamMember>): StudentRecord[] {
+  const result = new Map(students.map((student) => [student.id, student]))
+  for (const member of members) {
+    if (member.source !== 'manual' || result.has(member.studentId)) continue
+    result.set(member.studentId, { id: member.studentId, classId: '', name: member.nameSnapshot,
+      studentNo: member.studentNoSnapshot, gender: member.genderSnapshot, status: 'active',
+      notes: member.notes, createdAt: member.createdAt, updatedAt: member.updatedAt })
+  }
+  return [...result.values()]
+}
+
 export function currentRosterStudents(
   teamId: string,
   members: ReadonlyArray<TrainingTeamMember>,
   students: ReadonlyArray<StudentRecord>
 ): StudentRecord[] {
   const activeIds = new Set(activeMembersOfTeam(members, teamId).map((item) => item.studentId))
-  return students.filter((student) => student.status === 'active' && activeIds.has(student.id))
+  return trainingRosterStudents(students, members).filter((student) => student.status === 'active' && activeIds.has(student.id))
 }
 
 export function currentMemberCount(

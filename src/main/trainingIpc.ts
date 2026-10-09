@@ -8,6 +8,7 @@ import {
   completeTrainingPlanWithSession,
   hasTrainingTeamIdentityRefs,
   parseTrainingPlans,
+  parseTrainingMembers,
   parseTrainingSessions,
   parseTrainingTeams
 } from '../shared/trainingTeam/validate'
@@ -206,6 +207,14 @@ export function registerTrainingIpc(): void {
     }
   )
 
+  handleTraining('trainingMembers:add', async (_event, input: unknown) => {
+    const [members, students, teams] = await Promise.all([loadTrainingMembers(), loadStudents(), loadTrainingTeams()])
+    const additions = parseTrainingMembers(input, {
+      knownTeamIds: new Set(teams.filter((team) => team.status === 'active').map((team) => team.id)),
+      knownStudentIds: new Set(students.filter((student) => student.status === 'active').map((student) => student.id))
+    })
+    return saveTrainingMembers([...members, ...additions], new Set(students.map((student) => student.id)))
+  })
   handleTraining('trainingMembers:get', async () => loadTrainingMembers())
   handleTraining('trainingMembers:save', async (_event, items: unknown) => {
     const students = await loadStudents()

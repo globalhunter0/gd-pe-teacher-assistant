@@ -24,10 +24,8 @@ import { useSchedule, useScheduleService } from '../context/ScheduleContext'
 import { useTraining } from '../context/TrainingContext'
 import {
   COURSE_TYPE_LABELS,
-  PERIODS,
   WEEKDAY_LABELS,
   WEEKDAYS,
-  getPeriodTimeLabel,
   type Period,
   type ScheduleItem,
   type Weekday
@@ -44,7 +42,7 @@ interface SchedulePageProps {
 }
 
 export default function SchedulePage({ onStartRecord, onOpenSession }: SchedulePageProps): React.JSX.Element {
-  const { items, loading, error, saveItems, restoreDefault, applyLoadedItems } = useSchedule()
+  const { items, loading, error, saveItems, applyLoadedItems } = useSchedule()
   const { classes } = useClasses()
   const { sessions } = usePeSessions()
   const training = useTraining()
@@ -61,7 +59,11 @@ export default function SchedulePage({ onStartRecord, onOpenSession }: ScheduleP
   const [actionError, setActionError] = useState<string | null>(null)
   const [slot, setSlot] = useState<EditingSlot | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [extraPeriod, setExtraPeriod] = useState(0)
 
+  const periods = Array.from({ length: Math.max(1, extraPeriod, ...items.map((item) => item.period)) }, (_, i) => i + 1)
+  const weekdays = [...WEEKDAYS, ...([6, 7] as Weekday[]).filter((day) => editing || items.some((item) => item.weekday === day))]
+  const rowStyle = { gridTemplateColumns: `90px repeat(${weekdays.length}, minmax(140px, 1fr))` }
   const editingLesson = slot ? scheduleService.getLessonAt(slot.weekday, slot.period) : undefined
   const visibleIds = useMemo(() => items.map((item) => item.id), [items])
   const selectedCount = selectedIds.length
@@ -105,17 +107,6 @@ export default function SchedulePage({ onStartRecord, onOpenSession }: ScheduleP
 
     const next = items.filter((item) => !(item.weekday === slot.weekday && item.period === slot.period))
     await saveItems(next)
-    setSlot(null)
-  }
-
-  function handleRestore(): void {
-    if (!window.confirm('恢复后，当前课表修改将被替换为初始课表，是否继续？')) {
-      return
-    }
-
-    void restoreDefault()
-    setEditing(false)
-    exitBulkMode()
     setSlot(null)
   }
 
@@ -174,9 +165,6 @@ export default function SchedulePage({ onStartRecord, onOpenSession }: ScheduleP
             </>
           ) : (
             <>
-              <button type="button" className="btn" onClick={handleRestore}>
-                恢复默认课表
-              </button>
               <button
                 type="button"
                 className={editing ? 'btn btn-primary' : 'btn'}
@@ -208,7 +196,7 @@ export default function SchedulePage({ onStartRecord, onOpenSession }: ScheduleP
       {error ? <p className="page-error">{error}</p> : null}
       {actionError ? <p className="page-error">{actionError}</p> : null}
 
-      {editing ? <p className="edit-hint">编辑模式：点击任意格子即可添加、修改或删除课程。</p> : null}
+      {editing ? <div className="toolbar"><p className="edit-hint">点击格子编辑课程和作息时间，未填写时间的课程不会自动推算上课状态。</p><button className="btn" type="button" disabled={periods.length >= 30} onClick={() => setExtraPeriod(periods.length + 1)}>增加节次</button></div> : null}
       {bulkMode ? (
         <div className="toolbar schedule-bulk-toolbar">
           <label className="toolbar-field">
@@ -225,11 +213,11 @@ export default function SchedulePage({ onStartRecord, onOpenSession }: ScheduleP
 
       <div className="timetable-wrap">
         <div className="timetable" role="table">
-          <div className="timetable-row" role="row">
+          <div className="timetable-row" style={rowStyle} role="row">
             <div className="timetable-heading timetable-period-col" role="columnheader">
               节次
             </div>
-            {WEEKDAYS.map((weekday) => (
+            {weekdays.map((weekday) => (
               <div
                 key={weekday}
                 className={weekday === todayWeekday ? 'timetable-heading is-today' : 'timetable-heading'}
@@ -240,13 +228,13 @@ export default function SchedulePage({ onStartRecord, onOpenSession }: ScheduleP
               </div>
             ))}
           </div>
-          {PERIODS.map((period) => (
-            <div className="timetable-row" role="row" key={period}>
+          {periods.map((period) => (
+            <div className="timetable-row" style={rowStyle} role="row" key={period}>
               <div className="timetable-period" role="rowheader">
                 <span>第{period}节</span>
-                {getPeriodTimeLabel(period) ? <span className="period-time">{getPeriodTimeLabel(period)}</span> : null}
+
               </div>
-              {WEEKDAYS.map((weekday) => {
+              {weekdays.map((weekday) => {
                 const lesson = scheduleService.getLessonAt(weekday, period)
                 const boundClass = lesson ? workbenchListedClass(lesson, classes) : undefined
                 const trainingLink = training.loading
@@ -406,6 +394,7 @@ function ScheduleCell({
       <label className={`${typeClass} is-selectable${selectedClass}`}>
         <input type="checkbox" checked={selected} onChange={onToggle} />
         <span className="lesson-team">{lesson.team}</span>
+        <span className="period-time">{lesson.startTime ? `${lesson.startTime}–${lesson.endTime}` : '时间待填写'}</span>
         <span className="lesson-type">{COURSE_TYPE_LABELS[lesson.courseType]}</span>
         {classLabel ? <span className="lesson-link">班：{classLabel}</span> : null}
         {trainingTeamLabel ? <span className="lesson-link">队：{trainingTeamLabel}</span> : null}
@@ -438,6 +427,7 @@ function ScheduleCell({
     return (
       <button type="button" className={`${typeClass} is-editable`} onClick={onSelect}>
         <span className="lesson-team">{lesson.team}</span>
+        <span className="period-time">{lesson.startTime ? `${lesson.startTime}–${lesson.endTime}` : '时间待填写'}</span>
         <span className="lesson-type">{COURSE_TYPE_LABELS[lesson.courseType]}</span>
         {classLabel ? <span className="lesson-link">班：{classLabel}</span> : null}
         {trainingTeamLabel ? <span className="lesson-link">队：{trainingTeamLabel}</span> : null}
@@ -448,6 +438,7 @@ function ScheduleCell({
   return (
     <div className={typeClass}>
       <span className="lesson-team">{lesson.team}</span>
+        <span className="period-time">{lesson.startTime ? `${lesson.startTime}–${lesson.endTime}` : '时间待填写'}</span>
       <span className="lesson-type">{COURSE_TYPE_LABELS[lesson.courseType]}</span>
       {classLabel ? <span className="lesson-link">班：{classLabel}</span> : null}
       {trainingTeamLabel ? <span className="lesson-link">队：{trainingTeamLabel}</span> : null}

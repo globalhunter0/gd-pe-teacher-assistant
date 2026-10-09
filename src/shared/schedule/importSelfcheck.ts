@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readJsonItemsFile, writeJsonItemsAtomic } from '../persistence/jsonFile'
-import { DEFAULT_SCHEDULE } from './defaultSchedule'
+import { LEGACY_SCHEDULE_FIXTURE } from './__fixtures__/legacySchedule'
 import {
   detectScheduleWorkbook,
   extractScheduleWorkbook,
@@ -44,8 +44,8 @@ function incoming(
 }
 
 export async function runScheduleImportSelfCheckOrThrow(): Promise<string> {
-  const defaultSnapshot = JSON.stringify(DEFAULT_SCHEDULE)
-  assert(DEFAULT_SCHEDULE.length === 17, 'defaultSchedule 必须保持 17 节')
+  const defaultSnapshot = JSON.stringify(LEGACY_SCHEDULE_FIXTURE)
+  assert(LEGACY_SCHEDULE_FIXTURE.length === 17, 'defaultSchedule 必须保持 17 节')
   assert(parseWeekdayCell('星期一') === 1 && parsePeriodCell('第2节') === 2, '应能识别星期和节次')
   assert(
     parseTimeRangeCell('8:00–8:40')?.startTime === '08:00' &&
@@ -124,7 +124,7 @@ export async function runScheduleImportSelfCheckOrThrow(): Promise<string> {
   assert(workbenchWeekly(current) === 3, '取消后当前课表不变')
   assert(workbenchWeekly(synced) === 3, '工作台本周课时跟随同步后课表')
 
-  const seventeen = parseScheduleItems(DEFAULT_SCHEDULE)
+  const seventeen = parseScheduleItems(LEGACY_SCHEDULE_FIXTURE)
   const secondWave = seventeen.slice(0, 16).map((item, index) =>
     incoming(index + 2, item.weekday, item.period, index === 0 ? `${item.team}-改` : item.team, item.startTime, item.endTime)
   )
@@ -138,7 +138,7 @@ export async function runScheduleImportSelfCheckOrThrow(): Promise<string> {
   const oldJson = parseScheduleItems(
     seventeen.map(({ id: _id, ...rest }) => rest)
   )
-  assert(oldJson.length === 17 && oldJson[0].id === DEFAULT_SCHEDULE[0].id, '旧 JSON 无 id 字段仍兼容')
+  assert(oldJson.length === 17 && oldJson[0].id === LEGACY_SCHEDULE_FIXTURE[0].id, '旧 JSON 无 id 字段仍兼容')
 
   const conflictPreview = buildSchedulePreview(current, [incoming(2, 1, 1, '甲'), incoming(3, 1, 1, '乙')], {
     resolutions: { ...emptyScheduleResolutions(), acknowledgeRemoves: true }
@@ -283,8 +283,8 @@ export async function runScheduleImportSelfCheckOrThrow(): Promise<string> {
     rmSync(dir, { recursive: true, force: true })
   }
 
-  assert(JSON.stringify(DEFAULT_SCHEDULE) === defaultSnapshot, 'defaultSchedule 不得被导入改写')
-  assert(DEFAULT_SCHEDULE.length === 17, 'defaultSchedule 仍保持 17 节')
+  assert(JSON.stringify(LEGACY_SCHEDULE_FIXTURE) === defaultSnapshot, 'defaultSchedule 不得被导入改写')
+  assert(LEGACY_SCHEDULE_FIXTURE.length === 17, 'defaultSchedule 仍保持 17 节')
   return 'schedule import reconciliation self-check passed'
 }
 

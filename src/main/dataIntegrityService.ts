@@ -127,6 +127,7 @@ async function buildSnapshot(): Promise<DataIntegritySnapshot> {
       id: item.id,
       teamId: item.teamId,
       studentId: item.studentId,
+      source: item.source,
       status: item.status
     })),
     trainingSessions: trainingSessions.items.map((item) => ({

@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readJsonItemsFile, writeJsonItemsAtomic } from '../persistence/jsonFile'
-import { DEFAULT_SCHEDULE } from './defaultSchedule'
+import { LEGACY_SCHEDULE_FIXTURE } from './__fixtures__/legacySchedule'
 import { applyScheduleBulkDelete, parseScheduleItems } from './validate'
 import type { ScheduleItem } from './types'
 
@@ -21,10 +21,10 @@ function workbenchTodayCount(items: ReadonlyArray<ScheduleItem>, weekday: Schedu
 }
 
 export async function runScheduleBulkDeleteSelfCheckOrThrow(): Promise<string> {
-  const defaultSnapshot = JSON.stringify(DEFAULT_SCHEDULE)
-  assert(DEFAULT_SCHEDULE.length === 17, 'defaultSchedule 必须保持 17 节')
+  const defaultSnapshot = JSON.stringify(LEGACY_SCHEDULE_FIXTURE)
+  assert(LEGACY_SCHEDULE_FIXTURE.length === 17, 'defaultSchedule 必须保持 17 节')
 
-  const parsed = parseScheduleItems(DEFAULT_SCHEDULE)
+  const parsed = parseScheduleItems(LEGACY_SCHEDULE_FIXTURE)
   assert(parsed.length === 17, '模拟课表应为 17 节')
   const studentMarker = [{ id: 'student-keep', classId: parsed[0].classId ?? 'class-keep' }]
   const withClass = parseScheduleItems(
@@ -89,7 +89,7 @@ export async function runScheduleBulkDeleteSelfCheckOrThrow(): Promise<string> {
     rmSync(dir, { recursive: true, force: true })
   }
 
-  assert(JSON.stringify(DEFAULT_SCHEDULE) === defaultSnapshot, 'defaultSchedule 模板不得被批量删除改写')
-  assert(DEFAULT_SCHEDULE.length === 17, 'defaultSchedule 仍保持 17 节')
+  assert(JSON.stringify(LEGACY_SCHEDULE_FIXTURE) === defaultSnapshot, 'defaultSchedule 模板不得被批量删除改写')
+  assert(LEGACY_SCHEDULE_FIXTURE.length === 17, 'defaultSchedule 仍保持 17 节')
   return 'schedule bulk-delete self-check passed'
 }

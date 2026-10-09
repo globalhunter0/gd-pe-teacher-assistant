@@ -1,4 +1,5 @@
-import type { Period, ScheduleItem } from './types'
+// Test-only legacy schedule fixture; never import from application runtime.
+import type { Period, ScheduleItem } from '../types'
 
 function item(
   weekday: ScheduleItem['weekday'],
@@ -19,7 +20,7 @@ function item(
   }
 }
 
-export const DEFAULT_SCHEDULE: ScheduleItem[] = [
+export const LEGACY_SCHEDULE_FIXTURE: ScheduleItem[] = [
   item(1, 5, '11:40', '12:20', '团队1', 'big'),
 
   item(2, 3, '10:00', '10:40', '团队3'),

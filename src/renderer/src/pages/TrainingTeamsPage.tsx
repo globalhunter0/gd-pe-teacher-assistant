@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { listedClassRecords, type ClassRecord } from '@shared/class'
 import PageLayout, { PageHeader } from '../components/PageLayout'
 import TechEmptyState from '../components/workspace/TechEmptyState'
@@ -37,6 +37,7 @@ import {
   createTrainingResultId,
   currentMemberCount,
   currentRosterStudents,
+  trainingRosterStudents,
   filterSchoolWideStudents,
   firstResult,
   formatTrainingDate,
@@ -63,6 +64,7 @@ import {
   type TrainingTeamDeleteCheck,
   type TrainingTeamMember
 } from '@shared/trainingTeam'
+import ManualTrainingMembers from '../components/ManualTrainingMembers'
 import AthleteDetailPanel from '../components/AthleteDetailPanel'
 import MemberProfileDialog from '../components/MemberProfileDialog'
 import TrainingPlanDialog from '../components/TrainingPlanDialog'
@@ -151,8 +153,10 @@ export default function TrainingTeamsPage({
   onOpenTeamConsumed?: () => void
 }): React.JSX.Element {
   const { classes } = useClasses()
-  const { students } = useStudents()
+  const { students: schoolStudents } = useStudents()
   const training = useTraining()
+  const students = trainingRosterStudents(schoolStudents, training.members)
+  const joining = useRef(new Set<string>())
   const [selectedId, setSelectedId] = useState(rememberedTeamId)
   const [tab, setTab] = useState<HomeTab>('home')
   const [sessionRecord, setSessionRecord] = useState<TrainingSession | null | undefined>(undefined)
@@ -244,6 +248,7 @@ export default function TrainingTeamsPage({
     }
     const now = new Date().toISOString()
     const next: TrainingTeamMember = {
+      source: training.members.some((member) => member.studentId === student.id && member.source === 'manual') ? 'manual' : 'student',
       id: createTrainingMemberId(),
       teamId: selected.id,
       studentId: student.id,
@@ -262,9 +267,15 @@ export default function TrainingTeamsPage({
       createdAt: now,
       updatedAt: now
     }
+    if (joining.current.has(student.id)) return
+    joining.current.add(student.id)
     setActionError(null)
-    await training.saveMembers([...training.members, next])
-    setMessage(`已加入：${student.name}`)
+    try {
+      await training.addMembers([next])
+      setMessage(`已加入：${student.name}`)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : '添加队员失败')
+    } finally { joining.current.delete(student.id) }
   }
 
   async function handleLeave(member: TrainingTeamMember): Promise<void> {
@@ -555,8 +566,8 @@ export default function TrainingTeamsPage({
         ]}
       />
 
-      <div className="toolbar">
-        <label className="toolbar-field">
+      <div className="training-archive-filter">
+        <label className="team-member-left-filter">
           <input
             type="checkbox"
             checked={showArchivedTeams}
@@ -900,6 +911,7 @@ function TeamWorkspace({
 }): React.JSX.Element {
   const training = useTraining()
   const [memberClassFilter, setMemberClassFilter] = useState('all')
+  const [memberAddMode, setMemberAddMode] = useState<'existing' | 'manual'>('manual')
   const teams = training.teams
   const teamStats = buildTrainingTeamStats(
     team.id,
@@ -1111,8 +1123,21 @@ function TeamWorkspace({
       ) : null}
 
       {tab === 'members' ? (
-        <>
-          <div className="toolbar">
+        <div className="team-members-workspace">
+          <details className="team-member-add" open={teamMembers.length === 0 ? true : undefined}>
+            <summary>
+              <span className="team-member-add-icon" aria-hidden="true">+</span>
+              <span><strong>添加队员</strong><small>从已有名单选择，或直接录入其他班级队员</small></span>
+              <span className="team-member-add-toggle" aria-hidden="true" />
+            </summary>
+            <div className="team-member-add-body">
+              <div className="team-member-mode" role="group" aria-label="添加方式">
+                <button type="button" aria-pressed={memberAddMode === 'manual'} onClick={() => setMemberAddMode('manual')}>手动录入</button>
+                <button type="button" aria-pressed={memberAddMode === 'existing'} onClick={() => setMemberAddMode('existing')}>从名单选择</button>
+              </div>
+              <div hidden={memberAddMode !== 'manual'}><ManualTrainingMembers key={team.id} team={team} /></div>
+              <div hidden={memberAddMode !== 'existing'}>
+          <div className="toolbar team-member-filters">
             <label className="toolbar-field">
               行政班
               <select value={memberClassFilter} onChange={(event) => setMemberClassFilter(event.target.value)}>
@@ -1128,13 +1153,9 @@ function TeamWorkspace({
               搜索学生加入
               <input value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} placeholder="姓名 / 学号" />
             </label>
-            <label className="toolbar-field">
-              <input type="checkbox" checked={showLeftMembers} onChange={(event) => setShowLeftMembers(event.target.checked)} />
-              显示已退出
-            </label>
+
           </div>
-          <p className="exam-notes">从全校在读学生中添加队员，可跨班级、跨年级。训练队不绑定任何行政班。</p>
-          <div className="import-preview-wrap">
+          <div className="import-preview-wrap team-member-picker">
             <table className="data-table">
               <thead>
                 <tr>
@@ -1161,7 +1182,7 @@ function TeamWorkspace({
                         <td>{cls?.grade ?? '—'}</td>
                         <td>{cls?.className ?? '—'}</td>
                         <td>
-                          <button type="button" className="btn" disabled={joined} onClick={() => onJoin(student)}>
+                          <button type="button" className="btn" disabled={joined || team.status !== 'active'} onClick={() => onJoin(student)}>
                             {joined ? '已加入' : '加入'}
                           </button>
                         </td>
@@ -1172,38 +1193,40 @@ function TeamWorkspace({
               </tbody>
             </table>
           </div>
-          <h3>本队/组队员</h3>
-          <div className="import-preview-wrap">
+              </div>
+            </div>
+          </details>
+          <section className="team-member-roster" aria-label="本队队员">
+            <div className="team-member-roster-heading">
+              <div><h3>本队队员 <span>{teamMembers.filter(isActiveMembership).length}</span></h3><p>管理队员档案，查看训练与成绩记录</p></div>
+              <label className="team-member-left-filter"><input type="checkbox" checked={showLeftMembers} onChange={(event) => setShowLeftMembers(event.target.checked)} />显示已退出</label>
+            </div>
+          <div className="import-preview-wrap team-member-roster-table">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>姓名</th>
-                  <th>学号</th>
                   <th>年级 / 行政班</th>
-                  <th>专项</th>
-                  <th>分组</th>
+                  <th>专项 / 分组</th>
                   <th>状态</th>
-                  <th>加入</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
+                {visibleMembers.length === 0 ? <tr><td colSpan={5}><div className="team-member-empty"><strong>{showLeftMembers ? '暂无队员记录' : '还没有在队队员'}</strong><p>展开上方「添加队员」，组建你的训练名单。</p></div></td></tr> : null}
                 {visibleMembers.map((member) => {
                   const live = students.find((item) => item.id === member.studentId)
                   const cls = live ? classes.find((item) => item.id === live.classId) : undefined
                   return (
                     <tr key={member.id}>
-                      <td>{live?.status === 'deleted' ? member.nameSnapshot : live?.name ?? member.nameSnapshot}</td>
-                      <td>{live?.studentNo || member.studentNoSnapshot || '—'}</td>
+                      <td title={`加入日期：${member.joinedAt.slice(0, 10)}`}><strong className="team-member-name">{live?.status === 'deleted' ? member.nameSnapshot : live?.name ?? member.nameSnapshot}</strong><small className="team-member-secondary">{live?.studentNo || member.studentNoSnapshot ? `学号 ${live?.studentNo || member.studentNoSnapshot}` : '未填写学号'}</small></td>
                       <td>{cls ? `${cls.grade} ${cls.className}` : member.classNameSnapshot || '—'}</td>
-                      <td>{member.specialty || '—'}</td>
-                      <td>{member.trainingGroup || '—'}</td>
+                      <td>{member.specialty || '未设置专项'}<small className="team-member-secondary">{member.trainingGroup || '未分组'}</small></td>
                       <td>
-                        {TRAINING_MEMBER_STATUS_LABELS[member.status]}
+                        <span className={isActiveMembership(member) ? 'team-member-status is-active' : 'team-member-status'}>{TRAINING_MEMBER_STATUS_LABELS[member.status]}</span>
                         {live?.status === 'deleted' ? ' · 学生已删除' : live?.status === 'transferred' ? ' · 不在当前名单' : ''}
                       </td>
-                      <td>{member.joinedAt.slice(0, 10)}</td>
-                      <td>
+                      <td className="team-member-actions">
                         <button type="button" className="btn btn-small" onClick={() => onOpenAthlete(member)}>
                           详情
                         </button>
@@ -1211,7 +1234,7 @@ function TeamWorkspace({
                           档案
                         </button>
                         {isActiveMembership(member) ? (
-                          <button type="button" className="btn" onClick={() => onLeave(member)}>
+                          <button type="button" className="btn btn-small team-member-leave" onClick={() => onLeave(member)}>
                             退出
                           </button>
                         ) : (
@@ -1224,7 +1247,8 @@ function TeamWorkspace({
               </tbody>
             </table>
           </div>
-        </>
+          </section>
+        </div>
       ) : null}
 
       {tab === 'sessions' ? (

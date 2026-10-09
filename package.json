@@ -1,6 +1,6 @@
 {
   "name": "gd-pe-teacher-assistant",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0-rc.3",
   "private": true,
   "description": "广东省初中体育教师管理助手",
   "author": "广东省初中体育教师管理助手",
@@ -15,6 +15,7 @@
     "check:data-safety": "node scripts/check-data-safety.mjs",
     "check:classroom": "node scripts/check-classroom.mjs",
     "check:classroom-selfchecks": "node scripts/check-classroom-selfchecks.mjs",
+    "check:schedule-training": "node scripts/check-schedule-training.mjs",
     "check:node": "tsc --noEmit -p tsconfig.node.json",
     "check:web": "tsc --noEmit -p tsconfig.web.json",
     "package:win": "npm run build && node scripts/package-windows.mjs dir",
