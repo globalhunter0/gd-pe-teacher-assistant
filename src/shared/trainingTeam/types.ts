@@ -1,7 +1,31 @@
 import type { StudentGender } from '../student/types'
 import type { TestDirection, TestUnit, TestValueType, TimeInputMode } from '../peTest/types'
 
-export type TrainingSport = 'track' | 'basketball' | 'football' | 'other'
+export type TrainingSport =
+  | 'track'
+  | 'basketball'
+  | 'football'
+  | 'volleyball'
+  | 'tableTennis'
+  | 'badminton'
+  | 'rope'
+  | 'shuttlecock'
+  | 'cheer'
+  | 'aerobics'
+  | 'swimming'
+  | 'wushu'
+  | 'other'
+
+export type SchoolStage = 'primary' | 'junior' | 'senior'
+
+export type TrainingLevel = 'starter' | 'basic' | 'developing'
+
+/** 基础计划的生成来源。旧计划没有该字段。 */
+export interface TrainingPlanBlueprint {
+  stage: SchoolStage
+  programId: string
+  level: TrainingLevel
+}
 
 export type TrainingTeamStatus = 'active' | 'archived' | 'deleted'
 
@@ -109,6 +133,8 @@ export interface TrainingPlan {
   status: TrainingPlanStatus
   createdAt: string
   updatedAt: string
+  /** 由学段项目模板生成时保留来源；手写计划和旧数据没有该字段 */
+  blueprint?: TrainingPlanBlueprint
 }
 
 export interface TrainingItem {
@@ -196,7 +222,21 @@ export interface TrainingSessionRecordResult extends TrainingPlanSessionResult {
   results: TrainingResult[]
 }
 
-export const TRAINING_SPORTS: TrainingSport[] = ['track', 'basketball', 'football', 'other']
+export const TRAINING_SPORTS: TrainingSport[] = [
+  'track',
+  'basketball',
+  'football',
+  'volleyball',
+  'tableTennis',
+  'badminton',
+  'rope',
+  'shuttlecock',
+  'cheer',
+  'aerobics',
+  'swimming',
+  'wushu',
+  'other'
+]
 export const TRAINING_TEAM_STATUSES: TrainingTeamStatus[] = ['active', 'archived', 'deleted']
 export const TRAINING_MEMBER_STATUSES: TrainingMemberStatus[] = ['active', 'left']
 export const TRAINING_PARTICIPATIONS: TrainingParticipation[] = [
@@ -223,6 +263,15 @@ export const TRAINING_SPORT_LABELS: Record<TrainingSport, string> = {
   track: '田径',
   basketball: '篮球',
   football: '足球',
+  volleyball: '排球',
+  tableTennis: '乒乓球',
+  badminton: '羽毛球',
+  rope: '跳绳',
+  shuttlecock: '毽球',
+  cheer: '啦啦操',
+  aerobics: '健美操',
+  swimming: '游泳',
+  wushu: '武术',
   other: '其他'
 }
 

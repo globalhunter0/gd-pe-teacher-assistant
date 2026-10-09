@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import {
   createTrainingPlanId,
   formatTrainingDate,
+  formatTrainingPlanBlueprint,
   type TrainingPlan
 } from '@shared/trainingTeam'
 
@@ -50,7 +51,8 @@ export default function TrainingPlanDialog({
         notes: notes.trim(),
         status: record?.status ?? 'planned',
         createdAt: record?.createdAt ?? now,
-        updatedAt: now
+        updatedAt: now,
+        ...(record?.blueprint ? { blueprint: record.blueprint } : {})
       })
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '保存训练计划失败')
@@ -67,6 +69,9 @@ export default function TrainingPlanDialog({
         onMouseDown={(event) => event.stopPropagation()}
       >
         <h3 id={titleId}>{record ? '编辑训练计划' : '新建训练计划'}</h3>
+        {record?.blueprint ? (
+          <p className="exam-notes">这份计划由{formatTrainingPlanBlueprint(record.blueprint)}生成，修改后仍保留来源。</p>
+        ) : null}
         <div className="dialog-grid">
           <label>
             训练日期

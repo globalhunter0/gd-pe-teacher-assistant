@@ -28,6 +28,8 @@ import {
   parseTrainingTeams
 } from './validate'
 import type { TrainingPlan, TrainingResult, TrainingSession, TrainingTeam, TrainingTeamMember } from './types'
+import { TRAINING_SPORTS } from './types'
+import { SCHOOL_STAGES, SPORT_PROGRAMS, TRAINING_LEVELS, generateBasicTrainingPlan } from './sportProgram'
 import type { StudentRecord } from '../student/types'
 
 function assert(condition: unknown, message: string): void {
@@ -753,6 +755,7 @@ export function runTrainingTeamSelfCheck(): void {
   }
   const parsedPlans = parseTrainingPlans([plannedPlan], { knownTeamIds })
   assert(parsedPlans[0].trainingTeamId === teamA, '训练计划必须绑定 trainingTeamId')
+  assert(parsedPlans[0].blueprint === undefined, '旧训练计划没有生成来源时不得补写 blueprint')
   assertTrainingPlanChanges([], parsedPlans, teams, [])
 
   let archivedCreateFailed = false
@@ -987,6 +990,113 @@ export function runTrainingTeamSelfCheck(): void {
     orphanPlanIssues.some((item) => item.includes('孤立训练计划')),
     '删除队伍后悬空计划必须被检出'
   )
+
+  const trackNames = ['短跑', '中长跑', '跳高', '跳远', '三级跳远', '跨栏', '投掷', '接力']
+  assert(new Set(SPORT_PROGRAMS.map((item) => item.id)).size === SPORT_PROGRAMS.length, '训练项目编号不能重复')
+  assert(
+    trackNames.every((name) => SPORT_PROGRAMS.some((item) => item.sport === 'track' && item.name === name)),
+    '田径必须包含短跑、中长跑、跳高、跳远、三级跳远、跨栏、投掷、接力'
+  )
+  assert(
+    TRAINING_SPORTS.filter((sport) => sport !== 'other').every((sport) =>
+      SPORT_PROGRAMS.some((item) => item.sport === sport)
+    ),
+    '除“其他”外，每个队伍项目都要能生成基础计划'
+  )
+  const seen = new Set<string>()
+  for (const program of SPORT_PROGRAMS) {
+    for (const stage of SCHOOL_STAGES) {
+      for (const level of TRAINING_LEVELS) {
+        const generated = generateBasicTrainingPlan({ stage, programId: program.id, level })
+        const key = `${stage}|${program.id}|${level}`
+        assert(!seen.has(generated.content), `${key} 的训练内容与其他组合重复`)
+        seen.add(generated.content)
+        assert(generated.title.includes(program.name), `${key} 标题必须带项目名`)
+        assert(generated.content.includes('课前确认'), `${key} 必须先写安全确认`)
+        assert(generated.blueprint.programId === program.id, `${key} 来源项目不正确`)
+        assert(generated.blueprint.stage === stage && generated.blueprint.level === level, `${key} 来源学段或水平不正确`)
+      }
+    }
+  }
+  const swim = generateBasicTrainingPlan({ stage: 'primary', programId: 'swimming', level: 'starter' })
+  assert(swim.content.includes('看护') && swim.content.includes('浅水'), '小学游泳入门必须写明看护和浅水')
+  const triple = generateBasicTrainingPlan({ stage: 'primary', programId: 'track-triple-jump', level: 'starter' })
+  assert(triple.content.includes('沙坑') && triple.content.includes('硬地'), '小学三级跳远必须限制硬地')
+  const throwsPlan = generateBasicTrainingPlan({ stage: 'junior', programId: 'track-throws', level: 'basic' })
+  assert(throwsPlan.content.includes('口令'), '投掷计划必须要求统一口令捡器械')
+  const seniorSprint = generateBasicTrainingPlan({ stage: 'senior', programId: 'track-sprint', level: 'developing' })
+  const primarySprint = generateBasicTrainingPlan({ stage: 'primary', programId: 'track-sprint', level: 'developing' })
+  assert(seniorSprint.content !== primarySprint.content, '同一项目和水平在不同学段的剂量必须不同')
+
+  const generatedPlanId = 'training-plan-eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+  const generated = generateBasicTrainingPlan({ stage: 'junior', programId: 'basketball', level: 'basic' })
+  const roundTrip = parseTrainingPlans(
+    [
+      {
+        id: generatedPlanId,
+        trainingTeamId: teamA,
+        date: '2026-09-20',
+        title: generated.title,
+        goal: generated.goal,
+        content: generated.content,
+        notes: generated.notes,
+        status: 'planned',
+        blueprint: generated.blueprint,
+        createdAt: now,
+        updatedAt: now
+      }
+    ],
+    { knownTeamIds }
+  )
+  assert(
+    roundTrip[0].blueprint?.stage === 'junior' &&
+      roundTrip[0].blueprint.programId === 'basketball' &&
+      roundTrip[0].blueprint.level === 'basic',
+    '生成来源必须能保存后再读出'
+  )
+  assertTrainingPlanChanges(parsedPlans, [...parsedPlans, roundTrip[0]], teams, [])
+
+  let invalidBlueprint = false
+  try {
+    parseTrainingPlans([{ ...plannedPlan, id: generatedPlanId, blueprint: { stage: 'junior', programId: 'missing', level: 'basic' } }])
+  } catch {
+    invalidBlueprint = true
+  }
+  assert(invalidBlueprint, '不存在的生成项目必须拒绝')
+
+  const volleyballTeam = parseTrainingTeams([
+    {
+      id: 'training-team-dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      parentTeamId: null,
+      name: '校排球队',
+      sport: 'volleyball',
+      coach: '',
+      notes: '',
+      status: 'active',
+      createdAt: now,
+      updatedAt: now
+    }
+  ])
+  assert(volleyballTeam[0].sport === 'volleyball', '新增项目排球必须能从旧解析入口读入')
+  let unknownSport = false
+  try {
+    parseTrainingTeams([
+      {
+        id: 'training-team-dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        parentTeamId: null,
+        name: '未知项目',
+        sport: 'tennis',
+        coach: '',
+        notes: '',
+        status: 'active',
+        createdAt: now,
+        updatedAt: now
+      }
+    ])
+  } catch {
+    unknownSport = true
+  }
+  assert(unknownSport, '未接入的项目名称必须拒绝')
 }
 
 export function runTrainingTeamSelfCheckOrThrow(): string {

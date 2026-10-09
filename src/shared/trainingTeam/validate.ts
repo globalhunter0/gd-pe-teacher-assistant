@@ -8,6 +8,7 @@ import type {
   TrainingItem,
   TrainingMemberStatus,
   TrainingPlan,
+  TrainingPlanBlueprint,
   TrainingPlanSessionResult,
   TrainingPlanStatus,
   TrainingParticipation,
@@ -25,6 +26,7 @@ import type {
   TrainingTeamSafeDeleteResult,
   TrainingTeamStatus
 } from './types'
+import { getSportProgram, isSchoolStage, isTrainingLevel } from './sportProgram'
 import {
   TRAINING_COMPLETIONS,
   TRAINING_EXERCISE_KINDS,
@@ -135,6 +137,27 @@ function parseRequiredNumber(value: unknown, label: string): number {
 
 function isSport(value: unknown): value is TrainingSport {
   return TRAINING_SPORTS.includes(value as TrainingSport)
+}
+
+function parsePlanBlueprint(value: unknown): TrainingPlanBlueprint | undefined {
+  if (value === undefined || value === null) {
+    return undefined
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('训练计划来源格式不正确')
+  }
+  const record = value as Record<string, unknown>
+  if (!isSchoolStage(record.stage) || !isTrainingLevel(record.level) || typeof record.programId !== 'string') {
+    throw new Error('训练计划来源不正确')
+  }
+  if (!getSportProgram(record.programId)) {
+    throw new Error('训练计划来源项目不存在')
+  }
+  return {
+    stage: record.stage,
+    programId: record.programId,
+    level: record.level
+  }
 }
 
 function isTeamStatus(value: unknown): value is TrainingTeamStatus {
@@ -274,6 +297,7 @@ export function parseTrainingPlans(
     ) {
       throw new Error('训练计划时间字段不正确')
     }
+    const blueprint = parsePlanBlueprint(record.blueprint)
     return {
       id: record.id,
       trainingTeamId: record.trainingTeamId,
@@ -284,7 +308,8 @@ export function parseTrainingPlans(
       notes: parseText(record.notes, '训练计划备注', false, 1000),
       status: record.status,
       createdAt: record.createdAt,
-      updatedAt: record.updatedAt
+      updatedAt: record.updatedAt,
+      ...(blueprint ? { blueprint } : {})
     } satisfies TrainingPlan
   })
   const ids = new Set<string>()

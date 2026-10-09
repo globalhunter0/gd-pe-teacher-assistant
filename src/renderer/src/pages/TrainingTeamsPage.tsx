@@ -41,6 +41,7 @@ import {
   filterSchoolWideStudents,
   firstResult,
   formatTrainingDate,
+  formatTrainingPlanBlueprint,
   formatTrainingScoreWithUnit,
   hasActiveMembership,
   isActiveMembership,
@@ -67,6 +68,7 @@ import {
 import ManualTrainingMembers from '../components/ManualTrainingMembers'
 import AthleteDetailPanel from '../components/AthleteDetailPanel'
 import MemberProfileDialog from '../components/MemberProfileDialog'
+import SportPlanGenerator from '../components/SportPlanGenerator'
 import TrainingPlanDialog from '../components/TrainingPlanDialog'
 import TrainingSessionEditor from '../components/TrainingSessionEditor'
 import TrainingTeamDialog from '../components/TrainingTeamDialog'
@@ -624,7 +626,7 @@ export default function TrainingTeamsPage({
             <TechEmptyState
               kind="training"
               title="选择或新建一支训练队"
-              description="例如校田径队、校篮球队，再在队下建短跑组、中长跑组。"
+              description="例如校田径队、篮球队、排球队或游泳队，再在队下建短跑组、中长跑组。"
             />
           ) : (
             <TeamWorkspace
@@ -656,6 +658,7 @@ export default function TrainingTeamsPage({
                 }
                 setPlanDialog(null)
               }}
+              onSaveGeneratedPlan={handleSavePlan}
               onEditPlan={(plan) => {
                 if (!canMutateTrainingTeam(selected) || plan.status !== 'planned') {
                   setActionError('只有启用中训练队的待执行计划可以编辑')
@@ -815,6 +818,7 @@ function TeamWorkspace({
   onStartTraining,
   onEditSession,
   onCreatePlan,
+  onSaveGeneratedPlan,
   onEditPlan,
   onCancelPlan,
   onDeletePlan,
@@ -865,6 +869,7 @@ function TeamWorkspace({
   onStartTraining: () => void
   onEditSession: (session: TrainingSession) => void
   onCreatePlan: () => void
+  onSaveGeneratedPlan: (plan: TrainingPlan) => Promise<void>
   onEditPlan: (plan: TrainingPlan) => void
   onCancelPlan: (plan: TrainingPlan) => void
   onDeletePlan: (plan: TrainingPlan) => void
@@ -1040,10 +1045,11 @@ function TeamWorkspace({
 
       {tab === 'plans' ? (
         <>
+          {canEditPlans ? <SportPlanGenerator team={team} onSave={onSaveGeneratedPlan} /> : null}
           <div className="toolbar">
             {canEditPlans ? (
-              <button type="button" className="btn btn-primary" onClick={onCreatePlan}>
-                新建计划
+              <button type="button" className="btn" onClick={onCreatePlan}>
+                新建空白计划
               </button>
             ) : (
               <p className="exam-notes">该训练队已停用，仅可查看历史训练计划，不能再新增未来计划。</p>
@@ -1052,7 +1058,7 @@ function TeamWorkspace({
           {teamPlans.length === 0 ? (
             <TechEmptyState
               title="还没有训练计划"
-              description="先写下今天或本周要练什么，再从计划一键开始训练。"
+              description="可以从上方按学段和项目生成一节基础课，也可以自己写一条空白计划。"
               kind="training"
             />
           ) : (
@@ -1075,7 +1081,12 @@ function TeamWorkspace({
                       <tr key={plan.id}>
                         <td>{plan.date}</td>
                         <td>{planHorizonLabel(plan.date, today)}</td>
-                        <td>{plan.title}</td>
+                        <td>
+                          {plan.title}
+                          {plan.blueprint ? (
+                            <small className="team-member-secondary">{formatTrainingPlanBlueprint(plan.blueprint)}</small>
+                          ) : null}
+                        </td>
                         <td className="data-table-notes">{plan.goal || '—'}</td>
                         <td>{TRAINING_PLAN_STATUS_LABELS[plan.status]}</td>
                         <td>

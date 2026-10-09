@@ -7,11 +7,14 @@ export type {
   TrainingMemberStatus,
   TrainingParticipation,
   TrainingPlan,
+  TrainingPlanBlueprint,
   TrainingPlanSessionResult,
   TrainingPlanStatus,
   TrainingResult,
   TrainingResultKind,
   TrainingResultStatus,
+  SchoolStage,
+  TrainingLevel,
   TrainingSession,
   TrainingSessionRecordResult,
   TrainingSport,
@@ -43,6 +46,22 @@ export {
   TRAINING_TEAM_STATUS_LABELS
 } from './types'
 export { BUILTIN_TRAINING_ITEMS, mergeBuiltinTrainingItems } from './builtinItems'
+export {
+  SCHOOL_STAGE_LABELS,
+  SCHOOL_STAGES,
+  SPORT_PROGRAM_FAMILIES,
+  SPORT_PROGRAMS,
+  TRAINING_LEVEL_HINTS,
+  TRAINING_LEVEL_LABELS,
+  TRAINING_LEVELS,
+  defaultSportProgramId,
+  formatTrainingPlanBlueprint,
+  generateBasicTrainingPlan,
+  getSportProgram,
+  isSchoolStage,
+  isTrainingLevel
+} from './sportProgram'
+export type { GeneratedTrainingPlan, SportProgram, SportProgramFamily, SportProgramLevel } from './sportProgram'
 export {
   activeMembersOfTeam,
   attentionFromLatestSession,

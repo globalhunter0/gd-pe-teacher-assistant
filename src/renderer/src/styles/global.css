@@ -4230,3 +4230,79 @@ textarea:disabled {
 .team-member-roster-table .data-table td:nth-child(2), .team-member-roster-table .data-table td:nth-child(3) { white-space: normal; min-width: 80px; overflow-wrap: anywhere; }
 .team-member-roster-table table.data-table { table-layout: auto; }
 .team-member-actions .btn:last-child { margin-right: 0; }
+
+.sport-plan-generator {
+  margin-top: 16px;
+  padding: 18px 20px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+}
+.sport-plan-generator-head h4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.sport-plan-generator-head p,
+.sport-plan-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+.sport-plan-generator-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.sport-plan-generator-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.sport-plan-generator-grid select,
+.sport-plan-generator-grid input {
+  width: 100%;
+  min-width: 0;
+  font-weight: 400;
+}
+.sport-plan-mismatch {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sport-plan-preview {
+  margin-top: 14px;
+  max-height: 320px;
+  overflow: auto;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--bg-surface-soft);
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+.sport-plan-preview strong {
+  display: block;
+  margin-bottom: 6px;
+}
+.sport-plan-preview p {
+  margin: 0 0 10px;
+  color: var(--text-secondary);
+}
+.sport-plan-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+@media (max-width: 960px) {
+  .sport-plan-generator-grid { grid-template-columns: 1fr 1fr; }
+}
