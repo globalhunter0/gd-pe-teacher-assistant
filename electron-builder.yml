@@ -24,3 +24,10 @@ nsis:
   allowElevation: false
   deleteAppDataOnUninstall: false
   runAfterFinish: false
+# Baked into resources/app-update.yml. Local dist:win still passes publish: never.
+# A GitHub Release must include the setup exe, .exe.blockmap, and latest.yml.
+publish:
+  provider: github
+  owner: globalhunter0
+  repo: gd-pe-teacher-assistant
+  releaseType: release

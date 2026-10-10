@@ -1,7 +1,6 @@
 import { app } from 'electron'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { autoUpdater, type UpdateInfo } from 'electron-updater'
 import { APP_VERSION } from '../shared/appVersion'
 import {
   APP_UPDATE_DISABLE_ENV,
@@ -14,9 +13,26 @@ import {
   type AppUpdateStatus
 } from '../shared/appUpdate'
 
+interface UpdateInfoLike {
+  version: string
+  releaseNotes?: string | Array<{ note?: string | null }> | null
+}
+
+interface AutoUpdaterLike {
+  autoDownload: boolean
+  autoInstallOnAppQuit: boolean
+  allowPrerelease: boolean
+  forceDevUpdateConfig: boolean
+  on: (event: string, listener: (...args: unknown[]) => void) => unknown
+  checkForUpdates: () => Promise<unknown>
+  downloadUpdate: () => Promise<unknown>
+  quitAndInstall: (isSilent?: boolean, isForceRunAfter?: boolean) => void
+}
+
 const listeners = new Set<(next: AppUpdateStatus) => void>()
 
 let status: AppUpdateStatus = unsupportedAppUpdateStatus(APP_VERSION)
+let updater: AutoUpdaterLike | null = null
 let configured = false
 let checking = false
 let downloading = false
@@ -67,7 +83,7 @@ function setStatus(partial: Partial<AppUpdateStatus>): AppUpdateStatus {
   )
 }
 
-function releaseNotesFrom(info: UpdateInfo): string | undefined {
+function releaseNotesFrom(info: UpdateInfoLike): string | undefined {
   const notes = info.releaseNotes
   if (typeof notes === 'string' && notes.trim()) {
     return notes.trim()
@@ -94,62 +110,69 @@ function toUserMessage(error: unknown): string {
   return '检查或下载更新失败，请稍后重试。'
 }
 
-function ensureConfigured(): boolean {
+async function ensureConfigured(): Promise<AutoUpdaterLike | null> {
   if (!readEnablement()) {
     emit(unsupportedAppUpdateStatus(currentVersion()))
-    return false
+    return null
   }
-  if (configured) {
-    return true
+  if (configured && updater) {
+    return updater
+  }
+  const { autoUpdater } = await import('electron-updater')
+  updater = autoUpdater as AutoUpdaterLike
+  updater.autoDownload = false
+  updater.autoInstallOnAppQuit = false
+  updater.allowPrerelease = false
+  updater.forceDevUpdateConfig = false
+  if (!configured) {
+    updater.on('checking-for-update', () => {
+      setStatus({ state: 'checking', errorMessage: undefined })
+    })
+    updater.on('update-available', (info) => {
+      const update = info as UpdateInfoLike
+      setStatus({
+        state: 'available',
+        availableVersion: update.version,
+        releaseNotes: releaseNotesFrom(update),
+        errorMessage: undefined
+      })
+    })
+    updater.on('update-not-available', () => {
+      setStatus({
+        state: 'not-available',
+        availableVersion: undefined,
+        errorMessage: undefined
+      })
+    })
+    updater.on('download-progress', (progress) => {
+      const percent = typeof progress === 'object' && progress && 'percent' in progress ? Number(progress.percent) : 0
+      setStatus({
+        state: 'downloading',
+        progressPercent: percent,
+        errorMessage: undefined
+      })
+    })
+    updater.on('update-downloaded', (info) => {
+      const update = info as UpdateInfoLike
+      setStatus({
+        state: 'readyToInstall',
+        availableVersion: update.version,
+        releaseNotes: releaseNotesFrom(update),
+        progressPercent: 100,
+        errorMessage: undefined
+      })
+    })
+    updater.on('error', (error) => {
+      checking = false
+      downloading = false
+      setStatus({
+        state: 'error',
+        errorMessage: toUserMessage(error)
+      })
+    })
   }
   configured = true
-  autoUpdater.autoDownload = false
-  autoUpdater.autoInstallOnAppQuit = false
-  autoUpdater.allowPrerelease = false
-  autoUpdater.forceDevUpdateConfig = false
-  autoUpdater.on('checking-for-update', () => {
-    setStatus({ state: 'checking', errorMessage: undefined })
-  })
-  autoUpdater.on('update-available', (info) => {
-    setStatus({
-      state: 'available',
-      availableVersion: info.version,
-      releaseNotes: releaseNotesFrom(info),
-      errorMessage: undefined
-    })
-  })
-  autoUpdater.on('update-not-available', () => {
-    setStatus({
-      state: 'not-available',
-      availableVersion: undefined,
-      errorMessage: undefined
-    })
-  })
-  autoUpdater.on('download-progress', (progress) => {
-    setStatus({
-      state: 'downloading',
-      progressPercent: progress.percent,
-      errorMessage: undefined
-    })
-  })
-  autoUpdater.on('update-downloaded', (info) => {
-    setStatus({
-      state: 'readyToInstall',
-      availableVersion: info.version,
-      releaseNotes: releaseNotesFrom(info),
-      progressPercent: 100,
-      errorMessage: undefined
-    })
-  })
-  autoUpdater.on('error', (error) => {
-    checking = false
-    downloading = false
-    setStatus({
-      state: 'error',
-      errorMessage: toUserMessage(error)
-    })
-  })
-  return true
+  return updater
 }
 
 export function getAppUpdateStatus(): AppUpdateStatus {
@@ -175,7 +198,8 @@ export function subscribeAppUpdateStatus(listener: (next: AppUpdateStatus) => vo
 
 export async function checkForUpdates(): Promise<AppUpdateStatus> {
   cancelStartupUpdateCheck()
-  if (!ensureConfigured()) {
+  const autoUpdater = await ensureConfigured()
+  if (!autoUpdater) {
     return getAppUpdateStatus()
   }
   if (checking || downloading || status.state === 'readyToInstall') {
@@ -197,7 +221,8 @@ export async function checkForUpdates(): Promise<AppUpdateStatus> {
 
 export async function startDownload(): Promise<AppUpdateStatus> {
   cancelStartupUpdateCheck()
-  if (!ensureConfigured()) {
+  const autoUpdater = await ensureConfigured()
+  if (!autoUpdater) {
     return getAppUpdateStatus()
   }
   const current = getAppUpdateStatus()
@@ -227,7 +252,8 @@ export async function startDownload(): Promise<AppUpdateStatus> {
 }
 
 export async function quitAndInstall(): Promise<void> {
-  if (!ensureConfigured()) {
+  const autoUpdater = await ensureConfigured()
+  if (!autoUpdater) {
     return
   }
   if (getAppUpdateStatus().state !== 'readyToInstall') {

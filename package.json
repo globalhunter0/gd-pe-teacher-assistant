@@ -20,6 +20,7 @@
     "check:web": "tsc --noEmit -p tsconfig.web.json",
     "package:win": "npm run build && node scripts/package-windows.mjs dir",
     "dist:win": "npm run build && node scripts/package-windows.mjs nsis",
+    "dist:win:publish": "npm run build && node scripts/package-windows.mjs nsis publish",
     "check:selfchecks": "node scripts/check-all-selfchecks.mjs",
     "check:rc": "node scripts/check-rc.mjs",
     "check:packaged": "node scripts/packaged-smoke.mjs",

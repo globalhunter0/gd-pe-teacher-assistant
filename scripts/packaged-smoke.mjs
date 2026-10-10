@@ -81,11 +81,25 @@ try {
   const fresh = join(root, '全新 用户'); running = await launch(fresh)
   for (const name of ['classes', 'students', 'schedule', 'peSessions', 'peTests', 'teachingPlans', 'trainingTeams', 'resources']) assert.deepEqual(await running.api(`${name}.get`), [])
   assert.equal((await running.api('dataIntegrity.startupStatus')).status, 'healthy')
+  const updateStatus = await running.api('appUpdate.getStatus')
+  assert.equal(updateStatus.supported, false)
+  assert.equal(updateStatus.installKind, 'unsupported')
+  assert.equal(updateStatus.state, 'idle')
   pass('首次启动空状态、应用身份与隔离 userData')
+  pass('解包烟测不启用自动更新、不访问 GitHub')
   for (const label of ['我的课表', '班级与学生', '课堂记录', '体育测试', '训练队', '教学计划', '资料中心', 'AI 助手（暂未开放）', '备份与恢复']) {
     const clicked = await running.page.eval(`(() => {const b=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(label)}); if(!b)return false;b.click();return true})()`)
     assert(clicked, `navigation missing: ${label}`); await delay(150)
     assert(!(await running.page.eval(`document.body.innerText.includes('启动失败')`)))
+    if (label === '备份与恢复') {
+      let updateCopy = false
+      for (let i = 0; i < 20; i++) {
+        updateCopy = await running.page.eval(`document.body.innerText.includes('检查更新') && document.body.innerText.includes('当前环境不支持应用内更新')`)
+        if (updateCopy) break
+        await delay(100)
+      }
+      assert(updateCopy, 'settings must show the unsupported in-app update state')
+    }
     if (label === '我的课表' && expectedVersion !== '0.29.0') {
       assert(!(await running.page.eval(`document.body.innerText.includes('恢复默认课表')`)), '示例课表恢复入口必须移除')
       assert(!(await running.page.eval(`document.body.innerText.includes('团队1')`)), '空课表不得显示旧示例团队')

@@ -187,7 +187,8 @@ export function runAppUpdateSelfCheck(): void {
   assert(mainIpc.includes('IPC_CHANNELS.appUpdate.startDownload'), 'main 必须注册 startDownload')
   assert(mainIpc.includes('IPC_CHANNELS.appUpdate.quitAndInstall'), 'main 必须注册 quitAndInstall')
   assert(mainService.includes('unsupportedAppUpdateStatus'), '未启用更新器时服务必须回退 unsupported')
-  assert(ELECTRON_UPDATER_IMPORT.test(mainService), 'electron-updater 只能出现在 appUpdateService')
+  assert(/import\(\s*['"]electron-updater['"]\s*\)/.test(mainService), 'electron-updater 必须按需动态导入')
+  assert(!ELECTRON_UPDATER_IMPORT.test(mainService), '运行时代码不得静态导入 electron-updater')
   assert(!ELECTRON_UPDATER_IMPORT.test(mainIpc), 'IPC 适配层不得直接导入 electron-updater')
   assert(mainService.includes('autoDownload = false'), '必须关闭自动下载')
   assert(mainService.includes('autoInstallOnAppQuit = false'), '退出时不得自动安装')
@@ -221,9 +222,30 @@ export function runAppUpdateSelfCheck(): void {
   assert(!canEnableDesktopAutoUpdate({ ...enabledBase, hasUpdateYml: false }), '缺少 app-update.yml 不得启用')
   assert(!canEnableDesktopAutoUpdate({ ...enabledBase, hasNsisUninstaller: false }), 'win-unpacked 解包目录不得启用')
 
-  const pkg = JSON.parse(read('package.json')) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> }
+  const pkg = JSON.parse(read('package.json')) as {
+    dependencies?: Record<string, string>
+    devDependencies?: Record<string, string>
+    scripts?: Record<string, string>
+  }
   assert(typeof pkg.dependencies?.['electron-updater'] === 'string', 'electron-updater 必须是生产依赖')
   assert(!pkg.devDependencies?.['electron-updater'], 'electron-updater 不得只放在 devDependencies')
+  assert(pkg.scripts?.['dist:win']?.includes('package-windows.mjs nsis'), 'dist:win 必须继续走本地 NSIS 打包')
+  assert(!pkg.scripts?.['dist:win']?.includes('publish'), '日常 dist:win 不得上传 Release')
+  assert(pkg.scripts?.['dist:win:publish']?.includes('nsis publish'), '正式发布必须使用独立 publish 脚本')
+
+  const builder = read('electron-builder.yml')
+  assert(/provider:\s*github/.test(builder), '更新源必须是 GitHub Releases')
+  assert(builder.includes('owner: globalhunter0'), 'GitHub owner 必须与仓库一致')
+  assert(builder.includes('repo: gd-pe-teacher-assistant'), 'GitHub repo 必须与仓库一致')
+  assert(builder.includes('latest.yml'), '打包说明必须提到 latest.yml')
+
+  const packScript = read('scripts/package-windows.mjs')
+  assert(packScript.includes("publish: shouldPublish ? 'always' : 'never'"), '未传 publish 时必须 never')
+  assert(packScript.includes('GH_TOKEN'), '上传 Release 必须要求 GH_TOKEN')
+
+  const smoke = read('scripts/packaged-smoke.mjs')
+  assert(smoke.includes("running.api('appUpdate.getStatus')"), '打包烟测必须读取更新状态')
+  assert(smoke.includes('updateStatus.supported, false'), '解包烟测必须断言不启用更新器')
 
   const mainFiles = collectFiles(join(process.cwd(), 'src/main'), ['.ts'])
   for (const file of mainFiles) {
