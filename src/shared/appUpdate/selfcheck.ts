@@ -3,9 +3,14 @@ import { join } from 'node:path'
 import { ALL_IPC_CHANNELS, IPC_CHANNELS, createAppApi } from '../appApi'
 import { APP_VERSION } from '../appVersion'
 import {
+  APP_UPDATE_DISABLE_ENV,
   APP_UPDATE_INSTALL_KINDS,
+  APP_UPDATE_ISOLATED_TEST_ENV,
+  APP_UPDATE_NSIS_UNINSTALLER,
+  APP_UPDATE_STARTUP_CHECK_DELAY_MS,
   APP_UPDATE_STATES,
   APP_UPDATE_STATUS_EVENT,
+  canEnableDesktopAutoUpdate,
   parseAppUpdateStatus,
   shouldPromptAppUpdate,
   unsupportedAppUpdateStatus
@@ -167,9 +172,53 @@ export function runAppUpdateSelfCheck(): void {
   assert(mainIpc.includes('IPC_CHANNELS.appUpdate.checkForUpdates'), 'main 必须注册 checkForUpdates')
   assert(mainIpc.includes('IPC_CHANNELS.appUpdate.startDownload'), 'main 必须注册 startDownload')
   assert(mainIpc.includes('IPC_CHANNELS.appUpdate.quitAndInstall'), 'main 必须注册 quitAndInstall')
-  assert(mainService.includes('unsupportedAppUpdateStatus'), '未接入更新器时服务必须回退 unsupported')
-  assert(!mainService.includes('from \'electron-updater\''), 'P0 契约阶段主进程服务不得导入 electron-updater')
-  assert(!mainIpc.includes('from \'electron-updater\''), 'IPC 适配层不得直接导入 electron-updater')
+  assert(mainService.includes('unsupportedAppUpdateStatus'), '未启用更新器时服务必须回退 unsupported')
+  assert(ELECTRON_UPDATER_IMPORT.test(mainService), 'electron-updater 只能出现在 appUpdateService')
+  assert(!ELECTRON_UPDATER_IMPORT.test(mainIpc), 'IPC 适配层不得直接导入 electron-updater')
+  assert(mainService.includes('autoDownload = false'), '必须关闭自动下载')
+  assert(mainService.includes('autoInstallOnAppQuit = false'), '退出时不得自动安装')
+  assert(mainService.includes('allowPrerelease = false'), '教师版不得自动升到预发布')
+  assert(mainService.includes('canEnableDesktopAutoUpdate'), '启用判定必须复用纯函数')
+  assert(mainService.includes('APP_UPDATE_ISOLATED_TEST_ENV'), '隔离烟测目录必须禁用更新')
+  assert(mainService.includes('APP_UPDATE_NSIS_UNINSTALLER'), '解包目录必须因缺少 NSIS 卸载器而禁用')
+  assert(mainIpc.includes('APP_UPDATE_STATUS_EVENT'), '状态变化必须推送到渲染进程')
+  assert(mainIndex.includes('ready-to-show'), '启动检查必须挂在窗口显示之后')
+  assert(mainIndex.includes('scheduleStartupUpdateCheck(APP_UPDATE_STARTUP_CHECK_DELAY_MS)'), '启动检查必须延迟且可取消')
+  assert(!/scheduleStartupUpdateCheck\(/.test(mainIndex.split('createMainWindow')[0] ?? ''), '不得在建窗前启动检查')
+
+  assert(APP_UPDATE_STARTUP_CHECK_DELAY_MS === 8000, '启动后延迟必须是 8 秒')
+  assert(APP_UPDATE_DISABLE_ENV === 'GDPE_DISABLE_AUTO_UPDATE', '禁用开关环境变量必须稳定')
+  assert(APP_UPDATE_ISOLATED_TEST_ENV === 'GDPE_RC_TEST_ROOT', '隔离测试环境变量必须复用现有烟测根')
+  assert(APP_UPDATE_NSIS_UNINSTALLER === 'Uninstall gd-pe-teacher-assistant.exe', 'NSIS 卸载器文件名必须与 productName 一致')
+
+  const enabledBase = {
+    isPackaged: true,
+    rendererDevUrl: '',
+    isolatedTestRoot: '',
+    disableFlag: '',
+    hasUpdateYml: true,
+    hasNsisUninstaller: true
+  }
+  assert(canEnableDesktopAutoUpdate(enabledBase), '正式 NSIS 安装且存在 app-update.yml 时应启用')
+  assert(!canEnableDesktopAutoUpdate({ ...enabledBase, isPackaged: false }), '未打包进程不得检查更新')
+  assert(!canEnableDesktopAutoUpdate({ ...enabledBase, rendererDevUrl: 'http://localhost:5173' }), 'electron-vite dev 不得检查更新')
+  assert(!canEnableDesktopAutoUpdate({ ...enabledBase, isolatedTestRoot: 'C:/tmp/gdpe-rc' }), '隔离烟测不得访问 GitHub')
+  assert(!canEnableDesktopAutoUpdate({ ...enabledBase, disableFlag: '1' }), '显式禁用开关必须生效')
+  assert(!canEnableDesktopAutoUpdate({ ...enabledBase, hasUpdateYml: false }), '缺少 app-update.yml 不得启用')
+  assert(!canEnableDesktopAutoUpdate({ ...enabledBase, hasNsisUninstaller: false }), 'win-unpacked 解包目录不得启用')
+
+  const pkg = JSON.parse(read('package.json')) as { dependencies?: Record<string, string>; devDependencies?: Record<string, string> }
+  assert(typeof pkg.dependencies?.['electron-updater'] === 'string', 'electron-updater 必须是生产依赖')
+  assert(!pkg.devDependencies?.['electron-updater'], 'electron-updater 不得只放在 devDependencies')
+
+  const mainFiles = collectFiles(join(process.cwd(), 'src/main'), ['.ts'])
+  for (const file of mainFiles) {
+    if (file.endsWith('appUpdateService.ts')) {
+      continue
+    }
+    const text = readFileSync(file, 'utf8')
+    assert(!ELECTRON_UPDATER_IMPORT.test(text), `electron-updater 不得出现在 ${file}`)
+  }
 
   assertNoElectronUpdater('src/shared/appUpdate', 'shared/appUpdate')
   assertNoElectronUpdater('src/shared/appApi', 'shared/appApi')

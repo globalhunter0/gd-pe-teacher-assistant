@@ -28,6 +28,8 @@ import { registerDataIntegrityIpc } from './dataIntegrityIpc'
 import { buildAndRunStartupHealthCheck } from './dataIntegrityService'
 import { registerUserPreferencesIpc } from './userPreferencesIpc'
 import { registerAppUpdateIpc } from './appUpdateIpc'
+import { scheduleStartupUpdateCheck } from './appUpdateService'
+import { APP_UPDATE_STARTUP_CHECK_DELAY_MS } from '../shared/appUpdate'
 import {
   getTrainingItemFilePath,
   getTrainingMemberFilePath,
@@ -93,6 +95,7 @@ function createMainWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+    scheduleStartupUpdateCheck(APP_UPDATE_STARTUP_CHECK_DELAY_MS)
   })
 
   installMainWindowNavigationGuards(mainWindow.webContents, {
