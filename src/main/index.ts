@@ -1,5 +1,6 @@
-import { app, BrowserWindow, Menu, shell } from 'electron'
+import { app, BrowserWindow, Menu } from 'electron'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { initializeUserData } from '../shared/persistence/initializeUserData'
@@ -43,6 +44,7 @@ import {
 import { recoverPendingTransactions } from '../shared/persistence/diskTransaction'
 
 import { getUserDataRoot } from './userDataPaths'
+import { installMainWindowNavigationGuards } from './windowGuards'
 import { assertBuiltinExamCatalog } from '@shared/examStandard'
 
 // Explicit isolated smoke mode; a missing sentinel fails before any business access.
@@ -92,9 +94,9 @@ function createMainWindow(): void {
     mainWindow.show()
   })
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    void shell.openExternal(details.url)
-    return { action: 'deny' }
+  installMainWindowNavigationGuards(mainWindow.webContents, {
+    devServerUrl: process.env.ELECTRON_RENDERER_URL,
+    rendererFileUrl: pathToFileURL(join(__dirname, '../renderer/index.html')).href
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {

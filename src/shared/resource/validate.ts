@@ -9,6 +9,7 @@ import {
   type ResourceType,
   type ResourceUpdateInput
 } from './types'
+import { isAllowedExternalUrl } from '../security/externalUrl'
 
 const RESOURCE_ID = /^resource-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const ALLOWED_EXT = new Set<string>(ALLOWED_RESOURCE_EXTENSIONS)
@@ -119,7 +120,7 @@ export function parseResourceUrl(value: unknown): string {
     throw new Error('链接格式不正确，请使用 http 或 https 地址')
   }
 
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+  if (!isAllowedExternalUrl(parsed.toString())) {
     throw new Error('只允许打开 http 或 https 链接')
   }
 
