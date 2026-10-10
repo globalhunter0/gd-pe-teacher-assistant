@@ -27,3 +27,35 @@ export function canEnableDesktopAutoUpdate(input: DesktopAutoUpdateEnablement): 
   }
   return input.hasUpdateYml && input.hasNsisUninstaller
 }
+
+function looksLikeAutoUpdater(value: unknown): value is { autoDownload: unknown } {
+  if (value == null || typeof value !== 'object') {
+    return false
+  }
+  return 'autoDownload' in value && 'checkForUpdates' in value
+}
+
+/** electron-updater is CJS; ESM import/require interop may put the getter on default. */
+export function resolveElectronUpdaterExport(mod: unknown): { autoDownload: unknown } | null {
+  if (!looksLikeAutoUpdater(mod)) {
+    if (!mod || typeof mod !== 'object') {
+      return null
+    }
+    const record = mod as Record<string, unknown>
+    if (looksLikeAutoUpdater(record.autoUpdater)) {
+      return record.autoUpdater
+    }
+    const nestedDefault = record.default
+    if (looksLikeAutoUpdater(nestedDefault)) {
+      return nestedDefault
+    }
+    if (nestedDefault && typeof nestedDefault === 'object') {
+      const nested = nestedDefault as Record<string, unknown>
+      if (looksLikeAutoUpdater(nested.autoUpdater)) {
+        return nested.autoUpdater
+      }
+    }
+    return null
+  }
+  return mod
+}

@@ -15,6 +15,7 @@ import {
   formatAppUpdateStatusMessage,
   formatAppUpdateVersion,
   parseAppUpdateStatus,
+  resolveElectronUpdaterExport,
   shouldPromptAppUpdate,
   unsupportedAppUpdateStatus
 } from './index'
@@ -187,8 +188,10 @@ export function runAppUpdateSelfCheck(): void {
   assert(mainIpc.includes('IPC_CHANNELS.appUpdate.startDownload'), 'main 必须注册 startDownload')
   assert(mainIpc.includes('IPC_CHANNELS.appUpdate.quitAndInstall'), 'main 必须注册 quitAndInstall')
   assert(mainService.includes('unsupportedAppUpdateStatus'), '未启用更新器时服务必须回退 unsupported')
-  assert(/import\(\s*['"]electron-updater['"]\s*\)/.test(mainService), 'electron-updater 必须按需动态导入')
-  assert(!ELECTRON_UPDATER_IMPORT.test(mainService), '运行时代码不得静态导入 electron-updater')
+  assert(mainService.includes('createRequire'), '打包后必须用 createRequire 加载 CJS 更新器')
+  assert(mainService.includes('resolveElectronUpdaterExport'), '必须兼容 ESM/CJS 的 autoUpdater 导出形状')
+  assert(/import\(\s*['"]electron-updater['"]\s*\)/.test(mainService), '动态 import 只能作为回退')
+  assert(!/from\s+['"]electron-updater['"]/.test(mainService), '运行时代码不得静态导入 electron-updater')
   assert(!ELECTRON_UPDATER_IMPORT.test(mainIpc), 'IPC 适配层不得直接导入 electron-updater')
   assert(mainService.includes('autoDownload = false'), '必须关闭自动下载')
   assert(mainService.includes('autoInstallOnAppQuit = false'), '退出时不得自动安装')
@@ -221,6 +224,14 @@ export function runAppUpdateSelfCheck(): void {
   assert(!canEnableDesktopAutoUpdate({ ...enabledBase, disableFlag: '1' }), '显式禁用开关必须生效')
   assert(!canEnableDesktopAutoUpdate({ ...enabledBase, hasUpdateYml: false }), '缺少 app-update.yml 不得启用')
   assert(!canEnableDesktopAutoUpdate({ ...enabledBase, hasNsisUninstaller: false }), 'win-unpacked 解包目录不得启用')
+
+  const fakeUpdater = { autoDownload: false, checkForUpdates: () => undefined }
+  assert(resolveElectronUpdaterExport({ autoUpdater: fakeUpdater }) === fakeUpdater, 'CJS named export 必须能解析')
+  assert(resolveElectronUpdaterExport({ default: { autoUpdater: fakeUpdater } }) === fakeUpdater, 'ESM default.autoUpdater 必须能解析')
+  assert(resolveElectronUpdaterExport({ default: fakeUpdater }) === fakeUpdater, 'ESM default 本体必须能解析')
+  assert(resolveElectronUpdaterExport(fakeUpdater) === fakeUpdater, '已经是 updater 实例时必须原样返回')
+  assert(resolveElectronUpdaterExport({}) === null, '空模块必须失败而不是写出 autoDownload')
+  assert(resolveElectronUpdaterExport(undefined) === null, '缺失模块必须失败')
 
   const pkg = JSON.parse(read('package.json')) as {
     dependencies?: Record<string, string>

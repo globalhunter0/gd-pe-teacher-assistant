@@ -20,5 +20,6 @@ export {
   APP_UPDATE_NSIS_UNINSTALLER,
   APP_UPDATE_STARTUP_CHECK_DELAY_MS,
   canEnableDesktopAutoUpdate,
+  resolveElectronUpdaterExport,
   type DesktopAutoUpdateEnablement
 } from './runtime'

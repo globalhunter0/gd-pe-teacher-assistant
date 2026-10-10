@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import { existsSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { APP_VERSION } from '../shared/appVersion'
 import {
@@ -9,6 +10,7 @@ import {
   APP_UPDATE_STARTUP_CHECK_DELAY_MS,
   canEnableDesktopAutoUpdate,
   parseAppUpdateStatus,
+  resolveElectronUpdaterExport,
   unsupportedAppUpdateStatus,
   type AppUpdateStatus
 } from '../shared/appUpdate'
@@ -107,7 +109,27 @@ function toUserMessage(error: unknown): string {
   if (/latest\.yml|Cannot find channel|404|HttpError: 404/i.test(message)) {
     return '未找到可用的更新信息。'
   }
+  if (/更新模块未能加载|autoDownload|Cannot set properties of undefined/i.test(message)) {
+    return '更新组件未能正确加载。请重新安装当前版本后再试。'
+  }
   return '检查或下载更新失败，请稍后重试。'
+}
+
+function loadUpdaterModule(): unknown {
+  const requireFromMain = createRequire(import.meta.url)
+  return requireFromMain('electron-updater')
+}
+
+async function loadAutoUpdater(): Promise<AutoUpdaterLike> {
+  const required = resolveElectronUpdaterExport(loadUpdaterModule())
+  if (required) {
+    return required as AutoUpdaterLike
+  }
+  const imported = resolveElectronUpdaterExport(await import('electron-updater'))
+  if (!imported) {
+    throw new Error('更新模块未能加载')
+  }
+  return imported as AutoUpdaterLike
 }
 
 async function ensureConfigured(): Promise<AutoUpdaterLike | null> {
@@ -118,8 +140,7 @@ async function ensureConfigured(): Promise<AutoUpdaterLike | null> {
   if (configured && updater) {
     return updater
   }
-  const { autoUpdater } = await import('electron-updater')
-  updater = autoUpdater as AutoUpdaterLike
+  updater = await loadAutoUpdater()
   updater.autoDownload = false
   updater.autoInstallOnAppQuit = false
   updater.allowPrerelease = false
@@ -198,68 +219,72 @@ export function subscribeAppUpdateStatus(listener: (next: AppUpdateStatus) => vo
 
 export async function checkForUpdates(): Promise<AppUpdateStatus> {
   cancelStartupUpdateCheck()
-  const autoUpdater = await ensureConfigured()
-  if (!autoUpdater) {
-    return getAppUpdateStatus()
-  }
-  if (checking || downloading || status.state === 'readyToInstall') {
-    return getAppUpdateStatus()
-  }
-  checking = true
   try {
-    await autoUpdater.checkForUpdates()
+    const autoUpdater = await ensureConfigured()
+    if (!autoUpdater) {
+      return getAppUpdateStatus()
+    }
+    if (checking || downloading || status.state === 'readyToInstall') {
+      return getAppUpdateStatus()
+    }
+    checking = true
+    try {
+      await autoUpdater.checkForUpdates()
+    } finally {
+      checking = false
+    }
   } catch (error) {
     setStatus({
       state: 'error',
       errorMessage: toUserMessage(error)
     })
-  } finally {
-    checking = false
   }
   return getAppUpdateStatus()
 }
 
 export async function startDownload(): Promise<AppUpdateStatus> {
   cancelStartupUpdateCheck()
-  const autoUpdater = await ensureConfigured()
-  if (!autoUpdater) {
-    return getAppUpdateStatus()
-  }
-  const current = getAppUpdateStatus()
-  if (current.state === 'readyToInstall' || current.state === 'downloading') {
-    return current
-  }
-  if (current.state !== 'available' && !(current.state === 'error' && current.availableVersion)) {
-    return current
-  }
-  downloading = true
   try {
-    setStatus({
-      state: 'downloading',
-      progressPercent: current.progressPercent ?? 0,
-      errorMessage: undefined
-    })
-    await autoUpdater.downloadUpdate()
+    const autoUpdater = await ensureConfigured()
+    if (!autoUpdater) {
+      return getAppUpdateStatus()
+    }
+    const current = getAppUpdateStatus()
+    if (current.state === 'readyToInstall' || current.state === 'downloading') {
+      return current
+    }
+    if (current.state !== 'available' && !(current.state === 'error' && current.availableVersion)) {
+      return current
+    }
+    downloading = true
+    try {
+      setStatus({
+        state: 'downloading',
+        progressPercent: current.progressPercent ?? 0,
+        errorMessage: undefined
+      })
+      await autoUpdater.downloadUpdate()
+    } finally {
+      downloading = false
+    }
   } catch (error) {
     setStatus({
       state: 'error',
       errorMessage: toUserMessage(error)
     })
-  } finally {
-    downloading = false
   }
   return getAppUpdateStatus()
 }
 
 export async function quitAndInstall(): Promise<void> {
-  const autoUpdater = await ensureConfigured()
-  if (!autoUpdater) {
-    return
-  }
-  if (getAppUpdateStatus().state !== 'readyToInstall') {
-    return
-  }
   try {
+    const autoUpdater = await ensureConfigured()
+    if (!autoUpdater) {
+      return
+    }
+    if (getAppUpdateStatus().state !== 'readyToInstall') {
+      return
+    }
     autoUpdater.quitAndInstall(true, true)
   } catch (error) {
     setStatus({
