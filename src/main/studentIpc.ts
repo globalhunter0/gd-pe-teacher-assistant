@@ -1,3 +1,4 @@
+import { IPC_CHANNELS } from '../shared/appApi'
 import { handleCollectionSave } from './collectionIpc'
 import { ipcMain } from 'electron'
 import { getStudentDeleteBlockers, parseStudentRecords } from '../shared/student/validate'
@@ -16,11 +17,11 @@ import { loadStudents, saveStudents } from './studentStore'
 import { loadTrainingMembers, loadTrainingResults, loadTrainingSessions } from './trainingStore'
 
 export function registerStudentIpc(): void {
-  ipcMain.handle('students:get', async () => {
+  ipcMain.handle(IPC_CHANNELS.students.get, async () => {
     return loadStudents()
   })
 
-  handleCollectionSave('students:save', loadStudents, async (_event, items: unknown) => {
+  handleCollectionSave(IPC_CHANNELS.students.save, loadStudents, async (_event, items: unknown) => {
     const classes = await loadClasses()
     const knownClassIds = new Set(classes.map((item) => item.id))
     const next = parseStudentRecords(items, { knownClassIds })
@@ -50,33 +51,33 @@ export function registerStudentIpc(): void {
     return saveStudents(next, knownClassIds)
   })
 
-  ipcMain.handle('students:importPick', async () => {
+  ipcMain.handle(IPC_CHANNELS.students.importPick, async () => {
     return pickStudentExcel()
   })
 
-  ipcMain.handle('students:importAnalyze', async (_event, sessionId: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.students.importAnalyze, async (_event, sessionId: unknown) => {
     return analyzeStudentExcel(sessionId)
   })
 
-  ipcMain.handle('students:importHeaders', async (_event, sessionId: unknown, sheetName: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.students.importHeaders, async (_event, sessionId: unknown, sheetName: unknown) => {
     return inspectSheetHeaders(sessionId, sheetName)
   })
 
   ipcMain.handle(
-    'students:importPreview',
+    IPC_CHANNELS.students.importPreview,
     async (_event, sessionId: unknown, sheetName: unknown, mapping: unknown, context: unknown) => {
       return previewStudentExcel(sessionId, sheetName, mapping, context)
     }
   )
 
   ipcMain.handle(
-    'students:importCommit',
+    IPC_CHANNELS.students.importCommit,
     async (_event, sessionId: unknown, sheetName: unknown, mapping: unknown, context: unknown) => {
       return commitStudentExcel(sessionId, sheetName, mapping, context)
     }
   )
 
-  ipcMain.handle('students:importCancel', async () => {
+  ipcMain.handle(IPC_CHANNELS.students.importCancel, async () => {
     clearImportSession()
   })
 }

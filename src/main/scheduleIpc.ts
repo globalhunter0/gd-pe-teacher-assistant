@@ -1,3 +1,4 @@
+import { IPC_CHANNELS } from '../shared/appApi'
 import { handleCollectionSave } from './collectionIpc'
 import { ipcMain } from 'electron'
 import {
@@ -15,11 +16,11 @@ import {
 import { loadTrainingTeams } from './trainingStore'
 
 export function registerScheduleIpc(): void {
-  ipcMain.handle('schedule:get', async () => {
+  ipcMain.handle(IPC_CHANNELS.schedule.get, async () => {
     return loadSchedule()
   })
 
-  handleCollectionSave('schedule:save', loadSchedule, async (_event, items: unknown) => {
+  handleCollectionSave(IPC_CHANNELS.schedule.save, loadSchedule, async (_event, items: unknown) => {
     const submitted = parseScheduleItems(items)
     const [current, trainingTeams] = await Promise.all([
       loadSchedule(),
@@ -29,19 +30,19 @@ export function registerScheduleIpc(): void {
     return saveSchedule(submitted)
   })
 
-  ipcMain.handle('schedule:importPick', async () => pickScheduleExcel())
-  ipcMain.handle('schedule:importAnalyze', async (_event, sessionId: unknown) => analyzeScheduleExcel(sessionId))
+  ipcMain.handle(IPC_CHANNELS.schedule.importPick, async () => pickScheduleExcel())
+  ipcMain.handle(IPC_CHANNELS.schedule.importAnalyze, async (_event, sessionId: unknown) => analyzeScheduleExcel(sessionId))
   ipcMain.handle(
-    'schedule:importPreview',
+    IPC_CHANNELS.schedule.importPreview,
     async (_event, sessionId: unknown, mapping: unknown, resolutions: unknown) =>
       previewScheduleExcel(sessionId, mapping, resolutions)
   )
   ipcMain.handle(
-    'schedule:importCommit',
+    IPC_CHANNELS.schedule.importCommit,
     async (_event, sessionId: unknown, mapping: unknown, resolutions: unknown) =>
       commitScheduleExcel(sessionId, mapping, resolutions)
   )
-  ipcMain.handle('schedule:importCancel', async () => {
+  ipcMain.handle(IPC_CHANNELS.schedule.importCancel, async () => {
     clearScheduleImportSession()
   })
 }

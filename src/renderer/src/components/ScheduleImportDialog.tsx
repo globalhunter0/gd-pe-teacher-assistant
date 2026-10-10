@@ -8,6 +8,7 @@ import type {
 } from '@shared/schedule/importTypes'
 import { emptyScheduleResolutions } from '@shared/schedule/reconcile'
 import type { ScheduleItem } from '@shared/schedule/types'
+import { getAppApi } from '../platform/appApi'
 
 const EMPTY_MAPPING: ScheduleImportMapping = {
   weekday: null,
@@ -39,7 +40,7 @@ export default function ScheduleImportDialog({ onClose, onImported }: ScheduleIm
 
   useEffect(() => {
     return () => {
-      void window.electronAPI.schedule.importCancel()
+      void getAppApi().then((api) => api.schedule.importCancel())
     }
   }, [])
 
@@ -57,7 +58,7 @@ export default function ScheduleImportDialog({ onClose, onImported }: ScheduleIm
     setBusy(true)
     setError(null)
     try {
-      const picked = await window.electronAPI.schedule.importPick()
+      const picked = await (await getAppApi()).schedule.importPick()
       if (picked.canceled) {
         return
       }
@@ -65,7 +66,7 @@ export default function ScheduleImportDialog({ onClose, onImported }: ScheduleIm
       setFileName(picked.fileName)
       setResult(null)
       setResolutions(emptyScheduleResolutions())
-      const analyzed = await window.electronAPI.schedule.importAnalyze(picked.sessionId)
+      const analyzed = await (await getAppApi()).schedule.importAnalyze(picked.sessionId)
       applyDetection(analyzed)
     } catch (pickError) {
       setError(pickError instanceof Error ? pickError.message : '选择文件失败')
@@ -80,8 +81,8 @@ export default function ScheduleImportDialog({ onClose, onImported }: ScheduleIm
     }
     let cancelled = false
     const timer = window.setTimeout(() => {
-      void window.electronAPI.schedule
-        .importPreview(sessionId, mappingDirty ? mapping : null, resolutions)
+      void getAppApi()
+        .then((api) => api.schedule.importPreview(sessionId, mappingDirty ? mapping : null, resolutions))
         .then((nextPreview) => {
           if (!cancelled) {
             setPreview(nextPreview)
@@ -108,7 +109,7 @@ export default function ScheduleImportDialog({ onClose, onImported }: ScheduleIm
     setBusy(true)
     setError(null)
     try {
-      const committed = await window.electronAPI.schedule.importCommit(sessionId, mappingDirty ? mapping : null, resolutions)
+      const committed = await (await getAppApi()).schedule.importCommit(sessionId, mappingDirty ? mapping : null, resolutions)
       onImported(committed.items)
       setResult(
         `已识别普通课程 ${committed.recognized - committed.specialEventCount} 项、特殊事件 ${committed.specialEventCount} 项，跳过 ${committed.skipped} 项；已同步课表：保留 ${committed.keep}，新增 ${committed.create}，更新 ${committed.update}，移除 ${committed.remove}`

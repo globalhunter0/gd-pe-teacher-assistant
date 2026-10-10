@@ -1,4 +1,5 @@
 import { dialog, ipcMain } from 'electron'
+import { IPC_CHANNELS } from '../shared/appApi'
 import { extname } from 'node:path'
 import { stat } from 'node:fs/promises'
 import {
@@ -33,11 +34,11 @@ function dialogFilters(): Electron.FileFilter[] {
 }
 
 export function registerResourceIpc(): void {
-  ipcMain.handle('resources:get', async () => {
+  ipcMain.handle(IPC_CHANNELS.resources.get, async () => {
     return loadResources()
   })
 
-  ipcMain.handle('resources:selectFile', async () => {
+  ipcMain.handle(IPC_CHANNELS.resources.selectFile, async () => {
     const owner = getMainWindow()
     const options: Electron.OpenDialogOptions = {
       title: '选择资料文件',
@@ -71,11 +72,11 @@ export function registerResourceIpc(): void {
     return { canceled: false as const, originalFileName }
   })
 
-  ipcMain.handle('resources:cancelSelect', async () => {
+  ipcMain.handle(IPC_CHANNELS.resources.cancelSelect, async () => {
     filePick = null
   })
 
-  ipcMain.handle('resources:importFile', async (_event, input: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.resources.importFile, async (_event, input: unknown) => {
     if (!filePick) {
       throw new Error('请先选择文件')
     }
@@ -86,23 +87,23 @@ export function registerResourceIpc(): void {
     return items
   })
 
-  ipcMain.handle('resources:createNote', async (_event, input: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.resources.createNote, async (_event, input: unknown) => {
     return createNoteResource(input)
   })
 
-  ipcMain.handle('resources:createLink', async (_event, input: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.resources.createLink, async (_event, input: unknown) => {
     return createLinkResource(input)
   })
 
-  ipcMain.handle('resources:update', async (_event, id: unknown, input: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.resources.update, async (_event, id: unknown, input: unknown) => {
     return updateResource(id, input)
   })
 
-  ipcMain.handle('resources:delete', async (_event, id: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.resources.delete, async (_event, id: unknown) => {
     return deleteResource(id)
   })
 
-  ipcMain.handle('resources:open', async (_event, id: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.resources.open, async (_event, id: unknown) => {
     await openResource(id)
   })
 }

@@ -9,6 +9,7 @@ import { standardAllowsOfficialConvert, type ExamStandard } from '@shared/examSt
 import type { StudentGender } from '@shared/student'
 import { useClasses } from '../context/ClassContext'
 import { useStudents } from '../context/StudentContext'
+import { getAppApi } from '../platform/appApi'
 
 const CONVERT_TABLE_HINT = '该城市/年度评分表尚未完整核验，暂不支持自动换算。'
 
@@ -35,7 +36,7 @@ export default function ExamTemplateActions({ standard }: { standard: ExamStanda
     setTemplateMessage(null)
     setTemplateBusy(true)
     try {
-      const result = await window.electronAPI.examBatch.saveWorkbook(payload)
+      const result = await (await getAppApi()).examBatch.saveWorkbook(payload)
       if (result.canceled) {
         return
       }

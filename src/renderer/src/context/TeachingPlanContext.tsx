@@ -4,6 +4,7 @@ import {
   parseTeachingPlans,
   type TeachingPlan
 } from '@shared/teachingPlan'
+import { getAppApi } from '../platform/appApi'
 
 interface TeachingPlanContextValue {
   plans: TeachingPlan[]
@@ -27,7 +28,7 @@ export function TeachingPlanProvider({ children }: { children: React.ReactNode }
 
     async function load(): Promise<void> {
       try {
-        const loaded = await window.electronAPI.teachingPlans.get()
+        const loaded = await (await getAppApi()).teachingPlans.get()
         if (!cancelled) {
           setPlans(loaded)
           setError(null)
@@ -52,7 +53,7 @@ export function TeachingPlanProvider({ children }: { children: React.ReactNode }
 
   const savePlans = useCallback(async (nextItems: TeachingPlan[]) => {
     if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
-    const saved = await window.electronAPI.teachingPlans.save(parseTeachingPlans(nextItems), plans)
+    const saved = await (await getAppApi()).teachingPlans.save(parseTeachingPlans(nextItems), plans)
     setPlans(saved)
     setError(null)
   }, [plans, loading, error])

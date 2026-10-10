@@ -1,10 +1,11 @@
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
+import type { IpcChannel } from '../shared/appApi'
 import { assertCollectionUnchanged } from '../shared/persistence/collectionConflict'
 import { withExclusiveDataAccess } from '../shared/persistence/writeGate'
 
 /** Check and commit share the existing P0 write gate; no disk format changes. */
 export function handleCollectionSave<T>(
-  channel: string,
+  channel: IpcChannel,
   load: () => Promise<T[]>,
   save: (event: IpcMainInvokeEvent, input: unknown) => Promise<T[]>
 ): void {

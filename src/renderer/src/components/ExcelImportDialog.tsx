@@ -7,6 +7,7 @@ import {
 } from '@shared/student'
 import type { DetectedWorkbook } from '@shared/student/detectTypes'
 import type { RosterClassChoice, RosterPreviewResult, RosterResolutions, RosterRowChoice } from '@shared/student/rosterTypes'
+import { getAppApi } from '../platform/appApi'
 
 interface ExcelImportDialogProps {
   classes: ClassRecord[]
@@ -54,7 +55,7 @@ export default function ExcelImportDialog({ classes, onClose, onImported }: Exce
 
   useEffect(() => {
     return () => {
-      void window.electronAPI.students.importCancel()
+      void getAppApi().then((api) => api.students.importCancel())
     }
   }, [])
 
@@ -79,7 +80,7 @@ export default function ExcelImportDialog({ classes, onClose, onImported }: Exce
     setBusy(true)
     setError(null)
     try {
-      const picked = await window.electronAPI.students.importPick()
+      const picked = await (await getAppApi()).students.importPick()
       if (picked.canceled) {
         return
       }
@@ -87,7 +88,7 @@ export default function ExcelImportDialog({ classes, onClose, onImported }: Exce
       setFileName(picked.fileName)
       setResult(null)
       setResolutions(EMPTY_RESOLUTIONS)
-      const analyzed = await window.electronAPI.students.importAnalyze(picked.sessionId)
+      const analyzed = await (await getAppApi()).students.importAnalyze(picked.sessionId)
       applyDetection(analyzed)
     } catch (pickError) {
       setError(pickError instanceof Error ? pickError.message : '选择文件失败')
@@ -105,8 +106,10 @@ export default function ExcelImportDialog({ classes, onClose, onImported }: Exce
     }
     let cancelled = false
     const timer = window.setTimeout(() => {
-      void window.electronAPI.students
-        .importPreview(sessionId, '', mappingDirty ? mapping : null, { academicYear, semester, resolutions })
+      void getAppApi()
+        .then((api) =>
+          api.students.importPreview(sessionId, '', mappingDirty ? mapping : null, { academicYear, semester, resolutions })
+        )
         .then((nextPreview) => {
           if (!cancelled) {
             setPreview(nextPreview)
@@ -133,7 +136,7 @@ export default function ExcelImportDialog({ classes, onClose, onImported }: Exce
     setBusy(true)
     setError(null)
     try {
-      const committed = await window.electronAPI.students.importCommit(sessionId, '', mappingDirty ? mapping : null, {
+      const committed = await (await getAppApi()).students.importCommit(sessionId, '', mappingDirty ? mapping : null, {
         academicYear,
         semester,
         resolutions

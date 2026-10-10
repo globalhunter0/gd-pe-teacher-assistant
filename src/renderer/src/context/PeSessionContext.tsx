@@ -1,6 +1,7 @@
 import { assertCollectionUnchanged } from '@shared/persistence/collectionConflict'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { parsePeSessions, type PEClassSession } from '@shared/peSession'
+import { getAppApi } from '../platform/appApi'
 
 interface PeSessionContextValue {
   sessions: PEClassSession[]
@@ -24,7 +25,7 @@ export function PeSessionProvider({ children }: { children: React.ReactNode }): 
 
     async function load(): Promise<void> {
       try {
-        const loaded = await window.electronAPI.peSessions.get()
+        const loaded = await (await getAppApi()).peSessions.get()
         if (!cancelled) {
           setSessions(loaded)
           setError(null)
@@ -49,7 +50,7 @@ export function PeSessionProvider({ children }: { children: React.ReactNode }): 
 
   const saveSessions = useCallback(async (nextItems: PEClassSession[]) => {
     if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
-    const saved = await window.electronAPI.peSessions.save(parsePeSessions(nextItems), sessions)
+    const saved = await (await getAppApi()).peSessions.save(parsePeSessions(nextItems), sessions)
     setSessions(saved)
     setError(null)
   }, [sessions, loading, error])
@@ -65,7 +66,7 @@ export function PeSessionProvider({ children }: { children: React.ReactNode }): 
 
   const createSession = useCallback(async (item: PEClassSession) => {
     if (loading || error) throw new Error('课堂数据尚未就绪，请重新加载')
-    const result = await window.electronAPI.peSessions.create(item)
+    const result = await (await getAppApi()).peSessions.create(item)
     setSessions(result.sessions)
     setError(null)
     return result.session

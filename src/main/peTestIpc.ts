@@ -1,6 +1,7 @@
 import { loadPeSessions } from './peSessionStore'
 import { assertPeTestSaveIdentity } from '../shared/peTest/saveIdentity'
 import { parsePeTestSessions } from '../shared/peTest/validate'
+import { IPC_CHANNELS } from '../shared/appApi'
 import { handleCollectionSave } from './collectionIpc'
 import { ipcMain } from 'electron'
 import { loadClasses } from './classStore'
@@ -10,19 +11,19 @@ import { loadStudents } from './studentStore'
 import { executeImportExamBatchToPeTests } from '../shared/examBatch/peTestImport/execute'
 
 export function registerPeTestIpc(): void {
-  ipcMain.handle('testItems:get', async () => {
+  ipcMain.handle(IPC_CHANNELS.testItems.get, async () => {
     return loadTestItems()
   })
 
-  handleCollectionSave('testItems:save', loadTestItems, async (_event, items: unknown) => {
+  handleCollectionSave(IPC_CHANNELS.testItems.save, loadTestItems, async (_event, items: unknown) => {
     return saveTestItems(items)
   })
 
-  ipcMain.handle('peTests:get', async () => {
+  ipcMain.handle(IPC_CHANNELS.peTests.get, async () => {
     return loadPeTests()
   })
 
-  handleCollectionSave('peTests:save', loadPeTests, async (_event, items: unknown) => {
+  handleCollectionSave(IPC_CHANNELS.peTests.save, loadPeTests, async (_event, items: unknown) => {
     const current = await loadPeTests()
     const classrooms = await loadPeSessions()
     for (const test of parsePeTestSessions(items)) {
@@ -48,7 +49,7 @@ export function registerPeTestIpc(): void {
     )
   })
 
-  ipcMain.handle('peTests:importExamBatch', async (_event, payload: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.peTests.importExamBatch, async (_event, payload: unknown) => {
     return executeImportExamBatchToPeTests(payload, {
       loadClasses,
       loadStudents,

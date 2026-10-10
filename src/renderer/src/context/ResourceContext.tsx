@@ -7,6 +7,7 @@ import type {
   ResourceSelectResult,
   ResourceUpdateInput
 } from '@shared/resource'
+import { getAppApi } from '../platform/appApi'
 
 interface ResourceContextValue {
   resources: ResourceItem[]
@@ -34,7 +35,7 @@ export function ResourceProvider({ children }: { children: React.ReactNode }): R
 
     async function load(): Promise<void> {
       try {
-        const loaded = await window.electronAPI.resources.get()
+        const loaded = await (await getAppApi()).resources.get()
         if (!cancelled) {
           setResources(loaded)
           setError(null)
@@ -57,46 +58,46 @@ export function ResourceProvider({ children }: { children: React.ReactNode }): R
   }, [])
 
   const selectFile = useCallback(async () => {
-    return window.electronAPI.resources.selectFile()
+    return (await getAppApi()).resources.selectFile()
   }, [])
 
   const cancelSelect = useCallback(async () => {
-    await window.electronAPI.resources.cancelSelect()
+    await (await getAppApi()).resources.cancelSelect()
   }, [])
 
   const importFile = useCallback(async (input: ResourceFileImportInput) => {
-    const saved = await window.electronAPI.resources.importFile(input)
+    const saved = await (await getAppApi()).resources.importFile(input)
     setResources(saved)
     setError(null)
   }, [])
 
   const createNote = useCallback(async (input: ResourceNoteInput) => {
-    const saved = await window.electronAPI.resources.createNote(input)
+    const saved = await (await getAppApi()).resources.createNote(input)
     setResources(saved)
     setError(null)
   }, [])
 
   const createLink = useCallback(async (input: ResourceLinkInput) => {
-    const saved = await window.electronAPI.resources.createLink(input)
+    const saved = await (await getAppApi()).resources.createLink(input)
     setResources(saved)
     setError(null)
   }, [])
 
   const updateResource = useCallback(async (id: string, input: ResourceUpdateInput) => {
-    const saved = await window.electronAPI.resources.update(id, input)
+    const saved = await (await getAppApi()).resources.update(id, input)
     setResources(saved)
     setError(null)
   }, [])
 
   const deleteResource = useCallback(async (id: string) => {
-    const result = await window.electronAPI.resources.delete(id)
+    const result = await (await getAppApi()).resources.delete(id)
     setResources(result.items)
     setError(null)
     return result.warning
   }, [])
 
   const openResource = useCallback(async (id: string) => {
-    await window.electronAPI.resources.open(id)
+    await (await getAppApi()).resources.open(id)
   }, [])
 
   const value = useMemo(

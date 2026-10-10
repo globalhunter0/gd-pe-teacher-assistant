@@ -4,6 +4,7 @@ import {
   parseStudentRecords,
   type StudentRecord
 } from '@shared/student'
+import { getAppApi } from '../platform/appApi'
 import { useTraining } from './TrainingContext'
 
 interface StudentContextValue {
@@ -29,7 +30,7 @@ export function StudentProvider({ children }: { children: React.ReactNode }): Re
 
     async function load(): Promise<void> {
       try {
-        const loaded = await window.electronAPI.students.get()
+        const loaded = await (await getAppApi()).students.get()
         if (!cancelled) {
           setStudents(loaded)
           setError(null)
@@ -54,7 +55,7 @@ export function StudentProvider({ children }: { children: React.ReactNode }): Re
 
   const saveStudents = useCallback(async (nextItems: StudentRecord[]) => {
     if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
-    const saved = await window.electronAPI.students.save(parseStudentRecords(nextItems), students)
+    const saved = await (await getAppApi()).students.save(parseStudentRecords(nextItems), students)
     setStudents(saved)
     setError(null)
   }, [students, loading, error])
@@ -69,8 +70,9 @@ export function StudentProvider({ children }: { children: React.ReactNode }): Re
 
   const deleteStudent = useCallback(
     async (id: string) => {
-      const sessions = await window.electronAPI.peSessions.get()
-      const tests = await window.electronAPI.peTests.get()
+      const api = await getAppApi()
+      const sessions = await api.peSessions.get()
+      const tests = await api.peTests.get()
       const now = new Date().toISOString()
       const next = applyStudentSafeDelete(students, id, now, {
         sessions,

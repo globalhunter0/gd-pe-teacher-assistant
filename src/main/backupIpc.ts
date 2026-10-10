@@ -1,4 +1,5 @@
 import { dialog, ipcMain } from 'electron'
+import { IPC_CHANNELS } from '../shared/appApi'
 import { APP_RELEASE_VERSION, BACKUP_FILE_EXTENSION } from '../shared/backup/types'
 import { createDataBackup, restoreDataBackup } from '../shared/backup/service'
 import { getMainWindow } from './mainWindow'
@@ -10,7 +11,7 @@ function defaultBackupName(): string {
 }
 
 export function registerBackupIpc(): void {
-  ipcMain.handle('backup:create', async () => {
+  ipcMain.handle(IPC_CHANNELS.backup.create, async () => {
     const owner = getMainWindow()
     const options = {
       title: '保存数据备份',
@@ -31,7 +32,7 @@ export function registerBackupIpc(): void {
     }
   })
 
-  ipcMain.handle('backup:restore', async () => {
+  ipcMain.handle(IPC_CHANNELS.backup.restore, async () => {
     const owner = getMainWindow()
     const options = {
       title: '选择数据备份',

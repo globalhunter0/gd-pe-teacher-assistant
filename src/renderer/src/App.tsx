@@ -25,6 +25,7 @@ import TrainingTeamsPage from './pages/TrainingTeamsPage'
 import ResourcesPage from './pages/ResourcesPage'
 import SettingsPage from './pages/SettingsPage'
 import type { PeSessionPrefill } from '@shared/peSession'
+import { getAppApi } from './platform/appApi'
 
 export default function App(): React.JSX.Element {
   const [activeKey, setActiveKey] = useState<NavKey>('dashboard')
@@ -69,13 +70,15 @@ export default function App(): React.JSX.Element {
   }, [activeKey])
 
   useEffect(() => {
-    void window.electronAPI.dataIntegrity.startupStatus().then((report) => {
-      if (report && report.status === 'error') {
-        setStartupHealthError(
-          `启动自检发现数据错误 ${report.issueCount.error} 项。应用仍可打开；请到「设置 / 备份与恢复」查看明细，损坏文件不会被自动清空。`
-        )
-      }
-    })
+    void getAppApi()
+      .then((api) => api.dataIntegrity.startupStatus())
+      .then((report) => {
+        if (report && report.status === 'error') {
+          setStartupHealthError(
+            `启动自检发现数据错误 ${report.issueCount.error} 项。应用仍可打开；请到「设置 / 备份与恢复」查看明细，损坏文件不会被自动清空。`
+          )
+        }
+      })
   }, [])
 
   return (

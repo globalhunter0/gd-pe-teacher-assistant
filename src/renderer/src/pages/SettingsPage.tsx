@@ -3,6 +3,7 @@ import type { DataIntegrityReport } from '@shared/dataIntegrity'
 import { APP_VERSION_LABEL } from '../appVersionLabel'
 import PageLayout, { PageHeader } from '../components/PageLayout'
 import { useUserPreferences } from '../context/UserPreferencesContext'
+import { getAppApi } from '../platform/appApi'
 
 export default function SettingsPage(): React.JSX.Element {
   const { preferences, savePreferences, error: preferenceError } = useUserPreferences()
@@ -19,9 +20,11 @@ export default function SettingsPage(): React.JSX.Element {
   }, [preferences.teacherDisplayName])
 
   useEffect(() => {
-    void window.electronAPI.dataIntegrity.startupStatus().then((report) => {
-      setStartupReport(report)
-    })
+    void getAppApi()
+      .then((api) => api.dataIntegrity.startupStatus())
+      .then((report) => {
+        setStartupReport(report)
+      })
   }, [])
 
   async function handleBackup(): Promise<void> {
@@ -29,7 +32,7 @@ export default function SettingsPage(): React.JSX.Element {
     setError(null)
     setMessage(null)
     try {
-      const result = await window.electronAPI.backup.create()
+      const result = await (await getAppApi()).backup.create()
       if (result.canceled) {
         setMessage('已取消备份。')
         return
@@ -54,7 +57,7 @@ export default function SettingsPage(): React.JSX.Element {
     setError(null)
     setMessage(null)
     try {
-      const result = await window.electronAPI.backup.restore()
+      const result = await (await getAppApi()).backup.restore()
       if (result.canceled) {
         setMessage('已取消恢复。')
         return
@@ -95,7 +98,7 @@ export default function SettingsPage(): React.JSX.Element {
     setError(null)
     setMessage(null)
     try {
-      const report = await window.electronAPI.dataIntegrity.audit()
+      const report = await (await getAppApi()).dataIntegrity.audit()
       setHealthReport(report)
       setHealthOpen(true)
       if (report.status === 'healthy') {
@@ -123,7 +126,7 @@ export default function SettingsPage(): React.JSX.Element {
     setError(null)
     setMessage(null)
     try {
-      const result = await window.electronAPI.dataIntegrity.safeRepair()
+      const result = await (await getAppApi()).dataIntegrity.safeRepair()
       if (!result.ok) {
         setError(result.message)
         return

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { createScheduleService } from '../data/schedule/scheduleService'
 import { parseScheduleItems, type ScheduleItem } from '../data/schedule'
 import { assertScheduleLinksRoundTrip } from '@shared/schedule/validate'
+import { getAppApi } from '../platform/appApi'
 
 interface ScheduleContextValue {
   items: ScheduleItem[]
@@ -23,7 +24,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }): R
 
     async function load(): Promise<void> {
       try {
-        const loaded = await window.electronAPI.schedule.get()
+        const loaded = await (await getAppApi()).schedule.get()
         if (!cancelled) {
           setItems(loaded)
           setError(null)
@@ -49,7 +50,7 @@ export function ScheduleProvider({ children }: { children: React.ReactNode }): R
   const saveItems = useCallback(async (nextItems: ScheduleItem[]) => {
     parseScheduleItems(nextItems)
     if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
-    const saved = await window.electronAPI.schedule.save(nextItems, items)
+    const saved = await (await getAppApi()).schedule.save(nextItems, items)
     assertScheduleLinksRoundTrip(nextItems, saved)
     setItems(saved)
     setError(null)

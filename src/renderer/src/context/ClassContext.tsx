@@ -4,6 +4,7 @@ import {
   parseClassRecords,
   type ClassRecord
 } from '@shared/class'
+import { getAppApi } from '../platform/appApi'
 
 interface ClassContextValue {
   classes: ClassRecord[]
@@ -27,7 +28,7 @@ export function ClassProvider({ children }: { children: React.ReactNode }): Reac
 
     async function load(): Promise<void> {
       try {
-        const loaded = await window.electronAPI.classes.get()
+        const loaded = await (await getAppApi()).classes.get()
         if (!cancelled) {
           setClasses(loaded)
           setError(null)
@@ -52,7 +53,7 @@ export function ClassProvider({ children }: { children: React.ReactNode }): Reac
 
   const saveClasses = useCallback(async (nextItems: ClassRecord[]) => {
     if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
-    const saved = await window.electronAPI.classes.save(parseClassRecords(nextItems), classes)
+    const saved = await (await getAppApi()).classes.save(parseClassRecords(nextItems), classes)
     setClasses(saved)
     setError(null)
   }, [classes, loading, error])
@@ -67,11 +68,12 @@ export function ClassProvider({ children }: { children: React.ReactNode }): Reac
 
   const deleteClass = useCallback(
     async (id: string) => {
+      const api = await getAppApi()
       const [students, sessions, tests, schedule] = await Promise.all([
-        window.electronAPI.students.get(),
-        window.electronAPI.peSessions.get(),
-        window.electronAPI.peTests.get(),
-        window.electronAPI.schedule.get()
+        api.students.get(),
+        api.peSessions.get(),
+        api.peTests.get(),
+        api.schedule.get()
       ])
       const now = new Date().toISOString()
       await saveClasses(

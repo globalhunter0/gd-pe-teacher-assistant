@@ -17,6 +17,7 @@ import { useClasses } from '../context/ClassContext'
 import { usePeTests } from '../context/PeTestContext'
 import { useStudents } from '../context/StudentContext'
 import { useTestItems } from '../context/TestItemContext'
+import { getAppApi } from '../platform/appApi'
 import {
   AUTO_SCORE_CREDIBILITY,
   EXAM_TEMPLATE_SCORE_SHEET,
@@ -243,7 +244,7 @@ export default function ExamBatchPage({
       return
     }
     try {
-      const picked = await window.electronAPI.examBatch.pick()
+      const picked = await (await getAppApi()).examBatch.pick()
       if (picked.canceled) return
       setSessionId(picked.sessionId)
       setFileName(picked.fileName)
@@ -254,7 +255,7 @@ export default function ExamBatchPage({
       setSheetName(preferred)
       if (preferred) {
         setBusy(true)
-        const loaded = coerceExamSnapshot(await window.electronAPI.examBatch.loadSheet(picked.sessionId, preferred))
+        const loaded = coerceExamSnapshot(await (await getAppApi()).examBatch.loadSheet(picked.sessionId, preferred))
         applySnapshot(selectedStandard, loaded)
       }
     } catch (caught) {
@@ -268,7 +269,7 @@ export default function ExamBatchPage({
     if (!selectedStandard) return
     setBusy(true)
     try {
-      const loaded = coerceExamSnapshot(await window.electronAPI.examBatch.loadSheet(sessionId, sheetName))
+      const loaded = coerceExamSnapshot(await (await getAppApi()).examBatch.loadSheet(sessionId, sheetName))
       applySnapshot(selectedStandard, loaded)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '无法读取工作表')
@@ -310,7 +311,7 @@ export default function ExamBatchPage({
     const regionName = selectedStandard.examType === 'gaokao_sports' ? '广东省' : selectedStandard.cityName
     const hasAuto = rows.some((row) => row.status === 'success')
     try {
-      await window.electronAPI.examBatch.export({
+      await (await getAppApi()).examBatch.export({
         mode: 'workbook',
         layout: 'wide',
         rows,
@@ -354,7 +355,7 @@ export default function ExamBatchPage({
     setSaveWorking(true)
     setSaveError(null)
     try {
-      const result = await window.electronAPI.peTests.importExamBatch(
+      const result = await (await getAppApi()).peTests.importExamBatch(
         buildExamBatchPeTestImportPayload({
           classId: saveClass.id,
           testDate: saveDate,

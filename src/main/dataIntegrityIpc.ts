@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron'
+import { IPC_CHANNELS } from '../shared/appApi'
 import {
   buildAndRunDataIntegrityAudit,
   buildAndRunStartupHealthCheck,
@@ -7,15 +8,15 @@ import {
 } from './dataIntegrityService'
 
 export function registerDataIntegrityIpc(): void {
-  ipcMain.handle('dataIntegrity:audit', async () => {
+  ipcMain.handle(IPC_CHANNELS.dataIntegrity.audit, async () => {
     return buildAndRunDataIntegrityAudit()
   })
 
-  ipcMain.handle('dataIntegrity:startupStatus', async () => {
+  ipcMain.handle(IPC_CHANNELS.dataIntegrity.startupStatus, async () => {
     return getLastStartupHealthReport() ?? (await buildAndRunStartupHealthCheck())
   })
 
-  ipcMain.handle('dataIntegrity:safeRepair', async () => {
+  ipcMain.handle(IPC_CHANNELS.dataIntegrity.safeRepair, async () => {
     return runSafeRepairWithBackup()
   })
 }

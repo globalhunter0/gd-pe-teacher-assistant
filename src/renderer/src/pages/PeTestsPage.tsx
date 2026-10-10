@@ -13,6 +13,7 @@ import { useClasses } from '../context/ClassContext'
 import { usePeTests } from '../context/PeTestContext'
 import { useStudents } from '../context/StudentContext'
 import { useTestItems } from '../context/TestItemContext'
+import { getAppApi } from '../platform/appApi'
 import { buildPeTestSession } from '../data/peTest/buildSession'
 import { PE_TEST_PRIMARY_IMPORT_LABEL } from '@shared/examBatch'
 import {
@@ -336,7 +337,7 @@ export default function PeTestsPage({
             testItem: items.find((item) => item.id === live.testItemId),
             items
           })
-          const result = await window.electronAPI.examBatch.saveWorkbook(payload)
+          const result = await (await getAppApi()).examBatch.saveWorkbook(payload)
           if (result.canceled) {
             return false
           }

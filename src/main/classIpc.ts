@@ -1,3 +1,4 @@
+import { IPC_CHANNELS } from '../shared/appApi'
 import { handleCollectionSave } from './collectionIpc'
 import { ipcMain } from 'electron'
 import { hasClassIdentityRefs, parseClassRecords } from '../shared/class/validate'
@@ -9,11 +10,11 @@ import { loadStudents } from './studentStore'
 import { dropMissingScheduleClassLinks } from '../shared/schedule/validate'
 
 export function registerClassIpc(): void {
-  ipcMain.handle('classes:get', async () => {
+  ipcMain.handle(IPC_CHANNELS.classes.get, async () => {
     return loadClasses()
   })
 
-  handleCollectionSave('classes:save', loadClasses, async (_event, items: unknown) => {
+  handleCollectionSave(IPC_CHANNELS.classes.save, loadClasses, async (_event, items: unknown) => {
     const next = parseClassRecords(items)
     const current = await loadClasses()
     const nextIds = new Set(next.map((item) => item.id))

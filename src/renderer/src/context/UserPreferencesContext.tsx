@@ -4,6 +4,7 @@ import {
   parseUserPreferences,
   type UserPreferences
 } from '@shared/userPreferences'
+import { getAppApi } from '../platform/appApi'
 
 interface UserPreferencesContextValue {
   preferences: UserPreferences
@@ -24,7 +25,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
 
     async function load(): Promise<void> {
       try {
-        const loaded = await window.electronAPI.userPreferences.get()
+        const loaded = await (await getAppApi()).userPreferences.get()
         if (!cancelled) {
           setPreferences(parseUserPreferences(loaded))
           setError(null)
@@ -48,7 +49,7 @@ export function UserPreferencesProvider({ children }: { children: React.ReactNod
   }, [])
 
   const savePreferences = useCallback(async (next: UserPreferences) => {
-    const saved = await window.electronAPI.userPreferences.save(parseUserPreferences(next))
+    const saved = await (await getAppApi()).userPreferences.save(parseUserPreferences(next))
     setPreferences(parseUserPreferences(saved))
     setError(null)
   }, [])

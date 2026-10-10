@@ -1,3 +1,4 @@
+import { IPC_CHANNELS } from '../shared/appApi'
 import { handleCollectionSave } from './collectionIpc'
 import { ipcMain } from 'electron'
 import { loadClasses } from './classStore'
@@ -9,7 +10,7 @@ import { withExclusiveDataAccess } from '../shared/persistence/writeGate'
 let creationQueue: Promise<unknown> = Promise.resolve()
 
 export function registerPeSessionIpc(): void {
-  ipcMain.handle('peSessions:create', (_event, input: unknown) => {
+  ipcMain.handle(IPC_CHANNELS.peSessions.create, (_event, input: unknown) => {
     const operation = creationQueue.then(() => withExclusiveDataAccess(async () => {
       const item = parsePeSessions([input])[0]
       const current = await loadPeSessions()
@@ -23,11 +24,11 @@ export function registerPeSessionIpc(): void {
     creationQueue = operation.catch(() => undefined)
     return operation
   })
-  ipcMain.handle('peSessions:get', async () => {
+  ipcMain.handle(IPC_CHANNELS.peSessions.get, async () => {
     return loadPeSessions()
   })
 
-  handleCollectionSave('peSessions:save', loadPeSessions, async (_event, items: unknown) => {
+  handleCollectionSave(IPC_CHANNELS.peSessions.save, loadPeSessions, async (_event, items: unknown) => {
     const classes = await loadClasses()
     const knownClassIds = new Set(classes.map((item) => item.id))
     return savePeSessions(items, knownClassIds)

@@ -1,6 +1,7 @@
 import { assertCollectionUnchanged } from '@shared/persistence/collectionConflict'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { parsePeTestSessions, type PETestSession } from '@shared/peTest'
+import { getAppApi } from '../platform/appApi'
 
 interface PeTestContextValue {
   sessions: PETestSession[]
@@ -20,7 +21,7 @@ export function PeTestProvider({ children }: { children: React.ReactNode }): Rea
   const [error, setError] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
-    const loaded = await window.electronAPI.peTests.get()
+    const loaded = await (await getAppApi()).peTests.get()
     setSessions(loaded)
     setError(null)
   }, [])
@@ -51,7 +52,7 @@ export function PeTestProvider({ children }: { children: React.ReactNode }): Rea
 
   const saveSessions = useCallback(async (nextItems: PETestSession[]) => {
     if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
-    const saved = await window.electronAPI.peTests.save(parsePeTestSessions(nextItems), sessions)
+    const saved = await (await getAppApi()).peTests.save(parsePeTestSessions(nextItems), sessions)
     setSessions(saved)
     setError(null)
   }, [sessions, loading, error])

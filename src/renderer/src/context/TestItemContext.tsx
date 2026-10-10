@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { parseTestItems, type TestItem } from '@shared/peTest'
+import { getAppApi } from '../platform/appApi'
 
 interface TestItemContextValue {
   items: TestItem[]
@@ -21,7 +22,7 @@ export function TestItemProvider({ children }: { children: React.ReactNode }): R
 
     async function load(): Promise<void> {
       try {
-        const loaded = await window.electronAPI.testItems.get()
+        const loaded = await (await getAppApi()).testItems.get()
         if (!cancelled) {
           setItems(loaded)
           setError(null)
@@ -46,7 +47,7 @@ export function TestItemProvider({ children }: { children: React.ReactNode }): R
 
   const saveItems = useCallback(async (nextItems: TestItem[]) => {
     if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
-    const saved = await window.electronAPI.testItems.save(parseTestItems(nextItems), items)
+    const saved = await (await getAppApi()).testItems.save(parseTestItems(nextItems), items)
     setItems(saved)
     setError(null)
   }, [items, loading, error])
