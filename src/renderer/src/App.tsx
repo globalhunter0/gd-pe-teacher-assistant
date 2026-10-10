@@ -24,6 +24,7 @@ import TeachingPlansPage from './pages/TeachingPlansPage'
 import TrainingTeamsPage from './pages/TrainingTeamsPage'
 import ResourcesPage from './pages/ResourcesPage'
 import SettingsPage from './pages/SettingsPage'
+import UpdateHost from './components/UpdateHost'
 import type { PeSessionPrefill } from '@shared/peSession'
 import { getAppApi } from './platform/appApi'
 
@@ -93,6 +94,7 @@ export default function App(): React.JSX.Element {
                 <TeachingPlanProvider>
                   <ResourceProvider>
                   <div className="app-shell">
+                    <UpdateHost />
                     <Sidebar activeKey={activeKey === 'exams' ? 'tests' : activeKey} onNavigate={navigate} />
                     <div className="app-main">
                       {startupHealthError ? (

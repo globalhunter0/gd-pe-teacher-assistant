@@ -109,3 +109,47 @@ export function shouldPromptAppUpdate(status: AppUpdateStatus): boolean {
   }
   return status.state === 'available' || status.state === 'downloading' || status.state === 'readyToInstall'
 }
+
+export function formatAppUpdateVersion(version: string): string {
+  const trimmed = version.trim()
+  if (!trimmed) {
+    return ''
+  }
+  return trimmed.startsWith('v') ? trimmed : `v${trimmed}`
+}
+
+export function formatAppUpdateStatusMessage(status: AppUpdateStatus): string {
+  if (!status.supported) {
+    return '当前环境不支持应用内更新。'
+  }
+  switch (status.state) {
+    case 'checking':
+      return '正在检查更新…'
+    case 'available':
+      return status.availableVersion
+        ? `发现新版本 ${formatAppUpdateVersion(status.availableVersion)}。`
+        : '发现新版本。'
+    case 'not-available':
+      return '已是最新版本。'
+    case 'downloading':
+      return `正在下载更新… ${Math.round(status.progressPercent ?? 0)}%`
+    case 'readyToInstall':
+      return status.installKind === 'store'
+        ? '新版本已准备好，请前往应用商店安装。'
+        : '更新已下载完成，重启后安装。'
+    case 'error':
+      return status.errorMessage ?? '检查或下载更新失败，请稍后重试。'
+    default:
+      return '可以检查是否有新版本。'
+  }
+}
+
+export function appUpdateInstallActionLabel(kind: AppUpdateInstallKind): string {
+  if (kind === 'store') {
+    return '前往应用商店'
+  }
+  if (kind === 'restart') {
+    return '重启安装'
+  }
+  return '关闭'
+}

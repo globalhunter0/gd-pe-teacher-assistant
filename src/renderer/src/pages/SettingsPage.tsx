@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react'
 import type { DataIntegrityReport } from '@shared/dataIntegrity'
+import {
+  appUpdateInstallActionLabel,
+  formatAppUpdateStatusMessage,
+  type AppUpdateStatus
+} from '@shared/appUpdate'
 import { APP_VERSION_LABEL } from '../appVersionLabel'
 import PageLayout, { PageHeader } from '../components/PageLayout'
 import { useUserPreferences } from '../context/UserPreferencesContext'
 import { getAppApi } from '../platform/appApi'
+import { getAppUpdatePort, type AppUpdatePort } from '../platform/appUpdatePort'
 
 export default function SettingsPage(): React.JSX.Element {
   const { preferences, savePreferences, error: preferenceError } = useUserPreferences()
@@ -14,6 +20,9 @@ export default function SettingsPage(): React.JSX.Element {
   const [healthReport, setHealthReport] = useState<DataIntegrityReport | null>(null)
   const [healthOpen, setHealthOpen] = useState(false)
   const [startupReport, setStartupReport] = useState<DataIntegrityReport | null>(null)
+  const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus | null>(null)
+  const [updateBusy, setUpdateBusy] = useState(false)
+  const [updatePort, setUpdatePort] = useState<AppUpdatePort | null>(null)
 
   useEffect(() => {
     setTeacherDisplayName(preferences.teacherDisplayName)
@@ -25,6 +34,29 @@ export default function SettingsPage(): React.JSX.Element {
       .then((report) => {
         setStartupReport(report)
       })
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    let unsubscribe = () => {}
+    void getAppUpdatePort().then((port) => {
+      if (cancelled) {
+        return
+      }
+      setUpdatePort(port)
+      void port.getStatus().then((status) => {
+        if (!cancelled) {
+          setUpdateStatus(status)
+        }
+      })
+      unsubscribe = port.subscribe((status) => {
+        setUpdateStatus(status)
+      })
+    })
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [])
 
   async function handleBackup(): Promise<void> {
@@ -90,6 +122,26 @@ export default function SettingsPage(): React.JSX.Element {
       setError(saveError instanceof Error ? saveError.message : '教师信息保存失败')
     } finally {
       setWorking(false)
+    }
+  }
+
+  async function runUpdateAction(action: 'check' | 'download' | 'install'): Promise<void> {
+    if (!updatePort) {
+      return
+    }
+    setUpdateBusy(true)
+    setError(null)
+    try {
+      if (action === 'install') {
+        await updatePort.quitAndInstall()
+        return
+      }
+      const next = action === 'check' ? await updatePort.checkForUpdates() : await updatePort.startDownload()
+      setUpdateStatus(next)
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : '检查更新失败')
+    } finally {
+      setUpdateBusy(false)
     }
   }
 
@@ -182,6 +234,29 @@ export default function SettingsPage(): React.JSX.Element {
             <li>数据保存在本机应用目录，业务 JSON 与偏好文件分开存储。</li>
             <li>备份包格式仍为 .gdpebak。</li>
           </ul>
+          <p className="settings-copy">
+            {updateStatus ? formatAppUpdateStatusMessage(updateStatus) : '正在读取更新状态…'}
+          </p>
+          <div className="settings-health-actions">
+            <button
+              type="button"
+              className="btn"
+              disabled={updateBusy || !updatePort || updateStatus?.supported === false}
+              onClick={() => void runUpdateAction('check')}
+            >
+              {updateBusy ? '处理中…' : '检查更新'}
+            </button>
+            {updateStatus?.state === 'available' || (updateStatus?.state === 'error' && updateStatus.availableVersion) ? (
+              <button type="button" className="btn btn-primary" disabled={updateBusy || !updatePort} onClick={() => void runUpdateAction('download')}>
+                下载更新
+              </button>
+            ) : null}
+            {updateStatus?.state === 'readyToInstall' ? (
+              <button type="button" className="btn btn-primary" disabled={updateBusy || !updatePort} onClick={() => void runUpdateAction('install')}>
+                {appUpdateInstallActionLabel(updateStatus.installKind)}
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 

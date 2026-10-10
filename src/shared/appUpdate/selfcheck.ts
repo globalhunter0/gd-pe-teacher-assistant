@@ -10,7 +10,10 @@ import {
   APP_UPDATE_STARTUP_CHECK_DELAY_MS,
   APP_UPDATE_STATES,
   APP_UPDATE_STATUS_EVENT,
+  appUpdateInstallActionLabel,
   canEnableDesktopAutoUpdate,
+  formatAppUpdateStatusMessage,
+  formatAppUpdateVersion,
   parseAppUpdateStatus,
   shouldPromptAppUpdate,
   unsupportedAppUpdateStatus
@@ -133,6 +136,17 @@ export function runAppUpdateSelfCheck(): void {
     installKind: 'restart',
     errorMessage: '网络失败'
   })), '检查失败不得自动弹窗')
+  assert(formatAppUpdateVersion('1.0.1') === 'v1.0.1', '版本展示必须带 v')
+  assert(formatAppUpdateVersion('v1.0.1') === 'v1.0.1', '已有 v 前缀不得重复')
+  assert(formatAppUpdateStatusMessage(unsupported) === '当前环境不支持应用内更新。', '未支持环境必须给设置页说明')
+  assert(formatAppUpdateStatusMessage(parsed) === '发现新版本 v1.0.1。', '发现新版本文案必须给出版本号')
+  assert(formatAppUpdateStatusMessage(ready) === '更新已下载完成，重启后安装。', '桌面下载完成必须提示重启安装')
+  assert(
+    formatAppUpdateStatusMessage({ ...ready, installKind: 'store' }) === '新版本已准备好，请前往应用商店安装。',
+    '移动端商店更新文案必须与桌面重启解耦'
+  )
+  assert(appUpdateInstallActionLabel('restart') === '重启安装', '桌面安装按钮必须是重启安装')
+  assert(appUpdateInstallActionLabel('store') === '前往应用商店', '移动端安装按钮必须指向商店')
 
   assert(APP_UPDATE_STATES.includes('readyToInstall'), '状态机必须包含 readyToInstall')
   assert(APP_UPDATE_INSTALL_KINDS.includes('unsupported'), '安装方式必须包含 unsupported')
@@ -225,10 +239,40 @@ export function runAppUpdateSelfCheck(): void {
   assertNoElectronUpdater('src/renderer/src', 'renderer')
 
   const rendererFiles = collectFiles(join(process.cwd(), 'src/renderer/src'), ['.ts', '.tsx'])
+  const allowedWindowEvents = new Set([
+    join(process.cwd(), 'src/renderer/src/platform/appApi.ts').toLowerCase()
+  ])
   for (const file of rendererFiles) {
     const text = readFileSync(file, 'utf8')
     assert(!/\bautoUpdater\b/.test(text), `渲染层不得出现 autoUpdater：${file}`)
+    if (text.includes('window.appUpdateEvents')) {
+      assert(allowedWindowEvents.has(file.toLowerCase()), `${file} 不得直接读 window.appUpdateEvents`)
+    }
   }
+
+  const dialog = read('src/renderer/src/components/UpdateDialog.tsx')
+  const host = read('src/renderer/src/components/UpdateHost.tsx')
+  const port = read('src/renderer/src/platform/appUpdatePort.ts')
+  const platform = read('src/renderer/src/platform/appApi.ts')
+  const settings = read('src/renderer/src/pages/SettingsPage.tsx')
+  const app = read('src/renderer/src/App.tsx')
+  const preload = read('src/preload/index.ts')
+  const preloadTypes = read('src/preload/index.d.ts')
+  assert(dialog.includes('appUpdateInstallActionLabel'), '弹窗必须按 installKind 显示安装按钮')
+  assert(!dialog.includes('getAppApi'), 'UpdateDialog 不得直接拿桌面 API')
+  assert(!dialog.includes('electron-updater'), 'UpdateDialog 不得依赖 electron-updater')
+  assert(!dialog.includes("from 'electron'"), 'UpdateDialog 不得依赖 Electron')
+  assert(host.includes('getAppUpdatePort'), 'UpdateHost 必须走平台 Port')
+  assert(host.includes('shouldPromptAppUpdate'), '自动弹窗必须复用共享判定')
+  assert(port.includes('getAppApi'), 'Port 必须把 AppApi 包成平台无关接口')
+  assert(platform.includes('subscribeAppUpdateStatus'), '桌面订阅必须收口在 platform/appApi')
+  assert(settings.includes('getAppUpdatePort'), '设置页检查更新必须走 Port')
+  assert(settings.includes('检查更新'), '设置页必须提供手动检查')
+  assert(settings.includes('APP_VERSION_LABEL'), '设置页版本仍须使用统一标签')
+  assert(app.includes('<UpdateHost'), '应用壳必须挂上更新提示')
+  assert(preload.includes('APP_UPDATE_STATUS_EVENT'), 'preload 必须用共享事件名订阅状态')
+  assert(preload.includes('appUpdateEvents'), 'preload 必须单独暴露更新订阅')
+  assert(preloadTypes.includes('appUpdateEvents'), 'Window 类型必须包含更新订阅')
 }
 
 export function runAppUpdateSelfCheckOrThrow(): string {
