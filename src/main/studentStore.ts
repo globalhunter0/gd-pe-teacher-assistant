@@ -7,7 +7,7 @@ export function getStudentFilePath(): string {
 }
 
 export async function loadStudents(): Promise<StudentRecord[]> {
-  return loadUserJsonItems('students.json', parseStudentRecords, '学生')
+  return loadUserJsonItems('students.json', parseStudentRecords)
 }
 
 export async function saveStudents(input: unknown, knownClassIds: ReadonlySet<string>): Promise<StudentRecord[]> {

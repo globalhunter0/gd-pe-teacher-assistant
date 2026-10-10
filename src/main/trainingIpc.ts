@@ -18,12 +18,6 @@ import {
 import { loadSchedule } from './scheduleStore'
 import { loadStudents } from './studentStore'
 import {
-  getTrainingItemFilePath,
-  getTrainingMemberFilePath,
-  getTrainingPlanFilePath,
-  getTrainingResultFilePath,
-  getTrainingSessionFilePath,
-  getTrainingTeamFilePath,
   loadTrainingItems,
   loadTrainingMembers,
   loadTrainingPlans,
@@ -237,15 +231,4 @@ export function registerTrainingIpc(): void {
     const students = await loadStudents()
     return saveTrainingResults(items, new Set(students.map((item) => item.id)))
   })
-}
-
-export function trainingDataPaths(): string[] {
-  return [
-    getTrainingTeamFilePath(),
-    getTrainingMemberFilePath(),
-    getTrainingPlanFilePath(),
-    getTrainingSessionFilePath(),
-    getTrainingItemFilePath(),
-    getTrainingResultFilePath()
-  ]
 }

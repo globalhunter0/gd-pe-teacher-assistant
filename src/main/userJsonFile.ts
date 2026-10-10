@@ -11,7 +11,6 @@ export function userJsonPath(fileName: BusinessFileName): string {
 export async function loadUserJsonItems<T>(
   fileName: BusinessFileName,
   parse: (input: unknown) => T[],
-  _label: string,
   ifMissing: T[] = []
 ): Promise<T[]> {
   return loadJsonItemsFile(userJsonPath(fileName), parse, ifMissing)

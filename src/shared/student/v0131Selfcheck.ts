@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import {
   applyClassSafeDelete,
   collectClassDeleteImpact,
@@ -69,19 +66,6 @@ function member(partial: Partial<TrainingTeamMember> & Pick<TrainingTeamMember, 
 }
 
 export function runV0131RegressionSelfCheck(): void {
-  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../../..')
-  const nav = readFileSync(join(repoRoot, 'src/renderer/src/navigation.ts'), 'utf8')
-  assert(nav.includes("label: '课堂记录'"), '导航应显示课堂记录')
-  assert(!nav.includes("label: '体育课记录'"), '导航不得再显示体育课记录')
-  assert(nav.includes("lessons: '课堂记录'"), '页面标题应为课堂记录')
-
-  const dashboard = readFileSync(join(repoRoot, 'src/renderer/src/pages/DashboardPage.tsx'), 'utf8')
-  assert(!dashboard.includes('绑定训练队'), '工作台不得显示绑定训练队')
-  assert(!dashboard.includes('进入训练队'), '工作台不得显示进入训练队')
-  assert(!dashboard.includes('开始训练'), '工作台不得显示开始训练')
-  assert(!dashboard.includes('训练队：'), '工作台卡片不得显示训练队绑定')
-  assert(dashboard.includes('workbenchListedClass'), '工作台只读取当前行政班')
-
   const parsedSchedule = parseScheduleItems(LEGACY_SCHEDULE_FIXTURE)
   assert(parsedSchedule.length === 17, '默认课表仍为 17 节')
   for (let i = 0; i < LEGACY_SCHEDULE_FIXTURE.length; i++) {

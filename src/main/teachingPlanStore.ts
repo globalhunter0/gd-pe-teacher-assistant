@@ -7,7 +7,7 @@ export function getTeachingPlanFilePath(): string {
 }
 
 export async function loadTeachingPlans(): Promise<TeachingPlan[]> {
-  return loadUserJsonItems('teaching-plans.json', parseTeachingPlans, '教学计划')
+  return loadUserJsonItems('teaching-plans.json', parseTeachingPlans)
 }
 
 export async function saveTeachingPlans(input: unknown): Promise<TeachingPlan[]> {

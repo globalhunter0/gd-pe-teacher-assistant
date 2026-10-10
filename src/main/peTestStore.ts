@@ -7,7 +7,7 @@ export function getPeTestFilePath(): string {
 }
 
 export async function loadPeTests(): Promise<PETestSession[]> {
-  return loadUserJsonItems('pe-tests.json', parsePeTestSessions, '体育测试')
+  return loadUserJsonItems('pe-tests.json', parsePeTestSessions)
 }
 
 export async function savePeTests(

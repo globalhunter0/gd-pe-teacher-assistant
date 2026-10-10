@@ -7,7 +7,7 @@ export function getScheduleFilePath(): string {
 }
 
 export async function loadSchedule(): Promise<ScheduleItem[]> {
-  return loadUserJsonItems('schedule.json', parseScheduleItems, '课表')
+  return loadUserJsonItems('schedule.json', parseScheduleItems)
 }
 
 export async function saveSchedule(input: unknown): Promise<ScheduleItem[]> {

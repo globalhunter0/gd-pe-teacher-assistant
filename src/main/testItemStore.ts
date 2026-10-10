@@ -9,7 +9,7 @@ export function getTestItemFilePath(): string {
 }
 
 export async function loadTestItems(): Promise<TestItem[]> {
-  const items = await loadUserJsonItems('test-items.json', parseTestItems, '测试项目', BUILTIN_TEST_ITEMS)
+  const items = await loadUserJsonItems('test-items.json', parseTestItems, BUILTIN_TEST_ITEMS)
   const merged = mergeBuiltinTestItems(items)
   if (merged.added > 0 || merged.patched > 0) {
     await saveUserJsonItems('test-items.json', merged.items, items)

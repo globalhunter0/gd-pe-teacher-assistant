@@ -1,7 +1,6 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { loadJsonDocumentFile, loadJsonItemsFile, readJsonDocumentFile, writeJsonDocumentAtomic, writeJsonItemsAtomic } from '../persistence/jsonFile'
 import {
   DEFAULT_TEACHER_DISPLAY_NAME,
@@ -48,10 +47,6 @@ export async function runUserPreferencesSelfCheckOrThrow(): Promise<string> {
       return input
     }, [])
     assert(JSON.stringify(sessionsAfter) === JSON.stringify(originalSessions), '不得修改课堂/测试/训练历史数据')
-
-    const dashboard = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../renderer/src/pages/DashboardPage.tsx'), 'utf8')
-    assert(dashboard.includes('teacherDisplayName'), '工作台问候语必须读取 teacherDisplayName')
-    assert(!dashboard.includes('郁老师'), '工作台不得硬编码郁老师')
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

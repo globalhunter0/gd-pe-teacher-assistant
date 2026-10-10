@@ -7,7 +7,7 @@ export function getClassFilePath(): string {
 }
 
 export async function loadClasses(): Promise<ClassRecord[]> {
-  return loadUserJsonItems('classes.json', parseClassRecords, '班级')
+  return loadUserJsonItems('classes.json', parseClassRecords)
 }
 
 export async function saveClasses(input: unknown): Promise<ClassRecord[]> {

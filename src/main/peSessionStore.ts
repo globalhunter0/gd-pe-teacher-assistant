@@ -15,7 +15,7 @@ export function getPeSessionFilePath(): string {
 }
 
 export async function loadPeSessions(): Promise<PEClassSession[]> {
-  return loadUserJsonItems('pe-sessions.json', parsePeSessions, '课堂记录')
+  return loadUserJsonItems('pe-sessions.json', parsePeSessions)
 }
 
 export async function savePeSessions(

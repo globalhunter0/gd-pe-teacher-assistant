@@ -44,7 +44,7 @@ export function getTrainingResultFilePath(): string {
 }
 
 export async function loadTrainingTeams(): Promise<TrainingTeam[]> {
-  return loadUserJsonItems('training-teams.json', parseTrainingTeams, '训练队')
+  return loadUserJsonItems('training-teams.json', parseTrainingTeams)
 }
 
 export async function saveTrainingTeams(input: unknown): Promise<TrainingTeam[]> {
@@ -54,7 +54,7 @@ export async function saveTrainingTeams(input: unknown): Promise<TrainingTeam[]>
 
 export async function loadTrainingMembers(): Promise<TrainingTeamMember[]> {
   const teams = await loadTrainingTeams()
-  return loadUserJsonItems('training-members.json', (input) => parseTrainingMembers(input, { knownTeamIds: new Set(teams.map((item) => item.id)) }), '训练队员')
+  return loadUserJsonItems('training-members.json', (input) => parseTrainingMembers(input, { knownTeamIds: new Set(teams.map((item) => item.id)) }))
 }
 
 export async function saveTrainingMembers(input: unknown, knownStudentIds: ReadonlySet<string>): Promise<TrainingTeamMember[]> {
@@ -73,8 +73,7 @@ export async function loadTrainingPlans(): Promise<TrainingPlan[]> {
     (input) =>
       parseTrainingPlans(input, {
         knownTeamIds: new Set(teams.map((item) => item.id))
-      }),
-    '训练计划'
+      })
   )
 }
 
@@ -97,8 +96,7 @@ export async function loadTrainingSessions(): Promise<TrainingSession[]> {
       parseTrainingSessions(input, {
         knownTeamIds: new Set(teams.map((item) => item.id)),
         knownPlanIds: new Set(plans.map((item) => item.id))
-      }),
-    '训练记录'
+      })
   )
 }
 
@@ -115,7 +113,7 @@ export async function saveTrainingSessions(input: unknown): Promise<TrainingSess
 }
 
 async function loadTrainingItemsOnce(): Promise<TrainingItem[]> {
-  const loaded = await loadUserJsonItems('training-items.json', parseTrainingItems, '训练项目')
+  const loaded = await loadUserJsonItems('training-items.json', parseTrainingItems)
   const merged = mergeBuiltinTrainingItems(loaded)
   if (merged.length !== loaded.length) {
     await saveUserJsonItems('training-items.json', merged)
@@ -147,8 +145,7 @@ export async function loadTrainingResults(): Promise<TrainingResult[]> {
         knownTeamIds: new Set(teams.map((item) => item.id)),
         knownItemIds: new Set(items.map((item) => item.id)),
         knownSessionIds: new Set(sessions.map((item) => item.id))
-      }),
-    '训练成绩'
+      })
   )
 }
 
