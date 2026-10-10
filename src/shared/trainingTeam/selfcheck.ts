@@ -29,7 +29,8 @@ import {
 } from './validate'
 import type { TrainingPlan, TrainingResult, TrainingSession, TrainingTeam, TrainingTeamMember } from './types'
 import { TRAINING_SPORTS } from './types'
-import { SCHOOL_STAGES, SPORT_PROGRAMS, TRAINING_LEVELS, generateBasicTrainingPlan } from './sportProgram'
+import { SCHOOL_STAGES, SPORT_PROGRAMS, TRAINING_LEVELS } from './sportProgram'
+import { exercisesFromPlanContent, generateTrainingBlock, trainingPhaseSequence } from './planGenerator'
 import type { StudentRecord } from '../student/types'
 
 function assert(condition: unknown, message: string): void {
@@ -1003,33 +1004,133 @@ export function runTrainingTeamSelfCheck(): void {
     ),
     '除“其他”外，每个队伍项目都要能生成基础计划'
   )
+  const blockId = 'training-block-ffffffff-ffff-4fff-8fff-ffffffffffff'
+  const block = (
+    programId: string,
+    stage: (typeof SCHOOL_STAGES)[number],
+    level: (typeof TRAINING_LEVELS)[number],
+    durationMinutes: number,
+    weeks = 4,
+    sessionsPerWeek = 3
+  ) =>
+    generateTrainingBlock({ stage, programId, level, durationMinutes, weeks, sessionsPerWeek, startDate: '2026-09-07', blockId })
+
+  const sessionIdBase = 'training-session-99999999-9999-4999-8999-'
+  let sessionCounter = 0
   const seen = new Set<string>()
   for (const program of SPORT_PROGRAMS) {
     for (const stage of SCHOOL_STAGES) {
       for (const level of TRAINING_LEVELS) {
-        const generated = generateBasicTrainingPlan({ stage, programId: program.id, level })
-        const key = `${stage}|${program.id}|${level}`
-        assert(!seen.has(generated.content), `${key} 的训练内容与其他组合重复`)
-        seen.add(generated.content)
-        assert(generated.title.includes(program.name), `${key} 标题必须带项目名`)
-        assert(generated.content.includes('课前确认'), `${key} 必须先写安全确认`)
-        assert(generated.blueprint.programId === program.id, `${key} 来源项目不正确`)
-        assert(generated.blueprint.stage === stage && generated.blueprint.level === level, `${key} 来源学段或水平不正确`)
+        for (const minutes of [30, 45, 60, 90, 120, 150]) {
+          const plans = block(program.id, stage, level, minutes)
+          const key = `${stage}|${program.id}|${level}|${minutes}`
+          assert(plans.length === 12, `${key} 4周×3次应生成12课`)
+          for (const plan of plans) {
+            assert(plan.title.length <= 80 && plan.goal.length <= 1000 && plan.notes.length <= 1000 && plan.content.length <= 4000, `${key} 超出字数限制`)
+            assert(plan.title.includes(program.name), `${key} 标题必须带项目名`)
+            assert(plan.content.includes('课前确认') && plan.content.includes('RAMP'), `${key} 必须有安全确认与 RAMP 热身`)
+            assert(plan.content.includes('整理与恢复') && plan.content.includes('RPE'), `${key} 必须有整理恢复与 RPE 记录`)
+            const allotted = [...plan.content.matchAll(/【[^】]+ · (\d+)分钟】/gu)].reduce((sum, match) => sum + Number(match[1]), 0)
+            assert(allotted === minutes, `${key} 各段分钟合计 ${allotted} 应等于设定时长`)
+            if (stage === 'primary') {
+              assert(!plan.content.includes('杠铃') && !plan.content.includes('跳深'), `${key} 小学不得出现杠铃或跳深`)
+            }
+            if (stage === 'junior') {
+              assert(!plan.content.includes('跳深'), `${key} 初中不得出现跳深`)
+            }
+            const exercises = exercisesFromPlanContent(plan.content)
+            assert(exercises.length >= 6, `${key} 拆出的练习过少`)
+            assert(!exercises.some((item) => item.name.startsWith('◆') || item.name.startsWith('【')), `${key} 说明行和标题不得变成练习`)
+            sessionCounter += 1
+            parseTrainingSessions([
+              {
+                ...sessionPayload,
+                id: `${sessionIdBase}${String(sessionCounter).padStart(12, '0')}`,
+                durationMinutes: minutes,
+                exercises: exercises.map((item, sortOrder) => ({
+                  ...item,
+                  id: `training-exercise-99999999-9999-4999-8999-${String(sortOrder).padStart(12, '0')}`,
+                  sortOrder
+                }))
+              }
+            ])
+            seen.add(plan.content)
+          }
+          assert(plans[0].goal.includes('第一课') && plans[1].goal.includes('上一课为第1周第1课'), `${key} 课次必须前后衔接`)
+          assert(plans.some((plan) => plan.content.includes('基线测评')), `${key} 首课必须有基线测评`)
+          assert(plans.some((plan) => plan.content.includes('阶段测评')), `${key} 减量周必须有阶段测评`)
+        }
       }
     }
   }
-  const swim = generateBasicTrainingPlan({ stage: 'primary', programId: 'swimming', level: 'starter' })
-  assert(swim.content.includes('看护') && swim.content.includes('浅水'), '小学游泳入门必须写明看护和浅水')
-  const triple = generateBasicTrainingPlan({ stage: 'primary', programId: 'track-triple-jump', level: 'starter' })
+  assert(seen.size > SPORT_PROGRAMS.length * 9 * 6, '不同组合的课次内容不能雷同')
+
+  assert(
+    trainingPhaseSequence(8).join(',') === 'adapt,develop,intensify,taper,develop,develop,intensify,taper' &&
+      trainingPhaseSequence(5).join(',') === 'adapt,develop,intensify,intensify,taper' &&
+      trainingPhaseSequence(3).join(',') === 'adapt,develop,intensify' &&
+      trainingPhaseSequence(1).join(',') === 'develop',
+    '周期阶段必须按适应→发展→强化→减量递进，且不连续两周减量'
+  )
+  const eightByFive = block('football', 'senior', 'developing', 90, 8, 5)
+  assert(eightByFive.length === 40, '8周×5次应生成40课')
+  assert(new Set(eightByFive.map((item) => item.date)).size === 40, '同一周期内课次日期不能重复')
+  assert(eightByFive[1].date === '2026-09-08' && eightByFive[5].date === '2026-09-14', '课次日期必须按周排开')
+  const threeAWeek = block('basketball', 'junior', 'basic', 60, 1, 3)
+  assert(threeAWeek.map((item) => item.date).join(',') === '2026-09-07,2026-09-09,2026-09-11', '每周3次隔天安排')
+  assert(
+    threeAWeek.map((item) => item.blueprint.focus).join(',') === 'speed,skill,game',
+    '每周3次按速度—技术—应用高低交替'
+  )
+  const single = block('track-sprint', 'senior', 'developing', 90, 1, 1)
+  assert(single.length === 1 && single[0].blueprint.focus === 'full', '单课应为全面发展课')
+  const taperSession = block('track-sprint', 'senior', 'developing', 90).find((item) => item.blueprint.phase === 'taper')
+  const intensifySession = block('track-sprint', 'senior', 'developing', 90).find((item) => item.blueprint.phase === 'intensify')
+  assert(taperSession?.content.includes('组间') && intensifySession?.content.includes('跳深'), '高中提高水平强化期才出现跳深')
+
+  const swim = block('swimming', 'primary', 'starter', 45)[0]
+  assert(swim.content.includes('看护') && swim.content.includes('浅水'), '小学游泳必须写明看护和浅水')
+  assert(!swim.content.includes('出发台'), '小学游泳不得出现出发台')
+  for (const stage of SCHOOL_STAGES) {
+    for (const plan of block('swimming', stage, 'starter', 60)) {
+      assert(!plan.content.includes('慢跑'), `${stage} 游泳不得安排池边慢跑`)
+      assert(
+        !/配速|快速游|冲刺|×50米|×100米/u.test(plan.content),
+        `${stage} 游泳入门（尚不会游）不得安排游距离、配速或冲刺`
+      )
+    }
+  }
+  for (const program of SPORT_PROGRAMS) {
+    for (const plan of block(program.id, 'senior', 'developing', 30)) {
+      const strength = /【(?:陆上)?力量与动作能力 · (\d+)分钟】/u.exec(plan.content)
+      assert(!strength || Number(strength[1]) >= 8, `${program.name} 力量段不足8分钟时不得安排`)
+      if (!/【速度与爆发 · \d+分钟】[^【]*(跳|Pogo)/u.test(plan.content)) {
+        assert(!plan.content.includes('跳跃总量控制'), `${program.name} 没有跳跃练习时不得出现触地总量`)
+      }
+    }
+  }
+  const triple = block('track-triple-jump', 'primary', 'starter', 45)[0]
   assert(triple.content.includes('沙坑') && triple.content.includes('硬地'), '小学三级跳远必须限制硬地')
-  const throwsPlan = generateBasicTrainingPlan({ stage: 'junior', programId: 'track-throws', level: 'basic' })
+  const throwsPlan = block('track-throws', 'junior', 'basic', 60)[1]
   assert(throwsPlan.content.includes('口令'), '投掷计划必须要求统一口令捡器械')
-  const seniorSprint = generateBasicTrainingPlan({ stage: 'senior', programId: 'track-sprint', level: 'developing' })
-  const primarySprint = generateBasicTrainingPlan({ stage: 'primary', programId: 'track-sprint', level: 'developing' })
-  assert(seniorSprint.content !== primarySprint.content, '同一项目和水平在不同学段的剂量必须不同')
+  const seniorSquat = block('basketball', 'senior', 'developing', 90, 1, 3)[0]
+  const primarySquat = block('basketball', 'primary', 'developing', 90, 1, 3)[0]
+  assert(seniorSquat.content.includes('4–6次') && primarySquat.content.includes('自重箱式深蹲'), '力量剂量必须随学段与水平变化')
+
+  const legacyExercises = exercisesFromPlanContent(`课前确认：${'很长的说明'.repeat(30)}\n1. 动态热身`)
+  assert(legacyExercises.length === 2 && legacyExercises[0].name.length === 80, '旧计划长行开始训练时必须截断到80字，避免保存失败')
+  assert(legacyExercises[0].notes.length > 0 && legacyExercises[0].kind === 'drill', '截断部分进入备注')
+
+  const legacyBlueprint = parseTrainingPlans([
+    { ...plannedPlan, blueprint: { stage: 'junior', programId: 'basketball', level: 'basic' } }
+  ])
+  assert(
+    legacyBlueprint[0].blueprint?.durationMinutes === undefined && legacyBlueprint[0].blueprint?.blockId === undefined,
+    '早期只有学段、项目和水平的生成来源仍可读取'
+  )
 
   const generatedPlanId = 'training-plan-eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
-  const generated = generateBasicTrainingPlan({ stage: 'junior', programId: 'basketball', level: 'basic' })
+  const generated = block('basketball', 'junior', 'basic', 75)[4]
   const roundTrip = parseTrainingPlans(
     [
       {
@@ -1049,11 +1150,21 @@ export function runTrainingTeamSelfCheck(): void {
     { knownTeamIds }
   )
   assert(
-    roundTrip[0].blueprint?.stage === 'junior' &&
-      roundTrip[0].blueprint.programId === 'basketball' &&
-      roundTrip[0].blueprint.level === 'basic',
-    '生成来源必须能保存后再读出'
+    JSON.stringify(roundTrip[0].blueprint) === JSON.stringify(generated.blueprint) &&
+      roundTrip[0].blueprint?.durationMinutes === 75 &&
+      roundTrip[0].blueprint.week === 2 &&
+      roundTrip[0].blueprint.blockId === blockId,
+    '生成来源（时长、周次、阶段、周期编号）必须能保存后再读出'
   )
+  const reparsed = parseTrainingPlans(JSON.parse(JSON.stringify(roundTrip)), { knownTeamIds })
+  assert(JSON.stringify(reparsed) === JSON.stringify(roundTrip), '训练计划再次保存读取必须一致')
+  let badPhase = false
+  try {
+    parseTrainingPlans([{ ...plannedPlan, blueprint: { ...generated.blueprint, phase: 'peak' } }])
+  } catch {
+    badPhase = true
+  }
+  assert(badPhase, '未知训练阶段必须拒绝')
   assertTrainingPlanChanges(parsedPlans, [...parsedPlans, roundTrip[0]], teams, [])
 
   let invalidBlueprint = false

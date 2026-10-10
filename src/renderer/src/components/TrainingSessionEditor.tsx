@@ -14,6 +14,7 @@ import {
   createTrainingExerciseId,
   createTrainingResultId,
   createTrainingSessionId,
+  exercisesFromPlanContent,
   formatTrainingDate,
   formatTrainingScoreWithUnit,
   type TrainingAttendance,
@@ -90,21 +91,20 @@ export default function TrainingSessionEditor({
   const [startTime, setStartTime] = useState(record?.startTime ?? '')
   const [title, setTitle] = useState(record?.title ?? sourcePlan?.title ?? '')
   const [place, setPlace] = useState(record?.place ?? '')
-  const [duration, setDuration] = useState(record?.durationMinutes != null ? String(record.durationMinutes) : '90')
+  const [duration, setDuration] = useState(
+    record?.durationMinutes != null
+      ? String(record.durationMinutes)
+      : String(sourcePlan?.blueprint?.durationMinutes ?? 90)
+  )
   const [notes, setNotes] = useState(record?.notes ?? notesFromPlan(sourcePlan))
   const [exercises, setExercises] = useState<TrainingExercise[]>(
     record?.exercises.length
       ? record.exercises
       : sourcePlan
-        ? sourcePlan.content
-            .split(/\r?\n/)
-            .map((line) => line.trim())
-            .filter(Boolean)
-            .map((name, sortOrder) => ({
-              ...emptyExercise(sortOrder),
-              name,
-              kind: 'drill'
-            }))
+        ? exercisesFromPlanContent(sourcePlan.content).map((item, sortOrder) => ({
+            ...emptyExercise(sortOrder),
+            ...item
+          }))
       : [
           emptyExercise(0),
           { ...emptyExercise(1), name: '专项练习', kind: 'drill' },

@@ -15,6 +15,8 @@ export type {
   TrainingResultStatus,
   SchoolStage,
   TrainingLevel,
+  TrainingPhase,
+  TrainingSessionFocus,
   TrainingSession,
   TrainingSessionRecordResult,
   TrainingSport,
@@ -35,6 +37,8 @@ export {
   TRAINING_MEMBER_STATUS_LABELS,
   TRAINING_PARTICIPATIONS,
   TRAINING_PARTICIPATION_LABELS,
+  TRAINING_PHASES,
+  TRAINING_SESSION_FOCUSES,
   TRAINING_PLAN_STATUSES,
   TRAINING_PLAN_STATUS_LABELS,
   TRAINING_RESULT_KINDS,
@@ -51,17 +55,29 @@ export {
   SCHOOL_STAGES,
   SPORT_PROGRAM_FAMILIES,
   SPORT_PROGRAMS,
+  TRAINING_FOCUS_LABELS,
   TRAINING_LEVEL_HINTS,
   TRAINING_LEVEL_LABELS,
   TRAINING_LEVELS,
+  TRAINING_PHASE_LABELS,
   defaultSportProgramId,
   formatTrainingPlanBlueprint,
-  generateBasicTrainingPlan,
   getSportProgram,
   isSchoolStage,
   isTrainingLevel
 } from './sportProgram'
-export type { GeneratedTrainingPlan, SportProgram, SportProgramFamily, SportProgramLevel } from './sportProgram'
+export type { SportProgram, SportProgramFamily, SportProgramLevel } from './sportProgram'
+export {
+  PLAN_DURATION_MAX,
+  PLAN_DURATION_MIN,
+  PLAN_SESSIONS_PER_WEEK_MAX,
+  PLAN_WEEKS_MAX,
+  TRAINING_PLAN_REFERENCES,
+  exercisesFromPlanContent,
+  generateTrainingBlock,
+  trainingPhaseSequence
+} from './planGenerator'
+export type { GeneratedTrainingPlan, PlanContentExercise, TrainingBlockInput } from './planGenerator'
 export {
   activeMembersOfTeam,
   attentionFromLatestSession,

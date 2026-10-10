@@ -1,4 +1,11 @@
-import type { SchoolStage, TrainingLevel, TrainingPlanBlueprint, TrainingSport } from './types'
+import type {
+  SchoolStage,
+  TrainingLevel,
+  TrainingPhase,
+  TrainingPlanBlueprint,
+  TrainingSessionFocus,
+  TrainingSport
+} from './types'
 
 export const SCHOOL_STAGES: readonly SchoolStage[] = ['primary', 'junior', 'senior']
 export const TRAINING_LEVELS: readonly TrainingLevel[] = ['starter', 'basic', 'developing']
@@ -47,32 +54,10 @@ export interface SportProgram {
   levels: Record<TrainingLevel, SportProgramLevel>
 }
 
-interface StageProfile {
-  minutes: string
-  organize: string
-  load: string
-  warmup: string
-}
-
-const STAGE_PROFILE: Record<SchoolStage, StageProfile> = {
-  primary: {
-    minutes: '35–45分钟',
-    organize: '4–6人一组，老师站在能同时看到所有人的位置。',
-    load: '以短组和游戏为主，每组之间休息到能完整说话，不比极限成绩。',
-    warmup: '慢跑或原地活动3分钟，活动踝、膝、髋、肩。'
-  },
-  junior: {
-    minutes: '50–70分钟',
-    organize: '按能力分成2–3组，先集中示范，再分组练习，老师轮流看动作。',
-    load: '技术做正确再加次数。动作变形、或喘气说不出短句时，延长休息或减量。',
-    warmup: '慢跑6–8分钟，做动态拉伸。'
-  },
-  senior: {
-    minutes: '70–90分钟',
-    organize: '可按位置或能力分组，每组写清任务、次数和休息。',
-    load: '动作稳定后再提高节奏或配合。组间休息留够，不做力竭，不按专业队负荷加量。',
-    warmup: '慢跑8–10分钟，做动态拉伸和专项激活。'
-  }
+export const STAGE_ORGANIZE: Record<SchoolStage, string> = {
+  primary: '4–6人一组，老师站在能同时看到所有人的位置；以游戏化任务驱动。',
+  junior: '按能力分2–3组，先集中示范再分组，老师轮流看动作。',
+  senior: '按位置或能力分组，每组写清任务、组次和休息。'
 }
 
 function level(
@@ -866,77 +851,36 @@ export function defaultSportProgramId(sport: TrainingSport): string {
   return SPORT_PROGRAMS.find((item) => item.sport === sport)?.id ?? SPORT_PROGRAMS[0].id
 }
 
+export const TRAINING_PHASE_LABELS: Record<TrainingPhase, string> = {
+  adapt: '适应期',
+  develop: '发展期',
+  intensify: '强化期',
+  taper: '减量测评期'
+}
+
+export const TRAINING_FOCUS_LABELS: Record<TrainingSessionFocus, string> = {
+  speed: '速度爆发+下肢力量',
+  skill: '技术深化+上肢躯干',
+  game: '专项应用+能量系统',
+  recovery: '技术巩固+恢复再生',
+  full: '全面发展'
+}
+
 export function formatTrainingPlanBlueprint(blueprint: TrainingPlanBlueprint): string {
   const program = getSportProgram(blueprint.programId)
-  return `${SCHOOL_STAGE_LABELS[blueprint.stage]} · ${program?.name ?? blueprint.programId} · ${TRAINING_LEVEL_LABELS[blueprint.level]}`
-}
-
-export interface GeneratedTrainingPlan {
-  title: string
-  goal: string
-  content: string
-  notes: string
-  blueprint: TrainingPlanBlueprint
-}
-
-export function generateBasicTrainingPlan(input: {
-  stage: SchoolStage
-  programId: string
-  level: TrainingLevel
-}): GeneratedTrainingPlan {
-  const program = getSportProgram(input.programId)
-  if (!program || !isSchoolStage(input.stage) || !isTrainingLevel(input.level)) {
-    throw new Error('训练项目、学段或水平不正确')
+  const parts = [
+    SCHOOL_STAGE_LABELS[blueprint.stage],
+    program?.name ?? blueprint.programId,
+    TRAINING_LEVEL_LABELS[blueprint.level]
+  ]
+  if (blueprint.durationMinutes) {
+    parts.push(`${blueprint.durationMinutes}分钟`)
   }
-  const stage = STAGE_PROFILE[input.stage]
-  const lesson = program.levels[input.level]
-  const stageLabel = SCHOOL_STAGE_LABELS[input.stage]
-  const levelLabel = TRAINING_LEVEL_LABELS[input.level]
-  const title = `${program.name}基础课（${stageLabel}·${levelLabel}）`
-  const goal = `${lesson.aim}本节按${stageLabel}安排：${program.dose[input.stage]}`
-  const content = [
-    `课前确认：${program.safety}`,
-    `不要做：${program.avoid}`,
-    `学段与水平：${stageLabel} · ${levelLabel}。${TRAINING_LEVEL_HINTS[input.level]}`,
-    `建议时长：${stage.minutes}`,
-    `组织：${stage.organize}`,
-    `器械：${program.equipment}`,
-    '',
-    '一、准备活动',
-    `${stage.warmup}${program.prep}`,
-    '',
-    '二、本课只抓三件事',
-    ...lesson.points.map((item, index) => `${index + 1}. ${item}`),
-    '',
-    '三、主要练习',
-    ...lesson.drills.map((item, index) => `${index + 1}. ${item}`),
-    '',
-    '四、用起来',
-    lesson.apply,
-    '',
-    '五、整理活动',
-    program.finish,
-    '',
-    `本节剂量：${program.dose[input.stage]}`,
-    `负荷：${stage.load}`
-  ].join('\n')
-  const notes = [
-    `给跨项教练：${lesson.watch[0]}${lesson.watch[1]}`,
-    `安全：${program.safety}`,
-    '这是校园基础训练模板，请按人数、场地、天气和当天状态删减。出现疼痛、头晕或胸闷立即停止该练习。它不替代专项教练的周期计划。'
-  ].join('\n')
-  if (title.length > 80 || goal.length > 1000 || content.length > 4000 || notes.length > 1000) {
-    throw new Error(`${title}超出训练计划字数限制`)
+  if (blueprint.week && blueprint.totalWeeks && blueprint.session) {
+    parts.push(`第${blueprint.week}/${blueprint.totalWeeks}周第${blueprint.session}课`)
   }
-  return {
-    title,
-    goal,
-    content,
-    notes,
-    blueprint: {
-      stage: input.stage,
-      programId: program.id,
-      level: input.level
-    }
+  if (blueprint.phase) {
+    parts.push(TRAINING_PHASE_LABELS[blueprint.phase])
   }
+  return parts.join(' · ')
 }

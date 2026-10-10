@@ -4278,9 +4278,72 @@ textarea:disabled {
   flex-wrap: wrap;
   gap: 8px;
 }
-.sport-plan-preview {
+.sport-plan-body {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: 12px;
   margin-top: 14px;
-  max-height: 320px;
+}
+.sport-plan-sessions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 420px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+.sport-plan-sessions button {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  padding: 8px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.sport-plan-sessions button[aria-pressed='true'] {
+  border-color: var(--accent-blue);
+  background: var(--bg-active);
+}
+.sport-plan-sessions strong {
+  display: block;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.sport-plan-sessions small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.sport-plan-preview-notes {
+  margin-top: 10px !important;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-soft);
+  white-space: pre-wrap;
+}
+.sport-plan-references {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.sport-plan-references summary {
+  cursor: pointer;
+  color: var(--text-primary);
+}
+.sport-plan-references p,
+.sport-plan-references ul {
+  margin: 8px 0 0;
+  line-height: 1.7;
+}
+.sport-plan-references ul {
+  padding-left: 18px;
+}
+.sport-plan-preview {
+  max-height: 420px;
   overflow: auto;
   padding: 14px 16px;
   border-radius: 10px;
@@ -4305,4 +4368,5 @@ textarea:disabled {
 }
 @media (max-width: 960px) {
   .sport-plan-generator-grid { grid-template-columns: 1fr 1fr; }
+  .sport-plan-body { grid-template-columns: 1fr; }
 }

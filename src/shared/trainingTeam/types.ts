@@ -20,11 +20,23 @@ export type SchoolStage = 'primary' | 'junior' | 'senior'
 
 export type TrainingLevel = 'starter' | 'basic' | 'developing'
 
-/** 基础计划的生成来源。旧计划没有该字段。 */
+export type TrainingPhase = 'adapt' | 'develop' | 'intensify' | 'taper'
+
+export type TrainingSessionFocus = 'speed' | 'skill' | 'game' | 'recovery' | 'full'
+
+/** 计划的生成来源。旧计划没有该字段；早期生成的计划只有学段、项目和水平。 */
 export interface TrainingPlanBlueprint {
   stage: SchoolStage
   programId: string
   level: TrainingLevel
+  durationMinutes?: number
+  blockId?: string
+  week?: number
+  session?: number
+  totalWeeks?: number
+  sessionsPerWeek?: number
+  phase?: TrainingPhase
+  focus?: TrainingSessionFocus
 }
 
 export type TrainingTeamStatus = 'active' | 'archived' | 'deleted'
@@ -258,6 +270,8 @@ export const TRAINING_EXERCISE_KINDS: TrainingExerciseKind[] = [
 export const TRAINING_RESULT_KINDS: TrainingResultKind[] = ['training', 'competition']
 export const TRAINING_RESULT_STATUSES: TrainingResultStatus[] = ['valid', 'invalid']
 export const TRAINING_PLAN_STATUSES: TrainingPlanStatus[] = ['planned', 'completed', 'cancelled']
+export const TRAINING_PHASES: TrainingPhase[] = ['adapt', 'develop', 'intensify', 'taper']
+export const TRAINING_SESSION_FOCUSES: TrainingSessionFocus[] = ['speed', 'skill', 'game', 'recovery', 'full']
 
 export const TRAINING_SPORT_LABELS: Record<TrainingSport, string> = {
   track: '田径',

@@ -372,6 +372,13 @@ export default function TrainingTeamsPage({
     setActionError(null)
   }
 
+  async function handleSaveGeneratedPlans(plans: TrainingPlan[]): Promise<void> {
+    await training.savePlans([...training.plans, ...plans])
+    setTab('plans')
+    setMessage(`已保存 ${plans.length} 条训练计划，可在下方列表逐课开始训练。`)
+    setActionError(null)
+  }
+
   async function handleCancelPlan(plan: TrainingPlan): Promise<void> {
     if (plan.status !== 'planned') {
       setActionError('只有待执行计划可以取消')
@@ -658,7 +665,7 @@ export default function TrainingTeamsPage({
                 }
                 setPlanDialog(null)
               }}
-              onSaveGeneratedPlan={handleSavePlan}
+              onSaveGeneratedPlans={handleSaveGeneratedPlans}
               onEditPlan={(plan) => {
                 if (!canMutateTrainingTeam(selected) || plan.status !== 'planned') {
                   setActionError('只有启用中训练队的待执行计划可以编辑')
@@ -818,7 +825,7 @@ function TeamWorkspace({
   onStartTraining,
   onEditSession,
   onCreatePlan,
-  onSaveGeneratedPlan,
+  onSaveGeneratedPlans,
   onEditPlan,
   onCancelPlan,
   onDeletePlan,
@@ -869,7 +876,7 @@ function TeamWorkspace({
   onStartTraining: () => void
   onEditSession: (session: TrainingSession) => void
   onCreatePlan: () => void
-  onSaveGeneratedPlan: (plan: TrainingPlan) => Promise<void>
+  onSaveGeneratedPlans: (plans: TrainingPlan[]) => Promise<void>
   onEditPlan: (plan: TrainingPlan) => void
   onCancelPlan: (plan: TrainingPlan) => void
   onDeletePlan: (plan: TrainingPlan) => void
@@ -1045,7 +1052,7 @@ function TeamWorkspace({
 
       {tab === 'plans' ? (
         <>
-          {canEditPlans ? <SportPlanGenerator team={team} onSave={onSaveGeneratedPlan} /> : null}
+          {canEditPlans ? <SportPlanGenerator team={team} onSave={onSaveGeneratedPlans} /> : null}
           <div className="toolbar">
             {canEditPlans ? (
               <button type="button" className="btn" onClick={onCreatePlan}>

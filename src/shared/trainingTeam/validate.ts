@@ -18,6 +18,8 @@ import type {
   TrainingResultStatus,
   TrainingSession,
   TrainingSessionRecordResult,
+  TrainingPhase,
+  TrainingSessionFocus,
   TrainingSport,
   TrainingTeam,
   TrainingTeamDeleteCheck,
@@ -32,7 +34,9 @@ import {
   TRAINING_EXERCISE_KINDS,
   TRAINING_MEMBER_STATUSES,
   TRAINING_PARTICIPATIONS,
+  TRAINING_PHASES,
   TRAINING_PLAN_STATUSES,
+  TRAINING_SESSION_FOCUSES,
   TRAINING_RESULT_KINDS,
   TRAINING_RESULT_STATUSES,
   TRAINING_SPORTS,
@@ -47,6 +51,7 @@ const ATTENDANCE_ID = /^training-attendance-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-
 const ITEM_CUSTOM_ID = /^training-item-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const ITEM_BUILTIN_ID = /^training-item-builtin-[a-z0-9-]+$/
 const RESULT_ID = /^training-result-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const BLOCK_ID = /^training-block-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const PLAN_ID = /^training-plan-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const STUDENT_ID = /^student-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -153,11 +158,46 @@ function parsePlanBlueprint(value: unknown): TrainingPlanBlueprint | undefined {
   if (!getSportProgram(record.programId)) {
     throw new Error('训练计划来源项目不存在')
   }
-  return {
+  const blueprint: TrainingPlanBlueprint = {
     stage: record.stage,
     programId: record.programId,
     level: record.level
   }
+  const durationMinutes = parseOptionalInt(record.durationMinutes, '训练计划时长', 10, 600)
+  if (durationMinutes !== null) {
+    blueprint.durationMinutes = durationMinutes
+  }
+  if (record.blockId !== undefined && record.blockId !== null) {
+    if (typeof record.blockId !== 'string' || !BLOCK_ID.test(record.blockId)) {
+      throw new Error('训练周期编号不正确')
+    }
+    blueprint.blockId = record.blockId
+  }
+  const ints = [
+    ['week', 1, 52],
+    ['session', 1, 14],
+    ['totalWeeks', 1, 52],
+    ['sessionsPerWeek', 1, 14]
+  ] as const
+  for (const [key, min, max] of ints) {
+    const value = parseOptionalInt(record[key], '训练计划来源', min, max)
+    if (value !== null) {
+      blueprint[key] = value
+    }
+  }
+  if (record.phase !== undefined && record.phase !== null) {
+    if (!TRAINING_PHASES.includes(record.phase as TrainingPhase)) {
+      throw new Error('训练计划阶段不正确')
+    }
+    blueprint.phase = record.phase as TrainingPhase
+  }
+  if (record.focus !== undefined && record.focus !== null) {
+    if (!TRAINING_SESSION_FOCUSES.includes(record.focus as TrainingSessionFocus)) {
+      throw new Error('训练计划课次重点不正确')
+    }
+    blueprint.focus = record.focus as TrainingSessionFocus
+  }
+  return blueprint
 }
 
 function isTeamStatus(value: unknown): value is TrainingTeamStatus {
