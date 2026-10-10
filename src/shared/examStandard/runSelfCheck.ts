@@ -1,4 +1,5 @@
 import { runAppApiSelfCheckOrThrow } from '../appApi/selfcheck'
+import { runAppUpdateSelfCheckOrThrow } from '../appUpdate/selfcheck'
 import { runWindowNavigationSelfCheckOrThrow } from '../security/selfcheck'
 import { runAppVersionSelfCheckOrThrow } from '../appVersionSelfcheck'
 import { runBackupRestoreSelfCheckOrThrow } from '../backup/selfcheck'
@@ -128,6 +129,7 @@ async function main(): Promise<void> {
   console.log(runRosterAutoDetectionSelfCheckOrThrow())
   console.log(runWindowNavigationSelfCheckOrThrow())
   console.log(runAppApiSelfCheckOrThrow())
+  console.log(runAppUpdateSelfCheckOrThrow())
   console.log(runStudentImportIpcSelfCheckOrThrow())
   console.log(runV0131RegressionSelfCheckOrThrow())
   console.log(await runUserPreferencesSelfCheckOrThrow())

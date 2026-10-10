@@ -10,3 +10,4 @@ export type {
   StudentImportContext,
   StudentImportHeaders
 } from './types'
+export type { AppUpdateStatus } from '../appUpdate'

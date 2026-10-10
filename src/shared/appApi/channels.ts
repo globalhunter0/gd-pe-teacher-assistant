@@ -99,6 +99,12 @@ export const IPC_CHANNELS = {
   userPreferences: {
     get: 'userPreferences:get',
     save: 'userPreferences:save'
+  },
+  appUpdate: {
+    getStatus: 'appUpdate:getStatus',
+    checkForUpdates: 'appUpdate:checkForUpdates',
+    startDownload: 'appUpdate:startDownload',
+    quitAndInstall: 'appUpdate:quitAndInstall'
   }
 } as const
 

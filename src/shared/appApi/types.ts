@@ -37,6 +37,7 @@ import type {
   TrainingTeamMember,
   TrainingTeamSafeDeleteResult
 } from '../trainingTeam'
+import type { AppUpdateStatus } from '../appUpdate'
 import type { UserPreferences } from '../userPreferences'
 
 export interface StudentImportContext {
@@ -188,5 +189,11 @@ export interface AppApi {
   userPreferences: {
     get: () => Promise<UserPreferences>
     save: (input: UserPreferences) => Promise<UserPreferences>
+  }
+  appUpdate: {
+    getStatus: () => Promise<AppUpdateStatus>
+    checkForUpdates: () => Promise<AppUpdateStatus>
+    startDownload: () => Promise<AppUpdateStatus>
+    quitAndInstall: () => Promise<void>
   }
 }

@@ -110,6 +110,12 @@ export function createAppApi(invoke: AppApiInvoke): AppApi {
     userPreferences: {
       get: () => invoke(IPC_CHANNELS.userPreferences.get),
       save: (input) => invoke(IPC_CHANNELS.userPreferences.save, input)
+    },
+    appUpdate: {
+      getStatus: () => invoke(IPC_CHANNELS.appUpdate.getStatus),
+      checkForUpdates: () => invoke(IPC_CHANNELS.appUpdate.checkForUpdates),
+      startDownload: () => invoke(IPC_CHANNELS.appUpdate.startDownload),
+      quitAndInstall: () => invoke(IPC_CHANNELS.appUpdate.quitAndInstall)
     }
   }
 }

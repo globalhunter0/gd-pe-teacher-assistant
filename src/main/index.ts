@@ -27,6 +27,7 @@ import { registerBackupIpc } from './backupIpc'
 import { registerDataIntegrityIpc } from './dataIntegrityIpc'
 import { buildAndRunStartupHealthCheck } from './dataIntegrityService'
 import { registerUserPreferencesIpc } from './userPreferencesIpc'
+import { registerAppUpdateIpc } from './appUpdateIpc'
 import {
   getTrainingItemFilePath,
   getTrainingMemberFilePath,
@@ -125,6 +126,7 @@ app.whenReady().then(async () => {
   registerBackupIpc()
   registerDataIntegrityIpc()
   registerUserPreferencesIpc()
+  registerAppUpdateIpc()
   assertBuiltinExamCatalog()
   await buildAndRunStartupHealthCheck().then((report) => {
     if (report.status === 'healthy') {
