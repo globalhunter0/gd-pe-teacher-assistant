@@ -300,7 +300,13 @@ export default function DashboardPage({
           <div className="dash-hero-copy">
             <p className="dash-hero-kicker">广东省初中 · 运动数据台</p>
             <h2>
-              {greetingFor(now)}，<span>{preferences.teacherDisplayName}</span>！
+              {preferences.teacherDisplayName ? (
+                <>
+                  {greetingFor(now)}，<span>{preferences.teacherDisplayName}</span>！
+                </>
+              ) : (
+                <>{greetingFor(now)}！</>
+              )}
             </h2>
             <p>今日课程、班级与开始课堂入口都在这里。工作台只处理行政班体育课。</p>
           </div>

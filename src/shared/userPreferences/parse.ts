@@ -1,5 +1,6 @@
 import {
   DEFAULT_TEACHER_DISPLAY_NAME,
+  LEGACY_DEFAULT_TEACHER_DISPLAY_NAME,
   defaultUserPreferences,
   type UserPreferences
 } from './types'
@@ -11,7 +12,7 @@ export function normalizeTeacherDisplayName(input: unknown): string {
     return DEFAULT_TEACHER_DISPLAY_NAME
   }
   const trimmed = input.trim()
-  if (!trimmed) {
+  if (!trimmed || trimmed === LEGACY_DEFAULT_TEACHER_DISPLAY_NAME) {
     return DEFAULT_TEACHER_DISPLAY_NAME
   }
   return trimmed.slice(0, MAX_DISPLAY_NAME_LENGTH)
@@ -31,5 +32,6 @@ export function parseUserPreferences(input: unknown): UserPreferences {
 }
 
 export function formatWorkbenchGreeting(greeting: string, teacherDisplayName: string): string {
-  return `${greeting}，${teacherDisplayName}！`
+  const name = teacherDisplayName.trim()
+  return name ? `${greeting}，${name}！` : `${greeting}！`
 }

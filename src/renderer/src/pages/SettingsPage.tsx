@@ -166,7 +166,7 @@ export default function SettingsPage(): React.JSX.Element {
               value={teacherDisplayName}
               onChange={(event) => setTeacherDisplayName(event.target.value)}
               maxLength={40}
-              placeholder="例如：郁老师"
+              placeholder="选填"
             />
           </label>
           <button type="button" className="btn btn-primary" disabled={working} onClick={() => void handleSaveTeacher()}>
