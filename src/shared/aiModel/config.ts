@@ -11,6 +11,20 @@ export const AI_PROVIDER_PRESETS: AiProviderPreset[] = [
     keyHint: '在 platform.deepseek.com 创建 API Key'
   },
   {
+    id: 'siliconflow',
+    name: '硅基流动（SiliconFlow）',
+    baseUrl: 'https://api.siliconflow.cn/v1',
+    defaultModel: 'deepseek-ai/DeepSeek-V3.2',
+    suggestedModels: [
+      'deepseek-ai/DeepSeek-V3.2',
+      'deepseek-ai/DeepSeek-V4-Flash',
+      'zai-org/GLM-4.7',
+      'moonshotai/Kimi-K2.5',
+      'MiniMaxAI/MiniMax-M2.5'
+    ],
+    keyHint: '在 cloud.siliconflow.cn 创建 API Key'
+  },
+  {
     id: 'qwen',
     name: '通义千问（阿里云百炼）',
     baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
@@ -56,7 +70,7 @@ export const AI_PROVIDER_PRESETS: AiProviderPreset[] = [
     baseUrl: '',
     defaultModel: '',
     suggestedModels: [],
-    keyHint: '填写兼容 /chat/completions 的服务地址；本机模型可用 http://127.0.0.1'
+    keyHint: '填写该 OpenAI 兼容服务的 API Key'
   }
 ]
 
@@ -77,7 +91,8 @@ export function defaultAiModelConfig(providerId: AiProviderId = 'deepseek'): AiM
     baseUrl: preset.baseUrl,
     model: preset.defaultModel,
     temperature: 0.6,
-    timeoutSeconds: DEFAULT_TIMEOUT_SECONDS
+    timeoutSeconds: DEFAULT_TIMEOUT_SECONDS,
+    thinkingEnabled: false
   }
 }
 
@@ -103,6 +118,19 @@ export function normalizeBaseUrl(value: unknown): string {
   return url.href.replace(/\/+$/, '').replace(/\/chat\/completions$/, '')
 }
 
+export function isSiliconFlowBaseUrl(value: string): boolean {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase()
+    return hostname === 'api.siliconflow.cn' || hostname === 'api.siliconflow.com'
+  } catch {
+    return false
+  }
+}
+
+export function aiModelExtraBody(config: AiModelConfig): Record<string, boolean> | undefined {
+  return isSiliconFlowBaseUrl(config.baseUrl) ? { enable_thinking: config.thinkingEnabled } : undefined
+}
+
 export function parseAiModelConfig(input: unknown): AiModelConfig {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) {
     throw new Error('模型配置格式不正确')
@@ -111,7 +139,8 @@ export function parseAiModelConfig(input: unknown): AiModelConfig {
   if (!PROVIDER_IDS.includes(source.providerId as AiProviderId)) {
     throw new Error('模型服务商不正确')
   }
-  const model = typeof source.model === 'string' ? source.model.trim() : ''
+  // 模型平台统一使用“组织/模型”格式；兼容 Windows 用户误输入反斜杠。
+  const model = typeof source.model === 'string' ? source.model.trim().replace(/\\/g, '/') : ''
   if (!model || model.length > 120 || /\s/.test(model)) {
     throw new Error('请填写模型名称（不能包含空格）')
   }
@@ -126,7 +155,8 @@ export function parseAiModelConfig(input: unknown): AiModelConfig {
     baseUrl: normalizeBaseUrl(source.baseUrl),
     model,
     temperature,
-    timeoutSeconds
+    timeoutSeconds,
+    thinkingEnabled: source.thinkingEnabled === true
   }
 }
 

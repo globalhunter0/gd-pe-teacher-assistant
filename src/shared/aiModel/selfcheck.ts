@@ -7,7 +7,16 @@ import { join } from 'node:path'
 import { createDataBackup, restoreDataBackup } from '../backup/service'
 import { writeJsonItemsAtomic } from '../persistence/jsonFile'
 import { extractJsonObject, requestChatCompletion, requestChatJson } from './client'
-import { AI_PROVIDER_PRESETS, defaultAiModelConfig, normalizeApiKey, normalizeBaseUrl, parseAiModelConfig, parseStoredAiModelConfig } from './config'
+import {
+  AI_PROVIDER_PRESETS,
+  aiModelExtraBody,
+  defaultAiModelConfig,
+  isSiliconFlowBaseUrl,
+  normalizeApiKey,
+  normalizeBaseUrl,
+  parseAiModelConfig,
+  parseStoredAiModelConfig
+} from './config'
 import { AI_MODEL_CONFIG_FILE, AI_MODEL_KEY_FILE, createAiModelStore, type SecretCipher } from './store'
 import { AiRequestError } from './types'
 
@@ -55,10 +64,24 @@ function checkConfig(): void {
   assert(normalizeBaseUrl('http://127.0.0.1:11434/v1/') === 'http://127.0.0.1:11434/v1', '本机 http 允许并去掉末尾斜杠')
   assert(normalizeBaseUrl('https://api.example.com/v1/chat/completions') === 'https://api.example.com/v1', '误填完整路径时自动去掉 /chat/completions')
   expectThrow(() => parseAiModelConfig({ ...defaultAiModelConfig(), model: 'deepseek chat' }), '模型名含空格')
+  assert(
+    parseAiModelConfig({ ...defaultAiModelConfig('siliconflow'), model: 'deepseek-ai\\DeepSeek-V4-Flash' }).model ===
+      'deepseek-ai/DeepSeek-V4-Flash',
+    '模型 ID 的反斜杠须自动纠正'
+  )
   expectThrow(() => parseAiModelConfig({ ...defaultAiModelConfig(), providerId: 'unknown' }), '未知服务商')
   expectThrow(() => parseAiModelConfig([]), '数组配置')
   const clamped = parseAiModelConfig({ ...defaultAiModelConfig(), temperature: 9, timeoutSeconds: 3 })
   assert(clamped.temperature === 1.5 && clamped.timeoutSeconds === 15, '温度与超时应限制在范围内')
+  const siliconFlow = defaultAiModelConfig('siliconflow')
+  assert(siliconFlow.baseUrl === 'https://api.siliconflow.cn/v1' && siliconFlow.model.includes('/'), '硅基流动预设须使用官方地址和完整模型 ID')
+  assert(isSiliconFlowBaseUrl(siliconFlow.baseUrl) && isSiliconFlowBaseUrl('https://api.siliconflow.com/v1'), '识别硅基流动国内与国际地址')
+  assert(aiModelExtraBody(siliconFlow)?.enable_thinking === false, '硅基流动默认关闭深度思考')
+  assert(aiModelExtraBody({ ...siliconFlow, thinkingEnabled: true })?.enable_thinking === true, '硅基流动可显式开启深度思考')
+  assert(aiModelExtraBody(defaultAiModelConfig('deepseek')) === undefined, '其他服务商不得收到硅基流动扩展参数')
+  const legacy = { ...siliconFlow } as Record<string, unknown>
+  delete legacy.thinkingEnabled
+  assert(parseAiModelConfig(legacy).thinkingEnabled === false, '旧配置缺少深度思考字段时须默认关闭')
   assert(parseStoredAiModelConfig({ broken: true }).providerId === 'deepseek', '损坏配置回退默认值')
   expectThrow(() => normalizeApiKey('sk 123'), 'API Key 含空格')
   expectThrow(() => normalizeApiKey('密钥'), 'API Key 含中文')
@@ -170,6 +193,11 @@ async function startMockServer(): Promise<{ baseUrl: string; captured: Captured[
         send(200, { choices: [{ message: { content: '' } }] })
       } else if (model === 'plain-only' && body.response_format) {
         send(400, { error: { message: 'response_format is not supported' } })
+      } else if (model === 'stream') {
+        response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+        response.write(`data: ${JSON.stringify({ model: 'stream-server', choices: [{ delta: { content: '{"title":"流' } }] })}\n\n`)
+        response.write(`data: ${JSON.stringify({ choices: [{ delta: { content: '式大单元","lessons":18}' } }], usage: { total_tokens: 55 } })}\n\n`)
+        response.end('data: [DONE]\n\n')
       } else if (model === 'slow') {
         setTimeout(() => send(200, { choices: [{ message: { content: '{}' } }] }), 1500)
       } else {
@@ -194,13 +222,24 @@ async function checkClient(): Promise<void> {
   const mock = await startMockServer()
   const base = { baseUrl: mock.baseUrl, apiKey: SECRET, messages: [{ role: 'user' as const, content: '你好' }], temperature: 0.5, timeoutMs: 5000 }
   try {
-    const { data, result } = await requestChatJson({ ...base, model: 'deepseek-chat' })
+    const { data, result } = await requestChatJson({
+      ...base,
+      model: 'deepseek-chat',
+      extraBody: { enable_thinking: false, model: '不得覆盖模型', stream: true }
+    })
     assert(data.title === '篮球大单元' && data.lessons === 18, '应从代码块中解析 JSON')
     assert(result.model === 'deepseek-chat-server' && result.totalTokens === 42, '返回模型名与用量')
     const first = mock.captured[0]
     assert(first.path === '/v1/chat/completions', `请求路径：${first.path}`)
     assert(first.auth === `Bearer ${SECRET}`, '应使用 Bearer 认证头')
     assert((first.body.response_format as { type?: string })?.type === 'json_object' && first.body.stream === false, 'JSON 模式请求体')
+    assert(first.body.enable_thinking === false && first.body.model === 'deepseek-chat', '服务商扩展参数须保留且不得覆盖核心字段')
+
+    const streamed = await requestChatJson({ ...base, model: 'stream', stream: true, maxTokens: 123 })
+    assert(streamed.data.title === '流式大单元' && streamed.data.lessons === 18, '须拼接 SSE 分片并解析 JSON')
+    assert(streamed.result.model === 'stream-server' && streamed.result.totalTokens === 55, '流式响应须返回模型名与用量')
+    const streamRequest = mock.captured.find((item) => item.body.model === 'stream')
+    assert(streamRequest?.body.stream === true && streamRequest.body.max_tokens === 123, '流式请求须携带 stream 与 max_tokens')
 
     const before = mock.captured.length
     const plain = await requestChatJson({ ...base, model: 'plain-only' })
@@ -235,7 +274,7 @@ export async function runAiModelSelfCheckOrThrow(): Promise<string> {
   checkConfig()
   await checkStore()
   await checkClient()
-  return 'ai model selfcheck ok (config / encrypted key store / backup exclusion / client errors / timeout / cancel / json fallback)'
+  return 'ai model selfcheck ok (config / encrypted key store / backup exclusion / streaming / client errors / timeout / cancel / json fallback)'
 }
 
 if (process.argv[1] && /aiModel[\\/]selfcheck\.ts$/.test(process.argv[1])) {

@@ -31,6 +31,7 @@ export default defineConfig({
       }
     },
     server: {
+      port: 5174,
       fs: {
         allow: [resolve('.'), resolve('src')]
       }

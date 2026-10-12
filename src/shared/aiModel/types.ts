@@ -1,4 +1,4 @@
-export type AiProviderId = 'deepseek' | 'qwen' | 'kimi' | 'zhipu' | 'doubao' | 'openai' | 'custom'
+export type AiProviderId = 'deepseek' | 'siliconflow' | 'qwen' | 'kimi' | 'zhipu' | 'doubao' | 'openai' | 'custom'
 
 export interface AiProviderPreset {
   id: AiProviderId
@@ -15,6 +15,8 @@ export interface AiModelConfig {
   model: string
   temperature: number
   timeoutSeconds: number
+  /** 硅基流动兼容接口支持；关闭可显著降低结构化长文本生成耗时。 */
+  thinkingEnabled: boolean
 }
 
 /** 返回给界面的状态；API Key 永不返回，只告知是否已保存。 */

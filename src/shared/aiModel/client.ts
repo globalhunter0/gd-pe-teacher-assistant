@@ -5,7 +5,7 @@ export type FetchLike = (input: string, init: {
   headers: Record<string, string>
   body: string
   signal: AbortSignal
-}) => Promise<{ ok: boolean; status: number; text: () => Promise<string> }>
+}) => Promise<{ ok: boolean; status: number; text: () => Promise<string>; body?: ReadableStream<Uint8Array> | null }>
 
 export interface ChatRequest {
   baseUrl: string
@@ -15,9 +15,13 @@ export interface ChatRequest {
   temperature: number
   timeoutMs: number
   jsonMode?: boolean
+  /** 长文本使用 SSE 流式接收；超时按“连续无数据”计算。 */
+  stream?: boolean
   maxTokens?: number
   signal?: AbortSignal
   fetchImpl?: FetchLike
+  /** 服务商兼容扩展；核心字段会覆盖同名扩展，避免改写请求目标。 */
+  extraBody?: Record<string, string | number | boolean>
 }
 
 export interface ChatResult {
@@ -54,13 +58,21 @@ function extractErrorMessage(body: string): string {
   }
 }
 
-function linkSignals(timeoutMs: number, external?: AbortSignal): { signal: AbortSignal; timedOut: () => boolean; dispose: () => void } {
+function linkSignals(
+  timeoutMs: number,
+  external?: AbortSignal
+): { signal: AbortSignal; timedOut: () => boolean; touch: () => void; dispose: () => void } {
   const controller = new AbortController()
   let timedOut = false
-  const timer = setTimeout(() => {
-    timedOut = true
-    controller.abort()
-  }, timeoutMs)
+  let timer: ReturnType<typeof setTimeout>
+  const armTimeout = (): void => {
+    clearTimeout(timer)
+    timer = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, timeoutMs)
+  }
+  armTimeout()
   const onAbort = (): void => controller.abort()
   if (external) {
     if (external.aborted) {
@@ -72,6 +84,7 @@ function linkSignals(timeoutMs: number, external?: AbortSignal): { signal: Abort
   return {
     signal: controller.signal,
     timedOut: () => timedOut,
+    touch: armTimeout,
     dispose: () => {
       clearTimeout(timer)
       external?.removeEventListener('abort', onAbort)
@@ -79,13 +92,74 @@ function linkSignals(timeoutMs: number, external?: AbortSignal): { signal: Abort
   }
 }
 
+async function readSse(
+  stream: ReadableStream<Uint8Array>,
+  fallbackModel: string,
+  touch: () => void
+): Promise<ChatResult> {
+  const reader = stream.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let content = ''
+  let model = fallbackModel
+  let totalTokens: number | null = null
+
+  const consumeLine = (line: string): void => {
+    const trimmed = line.trim()
+    if (!trimmed.startsWith('data:')) return
+    const payload = trimmed.slice(5).trim()
+    if (!payload || payload === '[DONE]') return
+    let chunk: {
+      model?: unknown
+      choices?: Array<{ delta?: { content?: unknown } }>
+      usage?: { total_tokens?: unknown }
+      error?: { message?: unknown } | string
+    }
+    try {
+      chunk = JSON.parse(payload) as typeof chunk
+    } catch {
+      throw new AiRequestError('bad_response', '模型流式响应包含无效 JSON')
+    }
+    if (chunk.error) {
+      const message = typeof chunk.error === 'string' ? chunk.error : chunk.error.message
+      throw new AiRequestError('bad_response', `模型流式响应失败${typeof message === 'string' ? `：${message.slice(0, 200)}` : ''}`)
+    }
+    const delta = chunk.choices?.[0]?.delta?.content
+    if (typeof delta === 'string') content += delta
+    if (typeof chunk.model === 'string') model = chunk.model
+    if (typeof chunk.usage?.total_tokens === 'number') totalTokens = chunk.usage.total_tokens
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      touch()
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      lines.forEach(consumeLine)
+    }
+    buffer += decoder.decode()
+    if (buffer.trim()) consumeLine(buffer)
+  } finally {
+    reader.releaseLock()
+  }
+
+  if (!content.trim()) {
+    throw new AiRequestError('bad_response', '模型没有返回内容')
+  }
+  return { content, model, totalTokens }
+}
+
 async function postOnce(request: ChatRequest, jsonMode: boolean): Promise<ChatResult> {
   const fetchImpl: FetchLike = request.fetchImpl ?? ((input, init) => fetch(input, init))
   const body: Record<string, unknown> = {
+    ...request.extraBody,
     model: request.model,
     messages: request.messages,
     temperature: request.temperature,
-    stream: false
+    stream: request.stream ?? false
   }
   if (request.maxTokens) {
     body.max_tokens = request.maxTokens
@@ -96,6 +170,7 @@ async function postOnce(request: ChatRequest, jsonMode: boolean): Promise<ChatRe
   const linked = linkSignals(request.timeoutMs, request.signal)
   let status = 0
   let text = ''
+  let streamed: ChatResult | null = null
   try {
     const response = await fetchImpl(`${request.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
       method: 'POST',
@@ -107,16 +182,23 @@ async function postOnce(request: ChatRequest, jsonMode: boolean): Promise<ChatRe
       signal: linked.signal
     })
     status = response.status
-    text = await response.text()
+    linked.touch()
     if (!response.ok) {
+      text = await response.text()
       throw errorFromStatus(status, text)
+    }
+    if (request.stream && response.body) {
+      streamed = await readSse(response.body, request.model, linked.touch)
+    } else {
+      text = await response.text()
     }
   } catch (error) {
     if (error instanceof AiRequestError) {
       throw error
     }
     if (linked.timedOut()) {
-      throw new AiRequestError('timeout', `模型响应超时（${Math.round(request.timeoutMs / 1000)} 秒），可在设置中调大超时时间后重试`)
+      const label = request.stream ? '连续未收到模型数据' : '模型响应超时'
+      throw new AiRequestError('timeout', `${label}（${Math.round(request.timeoutMs / 1000)} 秒），可在设置中调大超时时间后重试`)
     }
     if (request.signal?.aborted) {
       throw new AiRequestError('canceled', '已取消生成')
@@ -125,6 +207,8 @@ async function postOnce(request: ChatRequest, jsonMode: boolean): Promise<ChatRe
   } finally {
     linked.dispose()
   }
+
+  if (streamed) return streamed
 
   let parsed: { choices?: Array<{ message?: { content?: unknown } }>; model?: unknown; usage?: { total_tokens?: unknown } }
   try {

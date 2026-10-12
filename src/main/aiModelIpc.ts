@@ -1,6 +1,6 @@
 import { ipcMain, safeStorage } from 'electron'
 import { IPC_CHANNELS } from '../shared/appApi'
-import { normalizeApiKey, parseAiModelConfig } from '../shared/aiModel/config'
+import { aiModelExtraBody, normalizeApiKey, parseAiModelConfig } from '../shared/aiModel/config'
 import { requestChatCompletion } from '../shared/aiModel/client'
 import { createAiModelStore, type AiModelStore } from '../shared/aiModel/store'
 import { AiRequestError, type AiConnectionTestResult, type AiModelSaveInput } from '../shared/aiModel/types'
@@ -32,7 +32,8 @@ async function testConnection(input: AiModelSaveInput): Promise<AiConnectionTest
       messages: [{ role: 'user', content: '请只回复“连接成功”四个字。' }],
       temperature: 0,
       maxTokens: 16,
-      timeoutMs: Math.min(config.timeoutSeconds, 60) * 1000
+      timeoutMs: Math.min(config.timeoutSeconds, 60) * 1000,
+      extraBody: aiModelExtraBody(config)
     })
     return { ok: true, message: `连接成功：${result.content.trim().slice(0, 40)}`, model: result.model, latencyMs: Date.now() - started }
   } catch (error) {

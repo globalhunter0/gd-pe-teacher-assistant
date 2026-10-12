@@ -3,6 +3,7 @@ import {
   AI_PROVIDER_PRESETS,
   defaultAiModelConfig,
   findProviderPreset,
+  isSiliconFlowBaseUrl,
   type AiModelConfig,
   type AiModelStatus,
   type AiProviderId
@@ -137,6 +138,19 @@ export default function AiModelSettingsCard(): React.JSX.Element {
           disabled={busy}
         />
       </label>
+      {isSiliconFlowBaseUrl(config.baseUrl) ? (
+        <label className="settings-field">
+          深度思考
+          <select
+            value={config.thinkingEnabled ? 'on' : 'off'}
+            onChange={(event) => setConfig((current) => ({ ...current, thinkingEnabled: event.target.value === 'on' }))}
+            disabled={busy}
+          >
+            <option value="off">关闭（推荐，生成更快）</option>
+            <option value="on">开启（更慢、费用可能更高）</option>
+          </select>
+        </label>
+      ) : null}
       {status && !status.encryptionAvailable ? (
         <p className="page-error">本机系统加密不可用，暂时无法保存 API Key。</p>
       ) : null}

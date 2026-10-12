@@ -2,7 +2,7 @@ import { dialog, ipcMain } from 'electron'
 import { writeFile } from 'node:fs/promises'
 import { IPC_CHANNELS } from '../shared/appApi'
 import { requestChatJson } from '../shared/aiModel/client'
-import { findProviderPreset } from '../shared/aiModel/config'
+import { aiModelExtraBody, findProviderPreset } from '../shared/aiModel/config'
 import { AiRequestError, type ChatMessage } from '../shared/aiModel/types'
 import { DEFAULT_MATERIAL_CHARS, selectRelevantMaterial } from '../shared/materials/select'
 import { buildBigUnitDocx, buildLessonDocx, safeDocxFileName } from '../shared/teachingDesign/docxExport'
@@ -50,7 +50,11 @@ async function materialText(bigUnit: BigUnitDesign, keywords: string[]): Promise
   return selectRelevantMaterial(materialSources(materials), keywords, DEFAULT_MATERIAL_CHARS)
 }
 
-async function callModel(messages: ChatMessage[], signal: AbortSignal): Promise<{ data: Record<string, unknown>; provider: string; model: string }> {
+async function callModel(
+  messages: ChatMessage[],
+  signal: AbortSignal,
+  maxTokens: number
+): Promise<{ data: Record<string, unknown>; provider: string; model: string }> {
   const store = getAiModelStore()
   const config = await store.getConfig()
   const apiKey = await store.getApiKey()
@@ -63,8 +67,11 @@ async function callModel(messages: ChatMessage[], signal: AbortSignal): Promise<
     model: config.model,
     messages,
     temperature: config.temperature,
+    stream: true,
+    maxTokens,
     timeoutMs: config.timeoutSeconds * 1000,
-    signal
+    signal,
+    extraBody: aiModelExtraBody(config)
   })
   return { data, provider: findProviderPreset(config.providerId).name, model: result.model }
 }
@@ -73,7 +80,7 @@ export async function runGeneration(request: GenerationRequest, signal: AbortSig
   const bigUnit = asBigUnit(request.bigUnit)
   if (request.kind === 'bigUnit') {
     const messages = buildBigUnitMessages(bigUnit, await materialText(bigUnit, materialKeywords(bigUnit)))
-    const { data, provider, model } = await callModel(messages, signal)
+    const { data, provider, model } = await callModel(messages, signal, 3000)
     return { kind: 'bigUnit', bigUnit: applyBigUnitJson(bigUnit, data, { provider, model, generatedAt: new Date().toISOString() }) }
   }
   if (request.kind === 'units') {
@@ -82,7 +89,7 @@ export async function runGeneration(request: GenerationRequest, signal: AbortSig
     }
     const existing = Array.isArray(request.existingUnits) ? request.existingUnits.map(asUnit).filter((unit) => unit.bigUnitId === bigUnit.id) : []
     const messages = buildUnitsMessages(bigUnit, await materialText(bigUnit, materialKeywords(bigUnit)))
-    const { data, provider, model } = await callModel(messages, signal)
+    const { data, provider, model } = await callModel(messages, signal, 7000)
     return { kind: 'units', units: applyUnitsJson(bigUnit, data, { provider, model, generatedAt: new Date().toISOString() }, existing) }
   }
   if (request.kind === 'lesson') {
@@ -97,7 +104,7 @@ export async function runGeneration(request: GenerationRequest, signal: AbortSig
       : null
     const counts = { maleCount: request.maleCount ?? null, femaleCount: request.femaleCount ?? null }
     const messages = buildLessonMessages(bigUnit, unit, lessonNo, counts, await materialText(bigUnit, materialKeywords(bigUnit, unit, lessonNo)))
-    const { data, provider, model } = await callModel(messages, signal)
+    const { data, provider, model } = await callModel(messages, signal, 6000)
     return {
       kind: 'lesson',
       lesson: applyLessonJson(bigUnit, unit, lessonNo, counts, data, { provider, model, generatedAt: new Date().toISOString() }, existing)
