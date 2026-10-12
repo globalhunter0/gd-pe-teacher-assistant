@@ -40,6 +40,10 @@ export const IPC_CHANNELS = {
     get: 'teachingPlans:get',
     save: 'teachingPlans:save'
   },
+  teachingDesigns: {
+    get: 'teachingDesigns:get',
+    save: 'teachingDesigns:save'
+  },
   resources: {
     get: 'resources:get',
     selectFile: 'resources:selectFile',

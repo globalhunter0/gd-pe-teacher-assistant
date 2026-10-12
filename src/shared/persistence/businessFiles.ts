@@ -6,6 +6,7 @@ export const BUSINESS_JSON_FILES = [
   'test-items.json',
   'pe-tests.json',
   'teaching-plans.json',
+  'teaching-designs.json',
   'resources.json',
   'training-teams.json',
   'training-members.json',

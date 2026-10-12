@@ -11,6 +11,7 @@ import { ScheduleProvider } from './context/ScheduleContext'
 import { StudentProvider } from './context/StudentContext'
 import { TestItemProvider } from './context/TestItemContext'
 import { TeachingPlanProvider } from './context/TeachingPlanContext'
+import { TeachingDesignProvider } from './context/TeachingDesignContext'
 import { ResourceProvider } from './context/ResourceContext'
 import { UserPreferencesProvider } from './context/UserPreferencesContext'
 import { TrainingProvider } from './context/TrainingContext'
@@ -92,6 +93,7 @@ export default function App(): React.JSX.Element {
             <TestItemProvider>
               <PeTestProvider>
                 <TeachingPlanProvider>
+                  <TeachingDesignProvider>
                   <ResourceProvider>
                   <div className="app-shell">
                     <UpdateHost />
@@ -196,6 +198,7 @@ export default function App(): React.JSX.Element {
                     </div>
                   </div>
                   </ResourceProvider>
+                  </TeachingDesignProvider>
                 </TeachingPlanProvider>
               </PeTestProvider>
             </TestItemProvider>

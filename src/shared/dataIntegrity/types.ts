@@ -7,6 +7,7 @@ export type DataIntegrityDomain =
   | 'pe-sessions'
   | 'pe-tests'
   | 'teaching-plans'
+  | 'teaching-designs'
   | 'training-teams'
   | 'training-members'
   | 'training-sessions'
@@ -77,6 +78,14 @@ export interface DataIntegritySnapshot {
     studentId: string
   }>
   resources?: ReadonlyArray<{ id: string }>
+  teachingDesigns?: ReadonlyArray<{
+    id: string
+    kind: string
+    bigUnitId?: string | null
+    unitId?: string | null
+    teachingPlanId?: string | null
+    materialResourceIds?: ReadonlyArray<string>
+  }>
   fileStatuses?: ReadonlyArray<DataIntegrityFileStatus>
 }
 

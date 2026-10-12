@@ -22,6 +22,7 @@ import { loadResources } from './resourceStore'
 import { loadSchedule } from './scheduleStore'
 import { loadStudents } from './studentStore'
 import { loadTeachingPlans } from './teachingPlanStore'
+import { loadTeachingDesigns } from './teachingDesignStore'
 import {
   loadTrainingMembers,
   loadTrainingResults,
@@ -78,6 +79,7 @@ async function buildSnapshot(): Promise<DataIntegritySnapshot> {
   const trainingSessions = await safeLoad('training-sessions', loadTrainingSessions, 'training-sessions.json')
   const trainingResults = await safeLoad('training-results', loadTrainingResults, 'training-results.json')
   const resources = await safeLoad('resources', loadResources, 'resources.json')
+  const teachingDesigns = await safeLoad('teaching-designs', loadTeachingDesigns, 'teaching-designs.json')
 
   const fileStatuses = await inspectBusinessFiles(getUserDataRoot())
   mapParseErrors(fileStatuses, [
@@ -91,7 +93,8 @@ async function buildSnapshot(): Promise<DataIntegritySnapshot> {
     trainingMembers,
     trainingSessions,
     trainingResults,
-    resources
+    resources,
+    teachingDesigns
   ])
 
   return {
@@ -142,6 +145,14 @@ async function buildSnapshot(): Promise<DataIntegritySnapshot> {
       studentId: item.studentId
     })),
     resources: resources.items.map((item) => ({ id: item.id })),
+    teachingDesigns: teachingDesigns.items.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      bigUnitId: item.kind === 'bigUnit' ? null : item.bigUnitId,
+      unitId: item.kind === 'lesson' ? item.unitId : null,
+      teachingPlanId: item.kind === 'bigUnit' ? item.teachingPlanId : null,
+      materialResourceIds: item.kind === 'bigUnit' ? item.materialResourceIds : []
+    })),
     fileStatuses
   }
 }

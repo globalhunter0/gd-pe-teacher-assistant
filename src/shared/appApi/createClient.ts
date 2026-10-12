@@ -51,6 +51,10 @@ export function createAppApi(invoke: AppApiInvoke): AppApi {
       get: () => invoke(IPC_CHANNELS.teachingPlans.get),
       save: (items, expected) => invoke(IPC_CHANNELS.teachingPlans.save, items, expected)
     },
+    teachingDesigns: {
+      get: () => invoke(IPC_CHANNELS.teachingDesigns.get),
+      save: (items, expected) => invoke(IPC_CHANNELS.teachingDesigns.save, items, expected)
+    },
     resources: {
       get: () => invoke(IPC_CHANNELS.resources.get),
       selectFile: () => invoke(IPC_CHANNELS.resources.selectFile),

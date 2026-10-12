@@ -303,6 +303,64 @@ export function runDataIntegrityAudit(snapshot: DataIntegritySnapshot): DataInte
     )
   }
 
+  const designs = snapshot.teachingDesigns ?? []
+  const bigUnitIds = new Set(designs.filter((item) => item.kind === 'bigUnit').map((item) => item.id))
+  const unitIds = new Set(designs.filter((item) => item.kind === 'unit').map((item) => item.id))
+  const resourceIds = snapshot.resources ? new Set(snapshot.resources.map((item) => item.id)) : null
+  for (const design of designs) {
+    if (design.bigUnitId && !bigUnitIds.has(design.bigUnitId)) {
+      issues.push(
+        issue({
+          severity: design.kind === 'unit' ? 'warning' : 'info',
+          domain: 'teaching-designs',
+          code: 'dangling_big_unit_id',
+          entityId: design.id,
+          message: `教学设计关联的大单元 ${design.bigUnitId} 已不存在（内容保留）`,
+          details: { bigUnitId: design.bigUnitId }
+        })
+      )
+    }
+    if (design.unitId && !unitIds.has(design.unitId)) {
+      issues.push(
+        issue({
+          severity: 'info',
+          domain: 'teaching-designs',
+          code: 'dangling_unit_id',
+          entityId: design.id,
+          message: `课时教案关联的单元 ${design.unitId} 已不存在（教案保留）`,
+          details: { unitId: design.unitId }
+        })
+      )
+    }
+    if (design.teachingPlanId && !planIds.has(design.teachingPlanId)) {
+      issues.push(
+        issue({
+          severity: 'info',
+          domain: 'teaching-designs',
+          code: 'dangling_teaching_plan_id',
+          entityId: design.id,
+          message: `大单元关联的教学计划 ${design.teachingPlanId} 已不存在（大单元保留）`,
+          details: { teachingPlanId: design.teachingPlanId }
+        })
+      )
+    }
+    if (resourceIds) {
+      const missing = (design.materialResourceIds ?? []).filter((id) => !resourceIds.has(id))
+      if (missing.length > 0) {
+        issues.push(
+          issue({
+            severity: 'info',
+            domain: 'teaching-designs',
+            code: 'dangling_resource_id',
+            entityId: design.id,
+            message: `大单元引用的 ${missing.length} 份参考资料已从资源中心删除`,
+            details: { resourceIds: missing }
+          })
+        )
+      }
+    }
+  }
+
   if (snapshot.fileStatuses) {
     const expected = new Set<string>(BUSINESS_JSON_FILES)
     for (const file of snapshot.fileStatuses) {

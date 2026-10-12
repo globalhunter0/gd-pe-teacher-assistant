@@ -26,6 +26,7 @@ import type { ImportColumn, ImportCommitResult, ImportPickResult, StudentImportM
 import type { DetectedWorkbook } from '../student/detectTypes'
 import type { RosterPreviewResult, RosterResolutions } from '../student/rosterTypes'
 import type { TeachingPlan } from '../teachingPlan'
+import type { TeachingDesign } from '../teachingDesign'
 import type {
   TrainingItem,
   TrainingPlan,
@@ -129,6 +130,10 @@ export interface AppApi {
   teachingPlans: {
     get: () => Promise<TeachingPlan[]>
     save: (items: TeachingPlan[], expected: TeachingPlan[]) => Promise<TeachingPlan[]>
+  }
+  teachingDesigns: {
+    get: () => Promise<TeachingDesign[]>
+    save: (items: TeachingDesign[], expected: TeachingDesign[]) => Promise<TeachingDesign[]>
   }
   resources: {
     get: () => Promise<ResourceItem[]>

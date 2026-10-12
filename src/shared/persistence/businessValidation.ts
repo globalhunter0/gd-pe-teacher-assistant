@@ -4,6 +4,7 @@ import { parseScheduleItems } from '../schedule/validate'
 import { parsePeSessions } from '../peSession/validate'
 import { parsePeTestSessions, parseTestItems } from '../peTest/validate'
 import { parseTeachingPlans } from '../teachingPlan/validate'
+import { parseTeachingDesigns } from '../teachingDesign/validate'
 import { parseResourceItems } from '../resource/validate'
 import { parseTrainingTeams, parseTrainingMembers, parseTrainingPlans, parseTrainingSessions, parseTrainingItems, parseTrainingResults } from '../trainingTeam/validate'
 import { parseUserPreferences } from '../userPreferences'
@@ -18,6 +19,7 @@ export const businessValidators: Record<typeof BUSINESS_JSON_FILES[number], (inp
   'pe-tests.json': parsePeTestSessions,
   'test-items.json': parseTestItems,
   'teaching-plans.json': parseTeachingPlans,
+  'teaching-designs.json': parseTeachingDesigns,
   'resources.json': parseResourceItems,
   'training-teams.json': parseTrainingTeams,
   'training-members.json': parseTrainingMembers,

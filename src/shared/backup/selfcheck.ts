@@ -30,6 +30,7 @@ async function seedUserData(root: string): Promise<void> {
   await writeJsonItemsAtomic(join(root, 'test-items.json'), [{ id: 'item-1', name: '50米' }])
   await writeJsonItemsAtomic(join(root, 'pe-tests.json'), [{ id: 'test-1', records: [] }])
   await writeJsonItemsAtomic(join(root, 'teaching-plans.json'), [{ id: 'plan-1', name: '初一计划' }])
+  await writeJsonItemsAtomic(join(root, 'teaching-designs.json'), [{ id: 'design-1', name: '篮球大单元' }])
   await writeJsonItemsAtomic(join(root, 'resources.json'), [{ id: 'res-1', storedFileName: 'res-1.bin' }])
   await writeJsonItemsAtomic(join(root, 'training-teams.json'), [{ id: 'team-1', name: '田径队' }])
   await writeJsonItemsAtomic(join(root, 'training-members.json'), [])

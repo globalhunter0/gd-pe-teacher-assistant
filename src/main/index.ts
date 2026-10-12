@@ -19,6 +19,8 @@ import { getStudentFilePath, loadStudents } from './studentStore'
 import { getTestItemFilePath, loadTestItems } from './testItemStore'
 import { registerTeachingPlanIpc } from './teachingPlanIpc'
 import { getTeachingPlanFilePath, loadTeachingPlans } from './teachingPlanStore'
+import { registerTeachingDesignIpc } from './teachingDesignIpc'
+import { getTeachingDesignFilePath, loadTeachingDesigns } from './teachingDesignStore'
 import { registerResourceIpc } from './resourceIpc'
 import { getResourceMetaPath, loadResources } from './resourceStore'
 import { registerExamBatchIpc } from './examBatchIpc'
@@ -123,6 +125,7 @@ app.whenReady().then(async () => {
   registerPeSessionIpc()
   registerPeTestIpc()
   registerTeachingPlanIpc()
+  registerTeachingDesignIpc()
   registerResourceIpc()
   registerExamBatchIpc()
   registerTrainingIpc()
@@ -160,6 +163,9 @@ app.whenReady().then(async () => {
   })
   void loadTeachingPlans().then((items) => {
     console.log(`[teaching-plans] ${items.length} 份教学计划，文件：${getTeachingPlanFilePath()}`)
+  })
+  void loadTeachingDesigns().then((items) => {
+    console.log(`[teaching-designs] ${items.length} 份教学设计，文件：${getTeachingDesignFilePath()}`)
   })
   void loadResources().then((items) => {
     console.log(`[resources] ${items.length} 条资料，文件：${getResourceMetaPath()}`)
