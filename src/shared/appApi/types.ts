@@ -27,6 +27,8 @@ import type { DetectedWorkbook } from '../student/detectTypes'
 import type { RosterPreviewResult, RosterResolutions } from '../student/rosterTypes'
 import type { TeachingPlan } from '../teachingPlan'
 import type { TeachingDesign } from '../teachingDesign'
+import type { AiConnectionTestResult, AiModelSaveInput, AiModelStatus } from '../aiModel/types'
+import type { MaterialPreview } from '../materials/types'
 import type {
   TrainingItem,
   TrainingPlan,
@@ -134,6 +136,15 @@ export interface AppApi {
   teachingDesigns: {
     get: () => Promise<TeachingDesign[]>
     save: (items: TeachingDesign[], expected: TeachingDesign[]) => Promise<TeachingDesign[]>
+  }
+  aiModel: {
+    getStatus: () => Promise<AiModelStatus>
+    save: (input: AiModelSaveInput) => Promise<AiModelStatus>
+    /** 用表单里尚未保存的配置测试；apiKey 省略时使用已保存的密钥。 */
+    test: (input: AiModelSaveInput) => Promise<AiConnectionTestResult>
+  }
+  materials: {
+    preview: (resourceIds: string[]) => Promise<MaterialPreview[]>
   }
   resources: {
     get: () => Promise<ResourceItem[]>

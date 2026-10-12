@@ -153,6 +153,27 @@ try {
   for (const [name, hash] of Object.entries(snapshot)) assert.equal(sha(await readFile(join(fresh, name))), hash, `restore/restart changed ${name}`)
   assert.equal(await readFile(join(fresh, 'resources/files', resources[0].storedFileName), 'utf8'), 'RC 附件内容')
   pass('第二次启动与恢复后重启数据一致')
+  const pdfStream = 'BT /F1 18 Tf 20 100 Td (Packaged PDF material) Tj ET'
+  const pdfObjects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 144] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>', `<< /Length ${pdfStream.length} >>\nstream\n${pdfStream}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>']
+  let pdfText = '%PDF-1.4\n'; const pdfOffsets = []
+  pdfObjects.forEach((object, index) => { pdfOffsets.push(pdfText.length); pdfText += `${index + 1} 0 obj\n${object}\nendobj\n` })
+  const pdfXref = pdfText.length
+  pdfText += `xref\n0 6\n0000000000 65535 f \n${pdfOffsets.map(value => `${String(value).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${pdfXref}\n%%EOF\n`
+  const pdfSource = join(root, '教参 资料.pdf'); await writeFile(pdfSource, Buffer.from(pdfText, 'latin1')); await running.dialog('open', pdfSource)
+  assert(!(await running.api('resources.selectFile')).canceled)
+  const withPdf = await running.api('resources.importFile', { title: 'RC教参', category: '其他', tags: [], description: '', notes: '' })
+  const pdfResource = withPdf.find(item => item.title === 'RC教参')
+  const previews = await running.api('materials.preview', [pdfResource.id, resources[0].id, 'missing-resource'])
+  assert.equal(previews[0].error, null, JSON.stringify(previews)); assert(previews[0].chars > 10, JSON.stringify(previews))
+  assert.equal(previews[1].error, null); assert.equal(previews[2].error, '资料已从资料中心删除')
+  pass('打包版从 asar 加载 pdfjs 提取 PDF 资料文本')
+  const aiInitial = await running.api('aiModel.getStatus')
+  assert.equal(aiInitial.hasApiKey, false); assert.equal(aiInitial.encryptionAvailable, true)
+  const aiSaved = await running.api('aiModel.save', { config: aiInitial.config, apiKey: 'sk-packaged-smoke-key' })
+  assert.equal(aiSaved.hasApiKey, true); assert(!JSON.stringify(aiSaved).includes('sk-packaged-smoke-key'))
+  assert(!(await readFile(join(fresh, 'ai-model.key'))).toString('latin1').includes('sk-packaged-smoke-key'))
+  assert.equal((await running.api('aiModel.save', { config: aiInitial.config, apiKey: '' })).hasApiKey, false)
+  pass('打包版 safeStorage 加密保存与清除 API Key')
   await running.stop(); running = undefined
   const old = join(root, '旧版 数据'); await mkdir(join(old, 'resources/files'), { recursive: true })
   const before = {}

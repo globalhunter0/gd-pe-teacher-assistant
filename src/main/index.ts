@@ -21,6 +21,7 @@ import { registerTeachingPlanIpc } from './teachingPlanIpc'
 import { getTeachingPlanFilePath, loadTeachingPlans } from './teachingPlanStore'
 import { registerTeachingDesignIpc } from './teachingDesignIpc'
 import { getTeachingDesignFilePath, loadTeachingDesigns } from './teachingDesignStore'
+import { registerAiModelIpc } from './aiModelIpc'
 import { registerResourceIpc } from './resourceIpc'
 import { getResourceMetaPath, loadResources } from './resourceStore'
 import { registerExamBatchIpc } from './examBatchIpc'
@@ -126,6 +127,7 @@ app.whenReady().then(async () => {
   registerPeTestIpc()
   registerTeachingPlanIpc()
   registerTeachingDesignIpc()
+  registerAiModelIpc()
   registerResourceIpc()
   registerExamBatchIpc()
   registerTrainingIpc()

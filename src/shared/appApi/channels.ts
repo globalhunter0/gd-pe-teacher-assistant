@@ -44,6 +44,14 @@ export const IPC_CHANNELS = {
     get: 'teachingDesigns:get',
     save: 'teachingDesigns:save'
   },
+  aiModel: {
+    getStatus: 'aiModel:getStatus',
+    save: 'aiModel:save',
+    test: 'aiModel:test'
+  },
+  materials: {
+    preview: 'materials:preview'
+  },
   resources: {
     get: 'resources:get',
     selectFile: 'resources:selectFile',

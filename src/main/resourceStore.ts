@@ -1,6 +1,6 @@
 import { withExclusiveDataAccess } from '../shared/persistence/writeGate'
 import { shell } from 'electron'
-import { copyFile, mkdir, realpath, rename, stat, unlink } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, realpath, rename, stat, unlink } from 'node:fs/promises'
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { loadJsonItemsFile, writeJsonItemsAtomic } from '../shared/persistence/jsonFile'
 import { getUserDataRoot } from './userDataPaths'
@@ -70,6 +70,16 @@ async function resolveManagedFile(storedFileName: string): Promise<string> {
   }
 
   return realFile
+}
+
+/** 只读取资料中心托管目录内的附件，供生成教学设计时提取参考文本。 */
+export async function readManagedResourceFile(storedFileName: string): Promise<Buffer> {
+  const filePath = await resolveManagedFile(storedFileName)
+  const info = await stat(filePath)
+  if (info.size > MAX_RESOURCE_FILE_BYTES) {
+    throw new Error('资料文件过大')
+  }
+  return readFile(filePath)
 }
 
 export async function createNoteResource(input: unknown): Promise<ResourceItem[]> {

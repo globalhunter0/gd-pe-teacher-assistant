@@ -1437,7 +1437,8 @@ button.kpi-card:hover {
   color: var(--text-secondary);
 }
 
-.settings-field input {
+.settings-field input,
+.settings-field select {
   width: min(360px, 100%);
   max-width: 100%;
   border: 1px solid var(--border-soft);
