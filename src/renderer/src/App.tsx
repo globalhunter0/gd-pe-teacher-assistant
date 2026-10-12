@@ -25,6 +25,7 @@ import TeachingPlansPage from './pages/TeachingPlansPage'
 import TrainingTeamsPage from './pages/TrainingTeamsPage'
 import ResourcesPage from './pages/ResourcesPage'
 import SettingsPage from './pages/SettingsPage'
+import AiAssistantPage from './pages/AiAssistantPage'
 import UpdateHost from './components/UpdateHost'
 import type { PeSessionPrefill } from '@shared/peSession'
 import { getAppApi } from './platform/appApi'
@@ -40,6 +41,7 @@ export default function App(): React.JSX.Element {
   const [studentClassId, setStudentClassId] = useState<string | null>(null)
   const [testClassId, setTestClassId] = useState<string | null>(null)
   const [planContext, setPlanContext] = useState<PlanNavContext | null>(null)
+  const [planInitialView, setPlanInitialView] = useState<'plans' | 'design'>('plans')
   const [openTrainingTeamId, setOpenTrainingTeamId] = useState<string | null>(null)
   const [startTrainingSession, setStartTrainingSession] = useState(false)
   const [startupHealthError, setStartupHealthError] = useState<string | null>(null)
@@ -49,6 +51,9 @@ export default function App(): React.JSX.Element {
     setActiveKey(next.key)
     if (next.key === 'tests') {
       setPeTestTab(next.peTestTab ?? PE_TEST_CENTER_DEFAULT_TAB)
+    }
+    if (next.key === 'plans') {
+      setPlanInitialView('plans')
     }
   }
 
@@ -126,6 +131,7 @@ export default function App(): React.JSX.Element {
                             }}
                             onOpenPlan={(context) => {
                               setPlanContext(context)
+                              setPlanInitialView('plans')
                               setActiveKey('plans')
                             }}
                             onNavigate={(key) => navigate(key)}
@@ -149,7 +155,7 @@ export default function App(): React.JSX.Element {
                             onOpenSessionConsumed={() => setOpenPeSessionId(null)}
                           />
                         ) : activeKey === 'plans' ? (
-                          <TeachingPlansPage context={planContext} onOpenSession={goToExistingLesson} />
+                          <TeachingPlansPage context={planContext} onOpenSession={goToExistingLesson} initialView={planInitialView} />
                         ) : activeKey === 'resources' ? (
                           <ResourcesPage />
                         ) : activeKey === 'tests' || activeKey === 'exams' ? (
@@ -187,6 +193,14 @@ export default function App(): React.JSX.Element {
                               setOpenTestEditorTab('edit')
                               setPeTestTab(PE_TEST_CENTER_DEFAULT_TAB)
                               setActiveKey('tests')
+                            }}
+                          />
+                        ) : activeKey === 'ai' ? (
+                          <AiAssistantPage
+                            onOpenTeachingDesign={() => {
+                              setPlanContext(null)
+                              setPlanInitialView('design')
+                              setActiveKey('plans')
                             }}
                           />
                         ) : activeKey === 'settings' ? (

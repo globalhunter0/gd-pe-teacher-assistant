@@ -33,7 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: 'plans', label: '教学计划' },
   { key: 'stats', label: '数据统计' },
   { key: 'resources', label: '资料中心' },
-  { key: 'ai', label: 'AI 助手（暂未开放）' },
+  { key: 'ai', label: 'AI 助手' },
   { key: 'settings', label: '备份与恢复' }
 ]
 
@@ -49,7 +49,7 @@ export const PAGE_TITLES: Record<NavKey, string> = {
   exams: PE_TEST_CENTER_MODULE_LABEL,
   stats: '数据统计',
   resources: '资料中心',
-  ai: 'AI 助手（暂未开放）',
+  ai: 'AI 助手',
   settings: '备份与恢复'
 }
 
@@ -65,7 +65,7 @@ export const PAGE_DESCRIPTIONS: Record<NavKey, string> = {
   exams: '查看城市/年份/项目的官方评分规则。',
   stats: '查看班级课堂人次、学生档案和测试统计。数字根据现有记录实时计算。',
   resources: '管理教案、练习、规则和本地教学资料。支持文件副本、网页链接和文字笔记。',
-  ai: '后续版本将接入本地可用的 AI 助手能力。当前仅作为功能入口预留。',
+  ai: '配置用于教学设计的大模型服务。API Key 加密保存在本机，不会进入备份包。',
   settings: '备份与恢复本地教学数据。备份包保存在你选择的位置，恢复前会自动再做一份安全备份。'
 }
 

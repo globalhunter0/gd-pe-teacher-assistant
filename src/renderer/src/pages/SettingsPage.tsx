@@ -7,7 +7,6 @@ import {
 } from '@shared/appUpdate'
 import { APP_VERSION_LABEL } from '../appVersionLabel'
 import PageLayout, { PageHeader } from '../components/PageLayout'
-import AiModelSettingsCard from '../components/AiModelSettingsCard'
 import { useUserPreferences } from '../context/UserPreferencesContext'
 import { getAppApi } from '../platform/appApi'
 import { getAppUpdatePort, type AppUpdatePort } from '../platform/appUpdatePort'
@@ -260,7 +259,6 @@ export default function SettingsPage(): React.JSX.Element {
           </div>
         </div>
 
-        <AiModelSettingsCard />
       </div>
 
       <div className="settings-grid settings-grid--actions">

@@ -87,10 +87,17 @@ try {
   assert.equal(updateStatus.state, 'idle')
   pass('首次启动空状态、应用身份与隔离 userData')
   pass('解包烟测不启用自动更新、不访问 GitHub')
-  for (const label of ['我的课表', '班级与学生', '课堂记录', '体育测试', '训练队', '教学计划', '资料中心', 'AI 助手（暂未开放）', '备份与恢复']) {
+  for (const label of ['我的课表', '班级与学生', '课堂记录', '体育测试', '训练队', '教学计划', '资料中心', 'AI 助手', '备份与恢复']) {
     const clicked = await running.page.eval(`(() => {const b=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()===${JSON.stringify(label)}); if(!b)return false;b.click();return true})()`)
     assert(clicked, `navigation missing: ${label}`); await delay(150)
     assert(!(await running.page.eval(`document.body.innerText.includes('启动失败')`)))
+    if (label === 'AI 助手') {
+      assert(await running.page.eval(`document.body.innerText.includes('大模型（AI 生成教学设计）') && document.body.innerText.includes('前往大单元教学设计')`), 'AI assistant must contain model settings and teaching-design entry')
+      assert(!(await running.page.eval(`document.body.innerText.includes('功能开发中')`)), 'AI assistant must no longer be a placeholder')
+      assert(await running.page.eval(`(() => {const b=[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='前往大单元教学设计');if(!b)return false;b.click();return true})()`), 'AI assistant teaching-design button')
+      await delay(150)
+      assert(await running.page.eval(`document.body.innerText.includes('大单元教学设计（AI）') && document.body.innerText.includes('+ 新建大单元')`), 'AI assistant must open the teaching-design workspace')
+    }
     if (label === '备份与恢复') {
       let updateCopy = false
       for (let i = 0; i < 20; i++) {
@@ -99,13 +106,14 @@ try {
         await delay(100)
       }
       assert(updateCopy, 'settings must show the unsupported in-app update state')
+      assert(!(await running.page.eval(`document.body.innerText.includes('大模型（AI 生成教学设计）')`)), 'backup page must not contain model settings')
     }
     if (label === '我的课表' && expectedVersion !== '0.29.0') {
       assert(!(await running.page.eval(`document.body.innerText.includes('恢复默认课表')`)), '示例课表恢复入口必须移除')
       assert(!(await running.page.eval(`document.body.innerText.includes('团队1')`)), '空课表不得显示旧示例团队')
     }
   }
-  pass('空数据页面与 AI 暂未开放标识')
+  pass('空数据页面与 AI 助手模型设置入口')
   await running.api('classes.save', [fixture.klass], [])
   await running.api('students.save', [fixture.pupil], [])
   await running.api('schedule.save', [fixture.lesson], [])

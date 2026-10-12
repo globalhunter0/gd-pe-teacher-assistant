@@ -59,7 +59,7 @@ async function callModel(
   const config = await store.getConfig()
   const apiKey = await store.getApiKey()
   if (!apiKey) {
-    throw new AiRequestError('not_configured', '尚未配置大模型 API Key，请先到“备份与恢复”页的“大模型”卡片中填写并测试连接')
+    throw new AiRequestError('not_configured', '尚未配置大模型 API Key，请先到“AI 助手”中填写并测试连接')
   }
   const { data, result } = await requestChatJson({
     baseUrl: config.baseUrl,

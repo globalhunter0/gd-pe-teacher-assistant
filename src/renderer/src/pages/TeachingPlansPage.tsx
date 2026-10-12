@@ -38,10 +38,12 @@ function weekPreview(week: TeachingPlanWeek): string {
 
 export default function TeachingPlansPage({
   context = null,
-  onOpenSession
+  onOpenSession,
+  initialView = 'plans'
 }: {
   context?: PlanNavContext | null
   onOpenSession?: (sessionId: string) => void
+  initialView?: 'plans' | 'design'
 }): React.JSX.Element {
   const { plans, loading, error, upsertPlan, deletePlan, duplicatePlan } = useTeachingPlans()
   const { sessions } = usePeSessions()
@@ -53,7 +55,7 @@ export default function TeachingPlansPage({
   const [pendingWeekDeleteId, setPendingWeekDeleteId] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [view, setView] = useState<'plans' | 'design'>('plans')
+  const [view, setView] = useState<'plans' | 'design'>(initialView)
   const autoOpenedKey = useRef<string | null>(null)
 
   const opened = useMemo(() => plans.find((item) => item.id === openedId) ?? null, [plans, openedId])
