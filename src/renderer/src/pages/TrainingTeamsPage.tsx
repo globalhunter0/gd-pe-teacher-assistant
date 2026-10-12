@@ -66,6 +66,7 @@ import {
   type TrainingTeamMember
 } from '@shared/trainingTeam'
 import ManualTrainingMembers from '../components/ManualTrainingMembers'
+import AiTrainingPlanDialog from '../components/AiTrainingPlanDialog'
 import AthleteDetailPanel from '../components/AthleteDetailPanel'
 import MemberProfileDialog from '../components/MemberProfileDialog'
 import SportPlanGenerator from '../components/SportPlanGenerator'
@@ -164,6 +165,7 @@ export default function TrainingTeamsPage({
   const [sessionRecord, setSessionRecord] = useState<TrainingSession | null | undefined>(undefined)
   const [sourcePlan, setSourcePlan] = useState<TrainingPlan | null>(null)
   const [planDialog, setPlanDialog] = useState<TrainingPlan | null | undefined>(undefined)
+  const [aiPlanDialogOpen, setAiPlanDialogOpen] = useState(false)
   const [teamDialog, setTeamDialog] = useState<{ record: TrainingTeam | null; parent: TrainingTeam | null } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<TrainingTeamDeleteCheck | null>(null)
 
@@ -177,6 +179,7 @@ export default function TrainingTeamsPage({
     setSessionRecord(startSessionOnOpen ? null : undefined)
     setSourcePlan(null)
     setPlanDialog(undefined)
+    setAiPlanDialogOpen(false)
     onOpenTeamConsumed?.()
   }, [openTeamId, startSessionOnOpen, onOpenTeamConsumed])
   const [memberQuery, setMemberQuery] = useState('')
@@ -223,6 +226,7 @@ export default function TrainingTeamsPage({
     setSessionRecord(undefined)
     setSourcePlan(null)
     setPlanDialog(undefined)
+    setAiPlanDialogOpen(false)
     setActionError(null)
   }
 
@@ -376,6 +380,14 @@ export default function TrainingTeamsPage({
     await training.savePlans([...training.plans, ...plans])
     setTab('plans')
     setMessage(`已保存 ${plans.length} 条训练计划，可在下方列表逐课开始训练。`)
+    setActionError(null)
+  }
+
+  async function handleSaveAiPlan(plan: TrainingPlan): Promise<void> {
+    await training.upsertPlan(plan)
+    setAiPlanDialogOpen(false)
+    setTab('plans')
+    setMessage('AI 训练计划已保存，可在下方列表审核或开始训练。')
     setActionError(null)
   }
 
@@ -665,6 +677,13 @@ export default function TrainingTeamsPage({
                 }
                 setPlanDialog(null)
               }}
+              onCreateAiPlan={() => {
+                if (!canMutateTrainingTeam(selected)) {
+                  setActionError('该训练队已停用或已删除，不能再制定训练计划')
+                  return
+                }
+                setAiPlanDialogOpen(true)
+              }}
               onSaveGeneratedPlans={handleSaveGeneratedPlans}
               onEditPlan={(plan) => {
                 if (!canMutateTrainingTeam(selected) || plan.status !== 'planned') {
@@ -765,6 +784,14 @@ export default function TrainingTeamsPage({
         />
       ) : null}
 
+      {aiPlanDialogOpen && selected ? (
+        <AiTrainingPlanDialog
+          team={selected}
+          onClose={() => setAiPlanDialogOpen(false)}
+          onSave={handleSaveAiPlan}
+        />
+      ) : null}
+
       {pendingDelete ? (
         <div className="dialog-backdrop" onMouseDown={() => setPendingDelete(null)}>
           <div className="dialog" role="dialog" onMouseDown={(event) => event.stopPropagation()}>
@@ -825,6 +852,7 @@ function TeamWorkspace({
   onStartTraining,
   onEditSession,
   onCreatePlan,
+  onCreateAiPlan,
   onSaveGeneratedPlans,
   onEditPlan,
   onCancelPlan,
@@ -876,6 +904,7 @@ function TeamWorkspace({
   onStartTraining: () => void
   onEditSession: (session: TrainingSession) => void
   onCreatePlan: () => void
+  onCreateAiPlan: () => void
   onSaveGeneratedPlans: (plans: TrainingPlan[]) => Promise<void>
   onEditPlan: (plan: TrainingPlan) => void
   onCancelPlan: (plan: TrainingPlan) => void
@@ -1052,20 +1081,25 @@ function TeamWorkspace({
 
       {tab === 'plans' ? (
         <>
-          {canEditPlans ? <SportPlanGenerator team={team} onSave={onSaveGeneratedPlans} /> : null}
           <div className="toolbar">
             {canEditPlans ? (
-              <button type="button" className="btn" onClick={onCreatePlan}>
-                新建空白计划
-              </button>
+              <>
+                <button type="button" className="btn btn-primary" onClick={onCreateAiPlan}>
+                  AI 制定计划
+                </button>
+                <button type="button" className="btn" onClick={onCreatePlan}>
+                  新建空白计划
+                </button>
+              </>
             ) : (
               <p className="exam-notes">该训练队已停用，仅可查看历史训练计划，不能再新增未来计划。</p>
             )}
           </div>
+          {canEditPlans ? <SportPlanGenerator team={team} onSave={onSaveGeneratedPlans} /> : null}
           {teamPlans.length === 0 ? (
             <TechEmptyState
               title="还没有训练计划"
-              description="可以从上方按学段和项目生成一节基础课，也可以自己写一条空白计划。"
+              description="可以按规则生成周期计划、让 AI 制定一节训练草稿，也可以新建空白计划。"
               kind="training"
             />
           ) : (

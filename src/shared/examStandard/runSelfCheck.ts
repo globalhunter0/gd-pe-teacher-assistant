@@ -17,6 +17,7 @@ import { runScheduleImportSelfCheckOrThrow } from '../schedule/importSelfcheck'
 import { runScheduleLinkageSelfCheckOrThrow } from '../schedule/selfcheck'
 import { runPeSessionWorkbenchSelfCheckOrThrow } from '../peSession/selfcheck'
 import { runTrainingTeamSelfCheckOrThrow } from '../trainingTeam/selfcheck'
+import { runTrainingPlanAiSelfCheckOrThrow } from '../trainingTeam/aiGenerationSelfcheck'
 import { runRosterAutoDetectionSelfCheckOrThrow } from '../student/detectSelfcheck'
 import { runStudentImportIpcSelfCheckOrThrow } from '../student/ipcSelfcheck'
 import { runRosterReconciliationSelfCheckOrThrow } from '../student/selfcheck'
@@ -126,6 +127,7 @@ async function main(): Promise<void> {
   console.log(await runV0290P03StartupRecoverySelfCheckOrThrow())
   console.log(runPeSessionWorkbenchSelfCheckOrThrow())
   console.log(runTrainingTeamSelfCheckOrThrow())
+  console.log(await runTrainingPlanAiSelfCheckOrThrow())
   console.log(await runScheduleLinkageSelfCheckOrThrow())
   console.log(await runScheduleBulkDeleteSelfCheckOrThrow())
   console.log(await runScheduleImportSelfCheckOrThrow())

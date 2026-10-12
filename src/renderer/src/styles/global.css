@@ -1945,6 +1945,36 @@ button.kpi-card:hover {
   width: min(480px, calc(100vw - 48px));
 }
 
+.dialog--ai-training {
+  width: min(760px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+
+.ai-training-hint {
+  align-self: end;
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.ai-training-warning {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #b54708;
+}
+
+.ai-training-progress {
+  margin: 12px 0 0;
+  padding: 9px 10px;
+  border-radius: 6px;
+  background: var(--bg-active);
+  color: var(--accent-blue);
+  font-size: 12px;
+}
+
 .dialog--import {
   width: min(760px, calc(100vw - 48px));
   max-height: calc(100vh - 48px);

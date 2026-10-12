@@ -79,6 +79,19 @@ export {
 } from './planGenerator'
 export type { GeneratedTrainingPlan, PlanContentExercise, TrainingBlockInput } from './planGenerator'
 export {
+  applyTrainingPlanAiJson,
+  buildTrainingPlanAiContext,
+  buildTrainingPlanAiMessages,
+  parseTrainingPlanAiContext,
+  parseTrainingPlanAiRequest,
+  trainingPlanAiSectionMinutes
+} from './aiGeneration'
+export type {
+  TrainingPlanAiContext,
+  TrainingPlanAiDraft,
+  TrainingPlanAiRequest
+} from './aiGeneration'
+export {
   activeMembersOfTeam,
   attentionFromLatestSession,
   childTeams,

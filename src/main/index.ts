@@ -27,6 +27,7 @@ import { registerResourceIpc } from './resourceIpc'
 import { getResourceMetaPath, loadResources } from './resourceStore'
 import { registerExamBatchIpc } from './examBatchIpc'
 import { registerTrainingIpc } from './trainingIpc'
+import { registerTrainingPlanGenerateIpc } from './trainingPlanGenerateIpc'
 import { registerBackupIpc } from './backupIpc'
 import { registerDataIntegrityIpc } from './dataIntegrityIpc'
 import { buildAndRunStartupHealthCheck } from './dataIntegrityService'
@@ -133,6 +134,7 @@ app.whenReady().then(async () => {
   registerResourceIpc()
   registerExamBatchIpc()
   registerTrainingIpc()
+  registerTrainingPlanGenerateIpc()
   registerBackupIpc()
   registerDataIntegrityIpc()
   registerUserPreferencesIpc()

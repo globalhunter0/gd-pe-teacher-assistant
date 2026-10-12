@@ -93,7 +93,9 @@ export function createAppApi(invoke: AppApiInvoke): AppApi {
     },
     trainingPlans: {
       get: () => invoke(IPC_CHANNELS.trainingPlans.get),
-      save: (items, expected) => invoke(IPC_CHANNELS.trainingPlans.save, items, expected)
+      save: (items, expected) => invoke(IPC_CHANNELS.trainingPlans.save, items, expected),
+      generate: (request) => invoke(IPC_CHANNELS.trainingPlans.generate, request),
+      cancelGeneration: (requestId) => invoke(IPC_CHANNELS.trainingPlans.cancelGeneration, requestId)
     },
     trainingMembers: {
       add: (items) => invoke(IPC_CHANNELS.trainingMembers.add, items),

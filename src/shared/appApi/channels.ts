@@ -82,7 +82,9 @@ export const IPC_CHANNELS = {
   },
   trainingPlans: {
     get: 'trainingPlans:get',
-    save: 'trainingPlans:save'
+    save: 'trainingPlans:save',
+    generate: 'trainingPlans:generate',
+    cancelGeneration: 'trainingPlans:cancelGeneration'
   },
   trainingMembers: {
     add: 'trainingMembers:add',

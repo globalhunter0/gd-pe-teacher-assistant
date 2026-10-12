@@ -38,7 +38,9 @@ import type {
   TrainingTeam,
   TrainingTeamDeleteCheck,
   TrainingTeamMember,
-  TrainingTeamSafeDeleteResult
+  TrainingTeamSafeDeleteResult,
+  TrainingPlanAiDraft,
+  TrainingPlanAiRequest
 } from '../trainingTeam'
 import type { AppUpdateStatus } from '../appUpdate'
 import type { UserPreferences } from '../userPreferences'
@@ -178,6 +180,9 @@ export interface AppApi {
   trainingPlans: {
     get: () => Promise<TrainingPlan[]>
     save: (items: TrainingPlan[], expected: TrainingPlan[]) => Promise<TrainingPlan[]>
+    /** 只返回 AI 草稿，不写入文件；由教练审核后再保存。 */
+    generate: (request: TrainingPlanAiRequest) => Promise<TrainingPlanAiDraft>
+    cancelGeneration: (requestId: string) => Promise<boolean>
   }
   trainingMembers: {
     add: (items: TrainingTeamMember[]) => Promise<TrainingTeamMember[]>
