@@ -18,9 +18,10 @@ export function runAppVersionSelfCheckOrThrow(): string {
   const developmentLabel = formatAppVersion(true)
   const productionLabel = formatAppVersion(false)
 
-  assert(APP_VERSION === '1.0.0', 'APP_VERSION 必须是 1.0.0')
-  assert(developmentLabel === 'v1.0.0-dev', 'development 格式必须是 v1.0.0-dev')
-  assert(productionLabel === 'v1.0.0', 'production 格式必须是 v1.0.0')
+  assert(APP_VERSION === '1.0.1', 'APP_VERSION 必须是 1.0.1')
+  assert(developmentLabel === 'v1.0.1-dev', 'development 格式必须是 v1.0.1-dev')
+  assert(productionLabel === 'v1.0.1', 'production 格式必须是 v1.0.1')
+  assert(developmentLabel !== 'v1.0.0-dev', '当前开发版本不得再是 v1.0.0-dev')
   assert(developmentLabel !== 'v1.0.0-rc.3-dev', '当前开发版本不得再是 v1.0.0-rc.3-dev')
   assert(developmentLabel !== 'v0.28.0-dev', '当前开发版本不得再是 v0.28.0-dev')
   assert(developmentLabel !== 'v0.27.0-dev', '当前开发版本不得再是 v0.27.0-dev')
