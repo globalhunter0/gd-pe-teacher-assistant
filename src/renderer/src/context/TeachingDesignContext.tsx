@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
   parseTeachingDesigns,
   removeBigUnitCascade,
@@ -51,36 +51,49 @@ export function TeachingDesignProvider({ children }: { children: React.ReactNode
     }
   }, [])
 
-  const saveDesigns = useCallback(async (nextItems: TeachingDesign[]) => {
-    if (loading || error) throw new Error('数据尚未就绪，请重新加载后保存')
-    const saved = await (await getAppApi()).teachingDesigns.save(parseTeachingDesigns(nextItems), designs)
-    setDesigns(saved)
-    setError(null)
-  }, [designs, loading, error])
+  // 批量生成会在同一闭包内连续保存，必须基于最新已保存数据计算，不能用渲染时的 designs。
+  const latestRef = useRef<TeachingDesign[]>([])
+  latestRef.current = designs
+  const readyRef = useRef(false)
+  readyRef.current = !loading && !error
+  const queueRef = useRef<Promise<unknown>>(Promise.resolve())
+
+  const commit = useCallback((compute: (current: TeachingDesign[]) => TeachingDesign[] | null) => {
+    const task = queueRef.current.then(async () => {
+      if (!readyRef.current) throw new Error('数据尚未就绪，请重新加载后保存')
+      const current = latestRef.current
+      const next = compute(current)
+      if (!next) return
+      const saved = await (await getAppApi()).teachingDesigns.save(parseTeachingDesigns(next), current)
+      latestRef.current = saved
+      setDesigns(saved)
+      setError(null)
+    })
+    queueRef.current = task.catch(() => undefined)
+    return task
+  }, [])
+
+  const saveDesigns = useCallback((nextItems: TeachingDesign[]) => commit(() => nextItems), [commit])
 
   const upsertDesigns = useCallback(
-    async (items: TeachingDesign[]) => {
-      const ids = new Set(items.map((item) => item.id))
-      await saveDesigns([...designs.filter((entry) => !ids.has(entry.id)), ...items])
-    },
-    [designs, saveDesigns]
+    (items: TeachingDesign[]) =>
+      commit((current) => {
+        const ids = new Set(items.map((item) => item.id))
+        return [...current.filter((entry) => !ids.has(entry.id)), ...items]
+      }),
+    [commit]
   )
 
   const deleteDesign = useCallback(
-    async (id: string) => {
-      const target = designs.find((entry) => entry.id === id)
-      if (!target) {
-        return
-      }
-      if (target.kind === 'bigUnit') {
-        await saveDesigns(removeBigUnitCascade(designs, id))
-      } else if (target.kind === 'unit') {
-        await saveDesigns(removeUnitKeepLessons(designs, id, new Date().toISOString()))
-      } else {
-        await saveDesigns(designs.filter((entry) => entry.id !== id))
-      }
-    },
-    [designs, saveDesigns]
+    (id: string) =>
+      commit((current) => {
+        const target = current.find((entry) => entry.id === id)
+        if (!target) return null
+        if (target.kind === 'bigUnit') return removeBigUnitCascade(current, id)
+        if (target.kind === 'unit') return removeUnitKeepLessons(current, id, new Date().toISOString())
+        return current.filter((entry) => entry.id !== id)
+      }),
+    [commit]
   )
 
   const value = useMemo(

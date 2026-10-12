@@ -53,7 +53,10 @@ export function createAppApi(invoke: AppApiInvoke): AppApi {
     },
     teachingDesigns: {
       get: () => invoke(IPC_CHANNELS.teachingDesigns.get),
-      save: (items, expected) => invoke(IPC_CHANNELS.teachingDesigns.save, items, expected)
+      save: (items, expected) => invoke(IPC_CHANNELS.teachingDesigns.save, items, expected),
+      generate: (request) => invoke(IPC_CHANNELS.teachingDesigns.generate, request),
+      cancelGeneration: (requestId) => invoke(IPC_CHANNELS.teachingDesigns.cancelGeneration, requestId),
+      exportDocx: (designId) => invoke(IPC_CHANNELS.teachingDesigns.exportDocx, designId)
     },
     aiModel: {
       getStatus: () => invoke(IPC_CHANNELS.aiModel.getStatus),

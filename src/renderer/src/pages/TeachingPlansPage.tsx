@@ -17,6 +17,7 @@ import {
 import type { PlanNavContext } from './DashboardPage'
 import TeachingPlanCreateDialog from '../components/TeachingPlanCreateDialog'
 import TeachingPlanWeekDialog from '../components/TeachingPlanWeekDialog'
+import TeachingDesignWorkspace from '../components/teachingDesign/TeachingDesignWorkspace'
 import { usePeSessions } from '../context/PeSessionContext'
 import { useTeachingPlans } from '../context/TeachingPlanContext'
 
@@ -52,6 +53,7 @@ export default function TeachingPlansPage({
   const [pendingWeekDeleteId, setPendingWeekDeleteId] = useState<string | null>(null)
   const [working, setWorking] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [view, setView] = useState<'plans' | 'design'>('plans')
   const autoOpenedKey = useRef<string | null>(null)
 
   const opened = useMemo(() => plans.find((item) => item.id === openedId) ?? null, [plans, openedId])
@@ -445,6 +447,42 @@ export default function TeachingPlansPage({
     )
   }
 
+  const viewTabs = (
+    <div className="pe-center-tabs" role="tablist" aria-label="教学计划">
+      {(
+        [
+          ['plans', '学期教学计划'],
+          ['design', '大单元教学设计（AI）']
+        ] as const
+      ).map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          role="tab"
+          aria-selected={view === id}
+          className={view === id ? 'pe-center-tab is-active' : 'pe-center-tab'}
+          onClick={() => setView(id)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (view === 'design') {
+    return (
+      <PageLayout className="page--plans">
+        <PageHeader
+          icon="plans"
+          title="教学计划"
+          description="大单元教学计划、单元教学计划与课时教案，依据义务教育/普通高中体育与健康课程标准（2025年修订）。"
+        />
+        {viewTabs}
+        <TeachingDesignWorkspace />
+      </PageLayout>
+    )
+  }
+
   return (
     <PageLayout className="page--plans">
       <PageHeader
@@ -457,6 +495,7 @@ export default function TeachingPlansPage({
           </button>
         }
       />
+      {viewTabs}
 
       {error ? <p className="page-error">{error}</p> : null}
       {actionError ? <p className="page-error">{actionError}</p> : null}

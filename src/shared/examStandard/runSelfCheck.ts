@@ -8,6 +8,7 @@ import { runCurriculumCatalogSelfCheckOrThrow } from '../curriculum/selfcheck'
 import { runTeachingDesignSelfCheckOrThrow } from '../teachingDesign/selfcheck'
 import { runAiModelSelfCheckOrThrow } from '../aiModel/selfcheck'
 import { runMaterialsSelfCheckOrThrow } from '../materials/selfcheck'
+import { runTeachingDesignGenerationSelfCheckOrThrow } from '../teachingDesign/generationSelfcheck'
 import { runExamBatchSelfCheckOrThrow } from '../examBatch/selfcheck'
 import { runV0160ExcelBatchSelfCheckOrThrow } from '../examBatch/v0160Selfcheck'
 import { runV0170PeTestImportPlanSelfCheckOrThrow } from '../examBatch/v0170ImportPlanSelfcheck'
@@ -141,6 +142,7 @@ async function main(): Promise<void> {
   console.log(await runTeachingDesignSelfCheckOrThrow())
   console.log(await runAiModelSelfCheckOrThrow())
   console.log(await runMaterialsSelfCheckOrThrow())
+  console.log(await runTeachingDesignGenerationSelfCheckOrThrow())
 }
 
 void main().catch((error) => {

@@ -3,9 +3,15 @@ import { buildClassroomPeTestSession } from '../src/shared/peTest/classroomQuiz'
 import { BUILTIN_TEST_ITEMS } from '../src/shared/peTest/builtinItems'
 import { createEmptyWeeks } from '../src/shared/teachingPlan/validate'
 import { BUILTIN_TRAINING_ITEMS } from '../src/shared/trainingTeam/builtinItems'
+import { applyBigUnitJson, applyLessonJson } from '../src/shared/teachingDesign/generation'
+import type { BigUnitDesign } from '../src/shared/teachingDesign/types'
 export { parseZip } from '../src/shared/backup/zip'
 
 const now = '2026-09-25T00:00:00.000Z'
+const designMeta = { provider: 'smoke', model: 'smoke', generatedAt: now }
+const designDraft: BigUnitDesign = { id: 'teaching-design-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', kind: 'bigUnit', title: '打包烟测篮球大单元', notes: '', generation: null, createdAt: now, updatedAt: now, grade: '初一', academicYear: '2026-2027', semester: '第一学期', editionId: null, categoryId: 'ball', sportItem: '篮球', totalLessons: 18, lessonMinutes: 40, teachingPlanId: null, materialResourceIds: [], guidingIdeas: '', learnerAnalysis: '', contentAnalysis: '', objectives: { sportAbility: '', healthBehavior: '', sportsMorality: '' }, keyPoints: '', difficulties: '', unitOutline: [], assessment: '', safety: '' }
+export const designBigUnit = applyBigUnitJson(designDraft, { guidingIdeas: '健康第一', keyPoints: '运球', unitOutline: [{ title: '单元一 运球', lessonFrom: 1, lessonTo: 18, focus: '运球' }] }, designMeta)
+export const designLesson = { ...applyLessonJson(designBigUnit, null, 1, { maleCount: 20, femaleCount: 21 }, { title: '原地运球', content: '原地高低运球', keyPoint: '按拍球', segments: [] }, designMeta, null), id: 'teaching-design-bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee' }
 export const klass = { id: 'class-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', className: '1班', grade: '初一' as const, academicYear: '2026-2027', semester: '第一学期' as const, studentCount: 1, status: 'active' as const, notes: '', createdAt: now, updatedAt: now }
 export const pupil = { id: 'student-aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', classId: klass.id, name: '测试学生', studentNo: '01', gender: 'male' as const, status: 'active' as const, notes: '', createdAt: now, updatedAt: now }
 export const lesson = { id: 'w5-p1', weekday: 5, period: 1, startTime: '08:00', endTime: '08:40', team: '初一1班', courseType: 'regular' as const, classId: klass.id }

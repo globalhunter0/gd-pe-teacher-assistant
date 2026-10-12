@@ -42,7 +42,10 @@ export const IPC_CHANNELS = {
   },
   teachingDesigns: {
     get: 'teachingDesigns:get',
-    save: 'teachingDesigns:save'
+    save: 'teachingDesigns:save',
+    generate: 'teachingDesigns:generate',
+    cancelGeneration: 'teachingDesigns:cancelGeneration',
+    exportDocx: 'teachingDesigns:exportDocx'
   },
   aiModel: {
     getStatus: 'aiModel:getStatus',

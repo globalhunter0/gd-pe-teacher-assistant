@@ -26,7 +26,7 @@ import type { ImportColumn, ImportCommitResult, ImportPickResult, StudentImportM
 import type { DetectedWorkbook } from '../student/detectTypes'
 import type { RosterPreviewResult, RosterResolutions } from '../student/rosterTypes'
 import type { TeachingPlan } from '../teachingPlan'
-import type { TeachingDesign } from '../teachingDesign'
+import type { GenerationRequest, GenerationResult, TeachingDesign } from '../teachingDesign'
 import type { AiConnectionTestResult, AiModelSaveInput, AiModelStatus } from '../aiModel/types'
 import type { MaterialPreview } from '../materials/types'
 import type {
@@ -136,6 +136,10 @@ export interface AppApi {
   teachingDesigns: {
     get: () => Promise<TeachingDesign[]>
     save: (items: TeachingDesign[], expected: TeachingDesign[]) => Promise<TeachingDesign[]>
+    /** 只返回生成草稿，不写入文件；由界面确认后再保存。 */
+    generate: (request: GenerationRequest) => Promise<GenerationResult>
+    cancelGeneration: (requestId: string) => Promise<boolean>
+    exportDocx: (designId: string) => Promise<{ canceled: true } | { canceled: false; filePath: string }>
   }
   aiModel: {
     getStatus: () => Promise<AiModelStatus>
