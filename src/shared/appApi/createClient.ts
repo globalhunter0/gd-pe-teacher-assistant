@@ -133,6 +133,12 @@ export function createAppApi(invoke: AppApiInvoke): AppApi {
       checkForUpdates: () => invoke(IPC_CHANNELS.appUpdate.checkForUpdates),
       startDownload: () => invoke(IPC_CHANNELS.appUpdate.startDownload),
       quitAndInstall: () => invoke(IPC_CHANNELS.appUpdate.quitAndInstall)
+    },
+    companion: {
+      getSnapshot: () => invoke(IPC_CHANNELS.companion.getSnapshot),
+      applySnapshot: (payload) => invoke(IPC_CHANNELS.companion.applySnapshot, payload),
+      exportToFile: () => invoke(IPC_CHANNELS.companion.exportToFile),
+      importFromFile: () => invoke(IPC_CHANNELS.companion.importFromFile)
     }
   }
 }

@@ -393,9 +393,11 @@ export default function PeTestsPage({
         <button type="button" className="btn" onClick={() => setView('items')}>
           测试项目
         </button>
-        <button type="button" className="btn" onClick={requestImport}>
-          {PE_TEST_PRIMARY_IMPORT_LABEL}
-        </button>
+        {onRequestImport ? (
+          <button type="button" className="btn" onClick={requestImport}>
+            {PE_TEST_PRIMARY_IMPORT_LABEL}
+          </button>
+        ) : null}
         <button type="button" className="btn btn-primary" onClick={() => setQuickEntry({})}>
           快速录入
         </button>
@@ -764,7 +766,9 @@ export default function PeTestsPage({
         description={
           view === 'items'
             ? '管理内置与自定义测试项目。内置项目不能删除，只能停用。'
-            : '已经发生的体育测试。已有成绩表时，推荐直接导入 Excel。'
+            : onRequestImport
+              ? '已经发生的体育测试。已有成绩表时，推荐直接导入 Excel。'
+              : '已经发生的体育测试。可用快速录入登记成绩；Excel 批量导入请在 Windows 桌面版完成。'
         }
         actions={recordsToolbar}
       />

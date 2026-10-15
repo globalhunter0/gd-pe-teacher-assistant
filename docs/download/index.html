@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>下载安装 · 广东省初中体育教师管理助手</title>
+  <style>
+    :root {
+      --navy: #0b1f3a;
+      --ink: #122033;
+      --muted: #5b6b80;
+      --line: #d7e0ea;
+      --paper: #f4f7fb;
+      --white: #ffffff;
+      --blue: #1a73e8;
+      --cyan: #1bb8d1;
+      --warn: #8a5a12;
+      --warn-bg: #fff6e5;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.65;
+    }
+    .hero {
+      background:
+        radial-gradient(circle at 88% 8%, rgba(27, 184, 209, 0.26), transparent 28%),
+        linear-gradient(165deg, #0b1f3a 0%, #13345c 58%, #0b1f3a 100%);
+      color: #fff;
+      padding: 36px 20px 32px;
+    }
+    .wrap { width: min(760px, 100%); margin: 0 auto; }
+    .kicker {
+      display: inline-block;
+      font-size: 13px;
+      letter-spacing: 0.12em;
+      color: #8fd8e8;
+      border: 1px solid rgba(143, 216, 232, 0.45);
+      padding: 6px 12px;
+      border-radius: 999px;
+    }
+    h1 { margin: 16px 0 8px; font-size: 28px; line-height: 1.25; }
+    .sub { color: rgba(255,255,255,0.78); font-size: 15px; }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+    .meta span {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 13px;
+    }
+    main { padding: 24px 20px 48px; }
+    .card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 22px;
+      margin-bottom: 16px;
+    }
+    .status {
+      font-size: 15px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 22px;
+      border: 0;
+      border-radius: 12px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-ghost {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      margin-left: 8px;
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    ol { padding-left: 22px; }
+    li { margin: 10px 0; }
+    .warn {
+      background: var(--warn-bg);
+      border: 1px solid #f0d7a3;
+      color: var(--warn);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 14px 0;
+    }
+    .note { color: var(--muted); font-size: 14px; margin-top: 12px; }
+    .hidden { display: none; }
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      background: var(--paper);
+      padding: 1px 6px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <div class="kicker">WINDOWS 安装包</div>
+      <h1>广东省初中体育教师管理助手</h1>
+      <p class="sub">点开本页后，电脑会自动开始下载安装包。按下面步骤装好即可使用。</p>
+      <div class="meta">
+        <span id="verLabel">当前版本 v1.0.0</span>
+        <span>约 93 MB</span>
+        <span>Windows 10 / 11 64 位</span>
+        <span>本机保存数据</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <p class="status" id="status">正在准备下载…</p>
+      <div class="actions">
+        <a class="btn" id="downloadBtn" href="https://github.com/globalhunter0/gd-pe-teacher-assistant/releases/download/V1.0.0/gd-pe-teacher-assistant-1.0.0-Windows-x64-setup.exe">立即下载安装包</a>
+        <button class="btn btn-ghost" id="copyBtn" type="button">复制安装说明</button>
+      </div>
+      <p class="note" id="fileHint">安装包文件名：<code>gd-pe-teacher-assistant-1.0.0-Windows-x64-setup.exe</code></p>
+    </section>
+
+    <section class="card hidden" id="phoneBox">
+      <p><strong>你现在用的是手机。</strong>完整版安装包只能装在 Windows 电脑上。</p>
+      <p class="note">可用 Safari 打开免费网页版（查标准 / 看成绩 / 快速录入）：
+        <a href="https://globalhunter0.github.io/gd-pe-teacher-assistant/mobile/">打开免费网页版</a>。完整功能请把下载页发到电脑浏览器打开。</p>
+    </section>
+
+    <section class="card hidden" id="wechatBox">
+      <p><strong>你正在用微信打开。</strong>微信里常常下不了安装包。</p>
+      <p class="note">请点右上角「…」，选择「在浏览器中打开」；或把链接发到电脑后再打开。</p>
+    </section>
+
+    <section class="card">
+      <h2>安装步骤</h2>
+      <ol>
+        <li>确认电脑是 <strong>Windows 10 或 Windows 11，64 位</strong>。完整版目前仅 Windows；手机可用免费网页版查标准与录入。</li>
+        <li>下载完成后，打开文件：<code id="fileName">gd-pe-teacher-assistant-1.0.0-Windows-x64-setup.exe</code>。</li>
+        <li>如果弹出「Windows 已保护你的电脑」，先点「更多信息」，再点「仍要运行」。这是因为安装包还没有购买 Windows 数字签名，不是病毒提示本身。</li>
+        <li>按提示完成安装。这是当前用户安装，<strong>一般不需要管理员密码</strong>。</li>
+        <li>安装结束后不会自动打开。到桌面或开始菜单找到 <code>gd-pe-teacher-assistant</code>，点开即可。窗口标题是「广东省初中体育教师管理助手」。</li>
+        <li>第一次使用建议先到「设置」做一次备份，备份包自己保存。</li>
+        <li>以后有新版本，打开软件后到「设置 → 检查更新」，不必反复重装。</li>
+      </ol>
+      <div class="warn">
+        这不是教育局或学校官方系统，也不承诺提高体育中考分数。数据保存在这台电脑，不强制注册账号。当前 v1.0.0 的 AI 助手尚未开放。
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const FALLBACK_URL = "https://github.com/globalhunter0/gd-pe-teacher-assistant/releases/download/V1.0.0/gd-pe-teacher-assistant-1.0.0-Windows-x64-setup.exe";
+    const API_URL = "https://api.github.com/repos/globalhunter0/gd-pe-teacher-assistant/releases/latest";
+    const GUIDE = [
+      "广东省初中体育教师管理助手 · 安装说明",
+      "",
+      "1. 电脑需 Windows 10/11 64 位。",
+      "2. 下载安装包（约 93MB），文件名类似 gd-pe-teacher-assistant-*-Windows-x64-setup.exe。",
+      "3. 双击运行。若提示“Windows 已保护你的电脑”，点「更多信息」→「仍要运行」。",
+      "4. 按提示安装，一般不需要管理员密码。",
+      "5. 到桌面或开始菜单打开 gd-pe-teacher-assistant。",
+      "6. 建议先到「设置」做一次备份。",
+      "7. 以后可在软件里「设置 → 检查更新」。",
+      "",
+      "不是教育局/学校官方系统，数据保存在本机。"
+    ].join("\n");
+
+    const ua = navigator.userAgent || "";
+    const isWeChat = /MicroMessenger/i.test(ua);
+    const isWindows = /Windows NT/i.test(ua);
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
+
+    const statusEl = document.getElementById("status");
+    const btn = document.getElementById("downloadBtn");
+    const phoneBox = document.getElementById("phoneBox");
+    const wechatBox = document.getElementById("wechatBox");
+
+    function triggerDownload(url) {
+      const link = document.createElement("a");
+      link.href = url;
+      link.rel = "noopener";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+
+    async function resolveLatest() {
+      try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error("release fetch failed");
+        const data = await res.json();
+        const asset = (data.assets || []).find(function (item) {
+          return /\.exe$/i.test(item.name) && !/\.blockmap$/i.test(item.name);
+        });
+        if (asset && asset.browser_download_url) {
+          const version = data.tag_name || data.name || "v1.0.0";
+          document.getElementById("verLabel").textContent = "当前版本 " + version;
+          document.getElementById("fileName").textContent = asset.name;
+          document.getElementById("fileHint").innerHTML = "安装包文件名：<code>" + asset.name + "</code>";
+          btn.href = asset.browser_download_url;
+          return asset.browser_download_url;
+        }
+      } catch (err) {
+        /* keep fallback */
+      }
+      return FALLBACK_URL;
+    }
+
+    document.getElementById("copyBtn").addEventListener("click", async function () {
+      try {
+        await navigator.clipboard.writeText(GUIDE);
+        this.textContent = "已复制";
+      } catch (err) {
+        window.prompt("复制下面的安装说明", GUIDE);
+      }
+    });
+
+    resolveLatest().then(function (url) {
+      btn.href = url;
+      if (isWeChat) {
+        wechatBox.classList.remove("hidden");
+        statusEl.textContent = "请先用浏览器打开，再下载安装包。";
+        return;
+      }
+      if (isMobile && !isWindows) {
+        phoneBox.classList.remove("hidden");
+        statusEl.textContent = "请用 Windows 电脑打开这个页面。";
+        return;
+      }
+      statusEl.textContent = "已开始下载。如果浏览器没有反应，请再点一次「立即下载安装包」。";
+      triggerDownload(url);
+    });
+  </script>
+</body>
+</html>

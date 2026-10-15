@@ -1,0 +1,25 @@
+{
+  "name": "广东省初中体育教师管理助手 · 免费网页版",
+  "short_name": "体育助手",
+  "description": "查评分标准、看成绩、快速录入。完整功能请用 Windows 桌面版。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#0b1f3a",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

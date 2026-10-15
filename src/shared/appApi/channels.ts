@@ -122,6 +122,12 @@ export const IPC_CHANNELS = {
     checkForUpdates: 'appUpdate:checkForUpdates',
     startDownload: 'appUpdate:startDownload',
     quitAndInstall: 'appUpdate:quitAndInstall'
+  },
+  companion: {
+    getSnapshot: 'companion:getSnapshot',
+    applySnapshot: 'companion:applySnapshot',
+    exportToFile: 'companion:exportToFile',
+    importFromFile: 'companion:importFromFile'
   }
 } as const
 

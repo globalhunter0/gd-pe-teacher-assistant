@@ -2486,10 +2486,6 @@ button.kpi-card:hover {
 .pe-history-change--down {
   color: var(--color-danger, #b42318);
 }
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: var(--muted, #667085);
-}
 
 .growth-signals {
   margin: 0 0 16px;
@@ -4808,4 +4804,130 @@ textarea:disabled {
   border: 1px solid var(--border);
   border-radius: 4px;
   font: inherit;
+}
+
+/* ---- Free Safari / PWA companion ---- */
+.companion-shell {
+  min-height: 100dvh;
+  grid-template-columns: 1fr;
+  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+}
+
+.companion-banner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 8px 12px;
+  background: #0b1f3a;
+  color: #e8f4ff;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.companion-main {
+  min-width: 0;
+}
+
+.companion-tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  background: #ffffff;
+  border-top: 1px solid var(--border, #d7e0ea);
+  box-shadow: 0 -4px 16px rgba(15, 35, 60, 0.06);
+}
+
+.companion-tab {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary, #5b6b80);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 8px 2px;
+  border-radius: 8px;
+}
+
+.companion-tab.is-active {
+  color: #0b1f3a;
+  background: #eef4fb;
+  font-weight: 600;
+}
+
+.companion-home {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 2px 24px;
+}
+
+.companion-home-kicker {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: #1bb8d1;
+}
+
+.companion-home-title {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.25;
+}
+
+.companion-home-lead {
+  margin: 0;
+  color: var(--text-secondary, #5b6b80);
+  font-size: 14px;
+}
+
+.companion-home-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.companion-home-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 10px;
+  border: 1px solid var(--border, #d7e0ea);
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.companion-home-stats strong {
+  font-size: 22px;
+}
+
+.companion-home-stats span {
+  font-size: 12px;
+  color: var(--text-secondary, #5b6b80);
+}
+
+.companion-home-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.companion-file-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+@media (min-width: 900px) {
+  .companion-shell {
+    max-width: 720px;
+    margin: 0 auto;
+  }
 }

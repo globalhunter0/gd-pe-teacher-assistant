@@ -1,6 +1,6 @@
 {
   "name": "gd-pe-teacher-assistant",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "广东省初中体育教师管理助手",
   "author": "广东省初中体育教师管理助手",
@@ -18,6 +18,8 @@
     "check:schedule-training": "node scripts/check-schedule-training.mjs",
     "check:node": "tsc --noEmit -p tsconfig.node.json",
     "check:web": "tsc --noEmit -p tsconfig.web.json",
+    "dev:web": "vite --config vite.web.config.ts",
+    "build:web": "node scripts/generate-companion-icons.mjs && vite build --config vite.web.config.ts",
     "package:win": "npm run build && node scripts/package-windows.mjs dir",
     "dist:win": "npm run build && node scripts/package-windows.mjs nsis",
     "dist:win:publish": "npm run build && node scripts/package-windows.mjs nsis publish",

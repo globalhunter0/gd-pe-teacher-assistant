@@ -21,11 +21,14 @@ import { countActiveStudents, filterStudents } from '../data/student/query'
 export default function ClassStudentsPage({
   initialClassId = null,
   onInitialClassConsumed,
-  onOpenGrowth
+  onOpenGrowth,
+  hideExcelImport = false
 }: {
   initialClassId?: string | null
   onInitialClassConsumed?: () => void
   onOpenGrowth?: (studentId: string) => void
+  /** Free web companion: Excel roster import stays on Windows. */
+  hideExcelImport?: boolean
 }): React.JSX.Element {
   const { classes, loading: classesLoading, error: classesError, upsertClass, deleteClass, applyLoadedClasses } =
     useClasses()
@@ -170,12 +173,18 @@ export default function ClassStudentsPage({
       <PageHeader
         icon="students"
         title="班级与学生"
-        description="管理行政班、学生名单与 Excel 同步。当前名单人数按在读学生实时计算，不改手工学生人数。"
+        description={
+          hideExcelImport
+            ? '管理行政班与学生名单。Excel 批量导入请在 Windows 桌面版完成后再同步到手机。'
+            : '管理行政班、学生名单与 Excel 同步。当前名单人数按在读学生实时计算，不改手工学生人数。'
+        }
         actions={
           <>
-            <button type="button" className="btn btn-primary" onClick={() => setImportOpen(true)}>
-              导入学生名单
-            </button>
+            {hideExcelImport ? null : (
+              <button type="button" className="btn btn-primary" onClick={() => setImportOpen(true)}>
+                导入学生名单
+              </button>
+            )}
             <button type="button" className="btn" onClick={() => setClassEditor(null)}>
               新建班级
             </button>
@@ -199,7 +208,11 @@ export default function ClassStudentsPage({
         <aside className="training-list">
           <p className="ds-section-label">班级</p>
           {listedClasses.length === 0 ? (
-            <p className="exam-notes">还没有班级。可手工新建，或从 Excel 导入自动建班。</p>
+            <p className="exam-notes">
+              {hideExcelImport
+                ? '还没有班级。可手工新建，或从电脑导入手机同步包。'
+                : '还没有班级。可手工新建，或从 Excel 导入自动建班。'}
+            </p>
           ) : null}
           {listedClasses.map((item) => (
             <button
@@ -348,7 +361,7 @@ export default function ClassStudentsPage({
         />
       ) : null}
 
-      {importOpen ? (
+      {importOpen && !hideExcelImport ? (
         <ExcelImportDialog
           classes={classes}
           onClose={() => setImportOpen(false)}

@@ -29,6 +29,7 @@ import { registerExamBatchIpc } from './examBatchIpc'
 import { registerTrainingIpc } from './trainingIpc'
 import { registerTrainingPlanGenerateIpc } from './trainingPlanGenerateIpc'
 import { registerBackupIpc } from './backupIpc'
+import { registerCompanionIpc } from './companionIpc'
 import { registerDataIntegrityIpc } from './dataIntegrityIpc'
 import { buildAndRunStartupHealthCheck } from './dataIntegrityService'
 import { registerUserPreferencesIpc } from './userPreferencesIpc'
@@ -136,6 +137,7 @@ app.whenReady().then(async () => {
   registerTrainingIpc()
   registerTrainingPlanGenerateIpc()
   registerBackupIpc()
+  registerCompanionIpc()
   registerDataIntegrityIpc()
   registerUserPreferencesIpc()
   registerAppUpdateIpc()

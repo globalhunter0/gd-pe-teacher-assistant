@@ -167,6 +167,53 @@ export default function SettingsPage(): React.JSX.Element {
     }
   }
 
+  async function handleCompanionExport(): Promise<void> {
+    setWorking(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const result = await (await getAppApi()).companion.exportToFile()
+      if (result.canceled) {
+        setMessage('已取消导出手机同步包。')
+        return
+      }
+      setMessage(
+        `手机同步包已保存：${result.filePath}。请把该 JSON 发到手机，用免费网页版「数据同步」导入。`
+      )
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : '导出手机同步包失败')
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  async function handleCompanionImport(): Promise<void> {
+    const confirmed = window.confirm(
+      '导入手机会同步包将整表替换本机的班级、学生、测试项目与体育测试数据（不会改课表/课堂/备份包格式）。是否继续？'
+    )
+    if (!confirmed) {
+      return
+    }
+    setWorking(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const result = await (await getAppApi()).companion.importFromFile()
+      if (result.canceled) {
+        setMessage('已取消导入手机同步包。')
+        return
+      }
+      setMessage(`${result.message} 即将重新加载。`)
+      window.setTimeout(() => {
+        window.location.reload()
+      }, 1200)
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : '导入手机同步包失败')
+    } finally {
+      setWorking(false)
+    }
+  }
+
   async function handleSafeRepair(): Promise<void> {
     const confirmed = window.confirm(
       '安全修复只会处理明确可逆的项（例如非法课堂状态）。修复前会先创建安全备份；备份失败则不会修改任何数据。悬空引用与重复 ID 不会自动删除。是否继续？'
@@ -330,6 +377,21 @@ export default function SettingsPage(): React.JSX.Element {
               ) : null}
             </div>
           ) : null}
+        </article>
+
+        <article className="info-panel">
+          <h3>手机免费网页版同步</h3>
+          <p className="settings-copy">
+            导出 JSON 同步包后，可在 iPhone Safari 打开免费网页版导入，用于查标准、看成绩与快速录入。导入会整表替换对应四类数据。
+          </p>
+          <div className="settings-health-actions">
+            <button type="button" className="btn btn-primary" disabled={working} onClick={() => void handleCompanionExport()}>
+              {working ? '处理中…' : '导出手机同步包'}
+            </button>
+            <button type="button" className="btn" disabled={working} onClick={() => void handleCompanionImport()}>
+              导入手机同步包
+            </button>
+          </div>
         </article>
 
         <article className="info-panel">

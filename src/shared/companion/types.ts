@@ -1,0 +1,27 @@
+import type { ClassRecord } from '../class/types'
+import type { PETestSession, TestItem } from '../peTest'
+import type { StudentRecord } from '../student'
+
+export const COMPANION_SNAPSHOT_KIND = 'gdpe-companion' as const
+export const COMPANION_SNAPSHOT_SCHEMA_VERSION = 1 as const
+
+/** Phone ↔ Windows sync package for the free Safari companion. */
+export interface CompanionSnapshot {
+  kind: typeof COMPANION_SNAPSHOT_KIND
+  schemaVersion: typeof COMPANION_SNAPSHOT_SCHEMA_VERSION
+  exportedAt: string
+  appVersion: string
+  classes: ClassRecord[]
+  students: StudentRecord[]
+  testItems: TestItem[]
+  peTests: PETestSession[]
+}
+
+export interface CompanionSnapshotBuildInput {
+  appVersion: string
+  exportedAt?: string
+  classes: ClassRecord[]
+  students: StudentRecord[]
+  testItems: TestItem[]
+  peTests: PETestSession[]
+}

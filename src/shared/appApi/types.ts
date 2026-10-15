@@ -43,6 +43,7 @@ import type {
   TrainingPlanAiRequest
 } from '../trainingTeam'
 import type { AppUpdateStatus } from '../appUpdate'
+import type { CompanionSnapshot } from '../companion/types'
 import type { UserPreferences } from '../userPreferences'
 
 export interface StudentImportContext {
@@ -220,5 +221,13 @@ export interface AppApi {
     checkForUpdates: () => Promise<AppUpdateStatus>
     startDownload: () => Promise<AppUpdateStatus>
     quitAndInstall: () => Promise<void>
+  }
+  companion: {
+    getSnapshot: () => Promise<CompanionSnapshot>
+    applySnapshot: (payload: unknown) => Promise<{ ok: true; message: string }>
+    /** Desktop: save dialog. Web host rejects (use page download). */
+    exportToFile: () => Promise<{ canceled: true } | { canceled: false; filePath: string }>
+    /** Desktop: open dialog and replace companion collections. Web host rejects (use file input). */
+    importFromFile: () => Promise<{ canceled: true } | { canceled: false; message: string }>
   }
 }
