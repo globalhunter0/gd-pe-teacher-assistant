@@ -1,13 +1,24 @@
 import { Component, type ReactNode } from 'react'
 
-export class StartupErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false }
-  static getDerivedStateFromError(): { failed: boolean } { return { failed: true } }
-  componentDidCatch(): void {
-    (window as unknown as { startupDiagnostics?: { report: () => void } }).startupDiagnostics?.report()
+export class StartupErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean; message: string }> {
+  state = { failed: false, message: '' }
+  static getDerivedStateFromError(error: unknown): { failed: boolean; message: string } {
+    const message = error instanceof Error ? error.message : '未知错误'
+    return { failed: true, message }
+  }
+  componentDidCatch(error: unknown): void {
+    console.error(error)
+    ;(window as unknown as { startupDiagnostics?: { report: () => void } }).startupDiagnostics?.report()
   }
   render(): ReactNode {
-    if (this.state.failed) return <main role="alert"><h1>启动失败</h1><p>数据未被自动删除。请重新启动或查看用户数据目录 logs/startup.log；也可以尝试从备份恢复。</p></main>
+    if (this.state.failed) {
+      return (
+        <main role="alert">
+          <h1>启动失败</h1>
+          <p>{this.state.message || '页面没有完成加载。请刷新后再试。'}</p>
+        </main>
+      )
+    }
     return this.props.children
   }
 }

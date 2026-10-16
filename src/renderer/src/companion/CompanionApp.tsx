@@ -6,6 +6,7 @@ import { PeTestProvider } from '../context/PeTestContext'
 import { ScheduleProvider } from '../context/ScheduleContext'
 import { StudentProvider } from '../context/StudentContext'
 import { TestItemProvider } from '../context/TestItemContext'
+import { TrainingProvider } from '../context/TrainingContext'
 import { UserPreferencesProvider } from '../context/UserPreferencesContext'
 import ClassStudentsPage from '../pages/ClassStudentsPage'
 import ExamStandardsPage from '../pages/ExamStandardsPage'
@@ -57,6 +58,7 @@ export default function CompanionApp(): React.JSX.Element {
     <UserPreferencesProvider>
       <ScheduleProvider>
         <ClassProvider>
+          <TrainingProvider>
           <StudentProvider>
             <PeSessionProvider>
               <TestItemProvider>
@@ -66,6 +68,7 @@ export default function CompanionApp(): React.JSX.Element {
               </TestItemProvider>
             </PeSessionProvider>
           </StudentProvider>
+          </TrainingProvider>
         </ClassProvider>
       </ScheduleProvider>
     </UserPreferencesProvider>
