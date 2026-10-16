@@ -1,5 +1,5 @@
 /* Minimal cache for free companion shell + hashed assets. */
-const CACHE = 'gdpe-companion-v2'
+const CACHE = 'gdpe-companion-v3'
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
