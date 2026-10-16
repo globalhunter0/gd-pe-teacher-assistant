@@ -1,13 +1,19 @@
-import { dialog, ipcMain } from 'electron'
+import { app, dialog, ipcMain } from 'electron'
+import { join } from 'node:path'
 import { readFile, writeFile } from 'node:fs/promises'
 import { IPC_CHANNELS } from '../shared/appApi'
 import { APP_VERSION } from '../shared/appVersion'
 import {
   buildCompanionSnapshot,
   companionSnapshotFileName,
+  createLiveSyncToken,
+  normalizeLiveSyncToken,
   parseCompanionSnapshot,
-  serializeCompanionSnapshot
+  serializeCompanionSnapshot,
+  type CompanionLiveSyncStatus
 } from '../shared/companion'
+import { startCompanionLiveServer, type CompanionLiveServer } from '../shared/companion/liveSyncServer'
+import { startCloudflareTunnel } from './companionLiveTunnel'
 import { getMainWindow } from './mainWindow'
 import { loadClasses, saveClasses } from './classStore'
 import { loadPeSessions, savePeSessions } from './peSessionStore'
@@ -60,7 +66,83 @@ async function applyCompanionSnapshot(payload: unknown): Promise<{ ok: true; mes
   }
 }
 
+const stoppedLiveSync: CompanionLiveSyncStatus = {
+  running: false,
+  token: '',
+  localUrl: '',
+  publicUrl: null,
+  revision: 0,
+  tunnelError: null,
+  connectedClients: 0
+}
+
+let liveServer: CompanionLiveServer | null = null
+let stopTunnel: (() => void) | null = null
+
+async function readOrCreateLiveToken(): Promise<string> {
+  const file = join(app.getPath('userData'), 'companion-live-token.txt')
+  try {
+    const existing = (await readFile(file, 'utf8')).trim()
+    if (normalizeLiveSyncToken(existing).length === 12) {
+      return existing
+    }
+  } catch {
+    // create a new code below
+  }
+  const token = createLiveSyncToken()
+  await writeFile(file, `${token}\n`, 'utf8')
+  return token
+}
+
+async function stopLiveSync(): Promise<CompanionLiveSyncStatus> {
+  stopTunnel?.()
+  stopTunnel = null
+  const current = liveServer
+  liveServer = null
+  await current?.stop()
+  return stoppedLiveSync
+}
+
+async function startLiveSync(): Promise<CompanionLiveSyncStatus> {
+  if (liveServer) {
+    return liveServer.status()
+  }
+  const token = await readOrCreateLiveToken()
+  const server = await startCompanionLiveServer({
+    token,
+    load: loadCompanionSnapshot,
+    apply: async (snapshot) => {
+      await applyCompanionSnapshot(snapshot)
+    },
+    onRemoteApplied: () => {
+      getMainWindow()?.webContents.reload()
+    }
+  })
+  liveServer = server
+  const port = Number(new URL(server.status().localUrl).port)
+  void startCloudflareTunnel(port, join(app.getPath('userData'), 'cloudflared.exe'))
+    .then((tunnel) => {
+      if (liveServer !== server) {
+        tunnel.stop()
+        return
+      }
+      stopTunnel = tunnel.stop
+      server.setPublicUrl(tunnel.url, null)
+    })
+    .catch((error: unknown) => {
+      if (liveServer !== server) {
+        return
+      }
+      server.setPublicUrl(null, error instanceof Error ? error.message : '在线地址创建失败')
+    })
+  return server.status()
+}
+
 export function registerCompanionIpc(): void {
+  app.on('before-quit', () => {
+    void stopLiveSync()
+  })
+
   ipcMain.handle(IPC_CHANNELS.companion.getSnapshot, async () => loadCompanionSnapshot())
 
   ipcMain.handle(IPC_CHANNELS.companion.applySnapshot, async (_event, payload: unknown) =>
@@ -104,4 +186,8 @@ export function registerCompanionIpc(): void {
     const result = await applyCompanionSnapshot(parsed)
     return { canceled: false as const, message: result.message }
   })
+
+  ipcMain.handle(IPC_CHANNELS.companion.liveSyncStart, async () => startLiveSync())
+  ipcMain.handle(IPC_CHANNELS.companion.liveSyncStop, async () => stopLiveSync())
+  ipcMain.handle(IPC_CHANNELS.companion.liveSyncStatus, async () => liveServer?.status() ?? stoppedLiveSync)
 }

@@ -138,7 +138,10 @@ export function createAppApi(invoke: AppApiInvoke): AppApi {
       getSnapshot: () => invoke(IPC_CHANNELS.companion.getSnapshot),
       applySnapshot: (payload) => invoke(IPC_CHANNELS.companion.applySnapshot, payload),
       exportToFile: () => invoke(IPC_CHANNELS.companion.exportToFile),
-      importFromFile: () => invoke(IPC_CHANNELS.companion.importFromFile)
+      importFromFile: () => invoke(IPC_CHANNELS.companion.importFromFile),
+      liveSyncStart: () => invoke(IPC_CHANNELS.companion.liveSyncStart),
+      liveSyncStop: () => invoke(IPC_CHANNELS.companion.liveSyncStop),
+      liveSyncStatus: () => invoke(IPC_CHANNELS.companion.liveSyncStatus)
     }
   }
 }

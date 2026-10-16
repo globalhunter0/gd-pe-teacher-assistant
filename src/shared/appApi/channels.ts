@@ -127,7 +127,10 @@ export const IPC_CHANNELS = {
     getSnapshot: 'companion:getSnapshot',
     applySnapshot: 'companion:applySnapshot',
     exportToFile: 'companion:exportToFile',
-    importFromFile: 'companion:importFromFile'
+    importFromFile: 'companion:importFromFile',
+    liveSyncStart: 'companion:liveSyncStart',
+    liveSyncStop: 'companion:liveSyncStop',
+    liveSyncStatus: 'companion:liveSyncStatus'
   }
 } as const
 

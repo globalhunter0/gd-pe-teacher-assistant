@@ -12,3 +12,12 @@ export {
 } from './parse'
 export { createMemoryCompanionStore, type CompanionDataStore, type CompanionCollectionKey } from './store'
 export { createBrowserAppApi, COMPANION_DESKTOP_ONLY_MESSAGE } from './browserAppApi'
+export type { CompanionLiveSyncStatus } from './liveSyncServer'
+export {
+  companionSnapshotHasUserData,
+  createLiveSyncToken,
+  decryptLiveSyncPayload,
+  digestCompanionSnapshot,
+  encryptLiveSyncPayload,
+  normalizeLiveSyncToken
+} from './liveSyncCrypto'

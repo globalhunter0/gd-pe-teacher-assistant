@@ -9,6 +9,8 @@ import {
   serializeCompanionSnapshot
 } from './parse'
 import { createMemoryCompanionStore } from './store'
+import { decryptLiveSyncPayload, encryptLiveSyncPayload } from './liveSyncCrypto'
+import { startCompanionLiveServer } from './liveSyncServer'
 
 function assert(condition: unknown, message: string): void {
   if (!condition) {
@@ -40,6 +42,36 @@ export async function runCompanionSelfCheckOrThrow(): Promise<string> {
     peTests: []
   })
   assert(legacy.schedule === undefined && legacy.peSessions === undefined, '旧同步包必须保留课表和课堂为空缺')
+  const sealed = await encryptLiveSyncPayload('ABCD-EFGH-JKLM', serializeCompanionSnapshot(empty))
+  const opened = await decryptLiveSyncPayload('abcd efgh jklm', sealed.iv, sealed.ciphertext)
+  assert(parseCompanionSnapshot(JSON.parse(opened)).classes.length === empty.classes.length, '在线同步加解密失败')
+  let current = empty
+  const live = await startCompanionLiveServer({
+    token: 'ABCD-EFGH-JKLM',
+    load: async () => current,
+    apply: async (snapshot) => {
+      current = snapshot
+    }
+  })
+  try {
+    const base = live.status().localUrl
+    const put = await fetch(`${base}/sync/snapshot`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-gdpe-token': 'ABCDEFGHJKLM' },
+      body: JSON.stringify({ baseRevision: 0, ...sealed })
+    })
+    assert(put.status === 200, '在线同步写入必须成功')
+    const stale = await fetch(`${base}/sync/snapshot`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-gdpe-token': 'ABCDEFGHJKLM' },
+      body: JSON.stringify({ baseRevision: 0, ...sealed })
+    })
+    assert(stale.status === 409, '过期修订必须拒绝')
+    const denied = await fetch(`${base}/sync/snapshot`, { headers: { 'x-gdpe-token': 'WRONG-CODE-XXXX' } })
+    assert(denied.status === 401, '错误同步码必须拒绝')
+  } finally {
+    await live.stop()
+  }
 
   let threw = false
   try {

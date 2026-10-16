@@ -229,7 +229,18 @@ export function createBrowserAppApi(store: CompanionDataStore): AppApi {
         }
       },
       exportToFile: async () => desktopOnly(),
-      importFromFile: async () => desktopOnly()
+      importFromFile: async () => desktopOnly(),
+      liveSyncStart: async () => desktopOnly(),
+      liveSyncStop: async () => desktopOnly(),
+      liveSyncStatus: async () => ({
+        running: false,
+        token: '',
+        localUrl: '',
+        publicUrl: null,
+        revision: 0,
+        tunnelError: null,
+        connectedClients: 0
+      })
     }
   }
 }

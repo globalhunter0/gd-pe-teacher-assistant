@@ -17,12 +17,14 @@ import PeTestsPage from '../pages/PeTestsPage'
 import SchedulePage from '../pages/SchedulePage'
 import CompanionHomePage from './CompanionHomePage'
 import CompanionSyncPage from './CompanionSyncPage'
+import { useCompanionLiveSyncEngine } from './liveSyncClient'
 
 function CompanionShell(): React.JSX.Element {
   const [activeKey, setActiveKey] = useState<CompanionNavKey>('home')
   const [openTestSessionId, setOpenTestSessionId] = useState<string | null>(null)
   const [pePrefill, setPePrefill] = useState<PeSessionPrefill | null>(null)
   const [openPeSessionId, setOpenPeSessionId] = useState<string | null>(null)
+  useCompanionLiveSyncEngine()
 
   function openLesson(prefill: PeSessionPrefill): void {
     setPePrefill(prefill)

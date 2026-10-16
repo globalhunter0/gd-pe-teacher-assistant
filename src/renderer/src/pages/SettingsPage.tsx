@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { CompanionLiveSyncStatus } from '@shared/companion'
 import type { DataIntegrityReport } from '@shared/dataIntegrity'
 import {
   appUpdateInstallActionLabel,
@@ -23,10 +24,32 @@ export default function SettingsPage(): React.JSX.Element {
   const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus | null>(null)
   const [updateBusy, setUpdateBusy] = useState(false)
   const [updatePort, setUpdatePort] = useState<AppUpdatePort | null>(null)
+  const [liveSync, setLiveSync] = useState<CompanionLiveSyncStatus | null>(null)
+  const [liveBusy, setLiveBusy] = useState(false)
 
   useEffect(() => {
     setTeacherDisplayName(preferences.teacherDisplayName)
   }, [preferences.teacherDisplayName])
+
+  useEffect(() => {
+    let cancelled = false
+    const refresh = () => {
+      void getAppApi()
+        .then((api) => api.companion.liveSyncStatus())
+        .then((next) => {
+          if (!cancelled) {
+            setLiveSync(next)
+          }
+        })
+        .catch(() => undefined)
+    }
+    refresh()
+    const timer = window.setInterval(refresh, 1500)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [])
 
   useEffect(() => {
     void getAppApi()
@@ -377,6 +400,55 @@ export default function SettingsPage(): React.JSX.Element {
               ) : null}
             </div>
           ) : null}
+        </article>
+
+        <article className="info-panel">
+          <h3>手机在线同步</h3>
+          <p className="settings-copy">
+            开启后，电脑会生成一个临时地址。手机免费网页版填入地址和同步码后，课表、考勤、班级学生和体育测试会自动互相同步。请保持本软件打开。地址在每次重新开启时可能会变，同步码不变。
+          </p>
+          {liveSync?.running ? (
+            <div className="settings-copy">
+              <p>同步码：{liveSync.token}</p>
+              <p>{liveSync.publicUrl ? `地址：${liveSync.publicUrl}` : '正在生成在线地址…'}</p>
+              {liveSync.tunnelError ? <p className="page-error">{liveSync.tunnelError}</p> : null}
+            </div>
+          ) : (
+            <p className="settings-copy">当前未开启。</p>
+          )}
+          <div className="settings-health-actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={liveBusy || liveSync?.running === true}
+              onClick={() => {
+                setLiveBusy(true)
+                void getAppApi()
+                  .then((api) => api.companion.liveSyncStart())
+                  .then((next) => setLiveSync(next))
+                  .catch((startError: unknown) => {
+                    setError(startError instanceof Error ? startError.message : '无法开启在线同步')
+                  })
+                  .finally(() => setLiveBusy(false))
+              }}
+            >
+              {liveBusy ? '处理中…' : '开启在线同步'}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={liveBusy || liveSync?.running !== true}
+              onClick={() => {
+                setLiveBusy(true)
+                void getAppApi()
+                  .then((api) => api.companion.liveSyncStop())
+                  .then((next) => setLiveSync(next))
+                  .finally(() => setLiveBusy(false))
+              }}
+            >
+              关闭
+            </button>
+          </div>
         </article>
 
         <article className="info-panel">

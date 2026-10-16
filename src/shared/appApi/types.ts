@@ -43,6 +43,7 @@ import type {
   TrainingPlanAiRequest
 } from '../trainingTeam'
 import type { AppUpdateStatus } from '../appUpdate'
+import type { CompanionLiveSyncStatus } from '../companion/liveSyncServer'
 import type { CompanionSnapshot } from '../companion/types'
 import type { UserPreferences } from '../userPreferences'
 
@@ -229,5 +230,9 @@ export interface AppApi {
     exportToFile: () => Promise<{ canceled: true } | { canceled: false; filePath: string }>
     /** Desktop: open dialog and replace companion collections. Web host rejects (use file input). */
     importFromFile: () => Promise<{ canceled: true } | { canceled: false; message: string }>
+    /** Desktop opens an encrypted tunnel. Web host does not host one. */
+    liveSyncStart: () => Promise<CompanionLiveSyncStatus>
+    liveSyncStop: () => Promise<CompanionLiveSyncStatus>
+    liveSyncStatus: () => Promise<CompanionLiveSyncStatus>
   }
 }

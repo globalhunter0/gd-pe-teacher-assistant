@@ -1,5 +1,11 @@
 import { useState } from 'react'
 import {
+  notifyLiveSyncConfigChanged,
+  readSavedLiveSync,
+  saveLiveSyncConnection,
+  useCompanionLiveSyncStatus
+} from './liveSyncClient'
+import {
   companionSnapshotFileName,
   parseCompanionSnapshot,
   serializeCompanionSnapshot
@@ -18,9 +24,13 @@ function downloadText(filename: string, text: string): void {
 }
 
 export default function CompanionSyncPage(): React.JSX.Element {
+  const saved = readSavedLiveSync()
+  const live = useCompanionLiveSyncStatus()
   const [working, setWorking] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [liveUrl, setLiveUrl] = useState(saved.url)
+  const [liveToken, setLiveToken] = useState(saved.token)
 
   async function handleImportFile(file: File | null): Promise<void> {
     if (!file) {
@@ -77,12 +87,58 @@ export default function CompanionSyncPage(): React.JSX.Element {
       <PageHeader
         icon="settings"
         title="数据同步"
-        description="用 JSON 同步包在 Windows 桌面版与本机 Safari 网页之间互拷数据。导入会整表替换，不会做半合并。"
+        description="电脑开着在线同步时，手机会自动跟上课表、考勤和成绩。也可以继续用同步包手动拷贝。"
       />
       {error ? <p className="page-error">{error}</p> : null}
       {message ? <p className="page-ok">{message}</p> : null}
 
       <div className="settings-grid settings-grid--actions">
+        <article className="info-panel">
+          <h3>在线同步</h3>
+          <p className="settings-copy">
+            在 Windows 桌面版「备份与恢复」里开启在线同步，把那里显示的地址和同步码填到下面。电脑需要保持打开。
+          </p>
+          <p className={live.phase === 'error' ? 'page-error' : 'settings-copy'}>{live.message}</p>
+          <label className="toolbar-field">
+            <span>电脑地址</span>
+            <input
+              value={liveUrl}
+              placeholder="https://xxxx.trycloudflare.com"
+              onChange={(event) => setLiveUrl(event.target.value)}
+            />
+          </label>
+          <label className="toolbar-field">
+            <span>同步码</span>
+            <input
+              value={liveToken}
+              placeholder="ABCD-EFGH-JKLM"
+              onChange={(event) => setLiveToken(event.target.value)}
+            />
+          </label>
+          <div className="settings-health-actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                saveLiveSyncConnection(liveUrl, liveToken, true)
+                notifyLiveSyncConfigChanged()
+              }}
+            >
+              开始同步
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                saveLiveSyncConnection(liveUrl, liveToken, false)
+                notifyLiveSyncConfigChanged()
+              }}
+            >
+              停止
+            </button>
+          </div>
+        </article>
+
         <article className="info-panel">
           <h3>从电脑导入</h3>
           <p className="settings-copy">
@@ -117,7 +173,7 @@ export default function CompanionSyncPage(): React.JSX.Element {
         <article className="info-panel">
           <h3>说明</h3>
           <ul>
-            <li>数据只保存在本机浏览器（IndexedDB），不会上传账号系统。</li>
+            <li>在线同步的内容会加密后再传。电脑关掉后，手机暂停同步，已有数据仍留在本机浏览器。</li>
             <li>清除 Safari 网站数据会丢掉本机录入，请先导出同步包。</li>
             <li>Excel 批量、备份包、资料与 AI 仍只在 Windows 桌面版。</li>
           </ul>
