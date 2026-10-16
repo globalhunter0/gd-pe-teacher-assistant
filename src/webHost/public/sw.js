@@ -1,5 +1,5 @@
 /* Minimal cache for free companion shell + hashed assets. */
-const CACHE = 'gdpe-companion-v1'
+const CACHE = 'gdpe-companion-v2'
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -16,6 +16,21 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request
   if (request.method !== 'GET') {
+    return
+  }
+  const isDocument = request.mode === 'navigate' || request.destination === 'document'
+  if (isDocument) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.ok) {
+            const copy = response.clone()
+            void caches.open(CACHE).then((cache) => cache.put(request, copy))
+          }
+          return response
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match('./index.html')))
+    )
     return
   }
   event.respondWith(
