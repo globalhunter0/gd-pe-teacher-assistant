@@ -7,7 +7,7 @@
 https://globalhunter0.github.io/gd-pe-teacher-assistant/
 
 只下载安装包、不要教程页时用这个：
-https://github.com/globalhunter0/gd-pe-teacher-assistant/releases/download/V1.0.0/gd-pe-teacher-assistant-1.0.0-Windows-x64-setup.exe
+https://github.com/globalhunter0/gd-pe-teacher-assistant/releases/download/V1.0.2/gd-pe-teacher-assistant-1.0.2-Windows-x64-setup.exe
 
 手机免费网页版（查评分标准 / 看成绩 / 快速录入，Safari 可添加到主屏幕）：
 https://globalhunter0.github.io/gd-pe-teacher-assistant/mobile/
@@ -27,7 +27,7 @@ https://globalhunter0.github.io/gd-pe-teacher-assistant/
 安装步骤：
 1. 电脑需 Windows 10/11 64 位。完整版是 Windows；手机可用免费网页版（查标准/录入）：
    https://globalhunter0.github.io/gd-pe-teacher-assistant/mobile/
-2. 下载约 93MB，文件名是 gd-pe-teacher-assistant-1.0.0-Windows-x64-setup.exe。
+2. 下载约 179MB，文件名是 gd-pe-teacher-assistant-1.0.2-Windows-x64-setup.exe。
 3. 双击运行。若弹出“Windows 已保护你的电脑”，点「更多信息」→「仍要运行」。
 4. 按提示安装，一般不需要管理员密码。
 5. 安装完不会自动打开。到桌面或开始菜单点 gd-pe-teacher-assistant。
@@ -35,7 +35,7 @@ https://globalhunter0.github.io/gd-pe-teacher-assistant/
 7. 以后有更新，打开软件后到「设置 → 检查更新」。
 
 这不是教育局/学校官方系统，数据保存在你这台电脑，不强制注册。
-当前 v1.0.0，AI 助手还没开放，也不承诺提高体育中考分数。
+当前 v1.0.2，也不承诺提高体育中考分数。
 安装遇到问题，把截图发我。
 
 
@@ -49,11 +49,11 @@ https://globalhunter0.github.io/gd-pe-teacher-assistant/
 提取码：【没有就写「无」】
 
 网盘里先看《请先看我-安装说明.txt》，再下载：
-gd-pe-teacher-assistant-1.0.0-Windows-x64-setup.exe
+gd-pe-teacher-assistant-1.0.2-Windows-x64-setup.exe
 
 安装步骤：
 1. 电脑需 Windows 10/11 64 位，没有手机版。
-2. 下载约 93MB。不要下错成别的文件。
+2. 下载约 179MB。不要下错成别的文件。
 3. 双击运行。若弹出“Windows 已保护你的电脑”，点「更多信息」→「仍要运行」。
 4. 按提示安装，一般不需要管理员密码。
 5. 安装完不会自动打开。到桌面或开始菜单点 gd-pe-teacher-assistant。
@@ -61,17 +61,17 @@ gd-pe-teacher-assistant-1.0.0-Windows-x64-setup.exe
 7. 以后有更新，打开软件后到「设置 → 检查更新」。
 
 这不是教育局/学校官方系统，数据保存在你这台电脑，不强制注册。
-当前 v1.0.0，AI 助手还没开放，也不承诺提高体育中考分数。
+当前 v1.0.2，也不承诺提高体育中考分数。
 安装遇到问题，把截图发我。
 
 
 ====================
 你怎么生成网盘链接（约 2 分钟）
 ====================
-1. 打开夸克网盘（推荐，93MB 装得下，微信里也比较好打开）。
-2. 新建文件夹：广东省初中体育教师管理助手-v1.0.0
+1. 打开夸克网盘（推荐，约 179MB，微信里也比较好打开）。
+2. 新建文件夹：广东省初中体育教师管理助手-v1.0.2
 3. 把这两个文件传进去：
-   - 安装包：gd-pe-teacher-assistant-1.0.0-Windows-x64-setup.exe
+   - 安装包：gd-pe-teacher-assistant-1.0.2-Windows-x64-setup.exe
      （从上面的 GitHub 直链下载，或从本机 release 目录取）
    - 说明：docs/download/网盘发货/请先看我-安装说明.txt
 4. 分享这个文件夹：有链接即可访问，有效期选永久。
@@ -85,6 +85,6 @@ gd-pe-teacher-assistant-1.0.0-Windows-x64-setup.exe
 ====================
 售卖提醒
 ====================
-1. 安装包约 93MB。蓝奏云免费额度勉强够，夸克更稳。
+1. 安装包约 179MB。蓝奏云免费额度可能不够，夸克更稳。
 2. 网盘链接不要发到小红书公开笔记，只走付款后自动发货/私信。
 3. 不要把 GitHub Token、发布密钥、仓库登录方式发给买家。
