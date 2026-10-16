@@ -39,9 +39,14 @@ interface EditingSlot {
 interface SchedulePageProps {
   onStartRecord: (prefill: PeSessionPrefill) => void
   onOpenSession: (sessionId: string) => void
+  hideExcelImport?: boolean
 }
 
-export default function SchedulePage({ onStartRecord, onOpenSession }: SchedulePageProps): React.JSX.Element {
+export default function SchedulePage({
+  onStartRecord,
+  onOpenSession,
+  hideExcelImport = false
+}: SchedulePageProps): React.JSX.Element {
   const { items, loading, error, saveItems, applyLoadedItems } = useSchedule()
   const { classes } = useClasses()
   const { sessions } = usePeSessions()
@@ -178,16 +183,18 @@ export default function SchedulePage({ onStartRecord, onOpenSession }: ScheduleP
               <button type="button" className="btn" onClick={enterBulkMode} disabled={items.length === 0}>
                 批量删除
               </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => {
-                  setEditing(false)
-                  setImportOpen(true)
-                }}
-              >
-                导入/更新课表
-              </button>
+              {hideExcelImport ? null : (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setEditing(false)
+                    setImportOpen(true)
+                  }}
+                >
+                  导入/更新课表
+                </button>
+              )}
             </>
           )
         }

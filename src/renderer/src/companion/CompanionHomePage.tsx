@@ -26,7 +26,7 @@ export default function CompanionHomePage({ onNavigate }: CompanionHomePageProps
         <p className="companion-home-kicker">广东省初中体育教师管理助手 · 免费网页版</p>
         <h2 className="companion-home-title">你好，{name}</h2>
         <p className="companion-home-lead">
-          在 iPhone Safari 查评分标准、看成绩、快速录入。完整功能请继续使用 Windows 桌面版。
+          在手机上看课表、记课堂考勤、查评分标准、录体育成绩。Excel 批量导入和整库备份请继续用 Windows 桌面版。
         </p>
         <div className="companion-home-stats">
           <div>
@@ -43,7 +43,13 @@ export default function CompanionHomePage({ onNavigate }: CompanionHomePageProps
           </div>
         </div>
         <div className="companion-home-actions">
-          <button type="button" className="btn btn-primary" onClick={() => onNavigate('standards')}>
+          <button type="button" className="btn btn-primary" onClick={() => onNavigate('schedule')}>
+            课表工作台
+          </button>
+          <button type="button" className="btn" onClick={() => onNavigate('lessons')}>
+            课堂考勤
+          </button>
+          <button type="button" className="btn" onClick={() => onNavigate('standards')}>
             查评分标准
           </button>
           <button type="button" className="btn" onClick={() => onNavigate('tests')}>

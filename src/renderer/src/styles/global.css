@@ -4808,25 +4808,46 @@ textarea:disabled {
 
 /* ---- Free Safari / PWA companion ---- */
 .companion-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
   min-height: 100dvh;
-  grid-template-columns: 1fr;
-  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg-app, #f4f7fb);
 }
 
 .companion-banner {
-  position: sticky;
-  top: 0;
+  flex: 0 0 auto;
+  width: 100%;
   z-index: 20;
-  padding: 8px 12px;
+  padding: 8px 14px;
   background: #0b1f3a;
   color: #e8f4ff;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.45;
   text-align: center;
 }
 
 .companion-main {
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+}
+
+.companion-shell .page-heading--split,
+.companion-shell .page-actions {
+  flex-wrap: wrap;
+}
+
+.companion-shell .page-heading--split {
+  align-items: flex-start;
+  gap: 8px;
 }
 
 .companion-tabbar {
@@ -4835,23 +4856,25 @@ textarea:disabled {
   right: 0;
   bottom: 0;
   z-index: 30;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  display: flex;
+  overflow-x: auto;
   gap: 2px;
-  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
   background: #ffffff;
   border-top: 1px solid var(--border, #d7e0ea);
   box-shadow: 0 -4px 16px rgba(15, 35, 60, 0.06);
 }
 
 .companion-tab {
+  flex: 1 1 0;
+  min-width: 0;
   border: 0;
   background: transparent;
   color: var(--text-secondary, #5b6b80);
   font: inherit;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.2;
-  padding: 8px 2px;
+  padding: 10px 2px;
   border-radius: 8px;
 }
 

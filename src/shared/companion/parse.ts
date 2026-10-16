@@ -1,5 +1,7 @@
 import { parseClassRecords } from '../class/validate'
+import { parsePeSessions } from '../peSession/validate'
 import { parsePeTestSessions, parseTestItems } from '../peTest/validate'
+import { parseScheduleItems } from '../schedule/validate'
 import { parseStudentRecords } from '../student/validate'
 import {
   COMPANION_SNAPSHOT_KIND,
@@ -24,7 +26,9 @@ export function buildCompanionSnapshot(input: CompanionSnapshotBuildInput): Comp
     classes: parseClassRecords(input.classes),
     students: parseStudentRecords(input.students),
     testItems: parseTestItems(input.testItems),
-    peTests: parsePeTestSessions(input.peTests)
+    peTests: parsePeTestSessions(input.peTests),
+    ...(input.schedule === undefined ? {} : { schedule: parseScheduleItems(input.schedule) }),
+    ...(input.peSessions === undefined ? {} : { peSessions: parsePeSessions(input.peSessions) })
   }
 }
 
@@ -48,7 +52,9 @@ export function parseCompanionSnapshot(input: unknown): CompanionSnapshot {
     classes: parseClassRecords(record.classes),
     students: parseStudentRecords(record.students),
     testItems: parseTestItems(record.testItems),
-    peTests: parsePeTestSessions(record.peTests)
+    peTests: parsePeTestSessions(record.peTests),
+    ...('schedule' in record ? { schedule: parseScheduleItems(record.schedule) } : {}),
+    ...('peSessions' in record ? { peSessions: parsePeSessions(record.peSessions) } : {})
   })
 }
 

@@ -10,23 +10,29 @@ import {
 } from '../shared/companion'
 import { getMainWindow } from './mainWindow'
 import { loadClasses, saveClasses } from './classStore'
+import { loadPeSessions, savePeSessions } from './peSessionStore'
 import { loadPeTests, savePeTests } from './peTestStore'
+import { loadSchedule, saveSchedule } from './scheduleStore'
 import { loadStudents, saveStudents } from './studentStore'
 import { loadTestItems, saveTestItems } from './testItemStore'
 
 async function loadCompanionSnapshot() {
-  const [classes, students, testItems, peTests] = await Promise.all([
+  const [classes, students, testItems, peTests, schedule, peSessions] = await Promise.all([
     loadClasses(),
     loadStudents(),
     loadTestItems(),
-    loadPeTests()
+    loadPeTests(),
+    loadSchedule(),
+    loadPeSessions()
   ])
   return buildCompanionSnapshot({
     appVersion: APP_VERSION,
     classes,
     students,
     testItems,
-    peTests
+    peTests,
+    schedule,
+    peSessions
   })
 }
 
@@ -38,9 +44,19 @@ async function applyCompanionSnapshot(payload: unknown): Promise<{ ok: true; mes
   const itemIds = new Set(testItems.map((item) => item.id))
   await saveStudents(snapshot.students, classIds)
   await savePeTests(snapshot.peTests, classIds, itemIds)
+  if (snapshot.schedule) {
+    await saveSchedule(snapshot.schedule)
+  }
+  if (snapshot.peSessions) {
+    await savePeSessions(snapshot.peSessions, classIds)
+  }
+  const extra =
+    snapshot.schedule || snapshot.peSessions
+      ? `课表 ${snapshot.schedule?.length ?? 0} 节、课堂 ${snapshot.peSessions?.length ?? 0} 条。`
+      : ''
   return {
     ok: true,
-    message: `已导入手机同步包：班级 ${snapshot.classes.length}、学生 ${snapshot.students.length}、测试 ${snapshot.peTests.length}。对应数据已整表替换。`
+    message: `已导入手机同步包：班级 ${snapshot.classes.length}、学生 ${snapshot.students.length}、测试 ${snapshot.peTests.length}。${extra}对应数据已整表替换。`
   }
 }
 

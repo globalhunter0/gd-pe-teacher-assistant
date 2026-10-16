@@ -29,6 +29,17 @@ export async function runCompanionSelfCheckOrThrow(): Promise<string> {
   const roundTrip = parseCompanionSnapshot(JSON.parse(serializeCompanionSnapshot(empty)))
   assert(roundTrip.testItems.length === BUILTIN_TEST_ITEMS.length, '同步包 round-trip 失败')
   assert(companionSnapshotFileName('2026-10-15T12:34:56.000Z').includes('gdpe-companion-'), '文件名前缀')
+  const legacy = parseCompanionSnapshot({
+    kind: 'gdpe-companion',
+    schemaVersion: 1,
+    exportedAt: '2026-01-01T00:00:00.000Z',
+    appVersion: '1.0.2',
+    classes: [],
+    students: [],
+    testItems: [],
+    peTests: []
+  })
+  assert(legacy.schedule === undefined && legacy.peSessions === undefined, '旧同步包必须保留课表和课堂为空缺')
 
   let threw = false
   try {

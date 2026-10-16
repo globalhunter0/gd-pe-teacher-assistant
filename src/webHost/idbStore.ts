@@ -115,13 +115,21 @@ export function createIdbCompanionStore(): CompanionDataStore {
       await idbSet('students', snapshot.students)
       await idbSet('testItems', mergedItems)
       await idbSet('peTests', snapshot.peTests)
+      if (snapshot.schedule) {
+        await idbSet('schedule', snapshot.schedule)
+      }
+      if (snapshot.peSessions) {
+        await idbSet('peSessions', snapshot.peSessions)
+      }
     },
     async readSnapshotParts() {
       return {
         classes: await this.getClasses(),
         students: await this.getStudents(),
         testItems: mergeBuiltinTestItems(await this.getTestItems()).items,
-        peTests: await this.getPeTests()
+        peTests: await this.getPeTests(),
+        schedule: await this.getSchedule(),
+        peSessions: await this.getPeSessions()
       }
     }
   }

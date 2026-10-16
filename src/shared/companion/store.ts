@@ -98,13 +98,21 @@ export function createMemoryCompanionStore(): CompanionDataStore {
       students = snapshot.students
       testItems = mergeBuiltinTestItems(snapshot.testItems).items
       peTests = snapshot.peTests
+      if (snapshot.schedule) {
+        schedule = snapshot.schedule
+      }
+      if (snapshot.peSessions) {
+        peSessions = snapshot.peSessions
+      }
     },
     async readSnapshotParts() {
       return {
         classes,
         students,
         testItems: await this.getTestItems(),
-        peTests
+        peTests,
+        schedule,
+        peSessions
       }
     }
   }

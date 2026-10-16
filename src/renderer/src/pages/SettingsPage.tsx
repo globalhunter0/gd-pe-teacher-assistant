@@ -189,7 +189,7 @@ export default function SettingsPage(): React.JSX.Element {
 
   async function handleCompanionImport(): Promise<void> {
     const confirmed = window.confirm(
-      '导入手机会同步包将整表替换本机的班级、学生、测试项目与体育测试数据（不会改课表/课堂/备份包格式）。是否继续？'
+      '导入手机会同步包将整表替换本机的班级、学生、测试项目与体育测试。若同步包带有课表和课堂记录，也会一并替换；没有这两项的旧同步包会保留电脑上现有课表和课堂。是否继续？'
     )
     if (!confirmed) {
       return
@@ -382,7 +382,7 @@ export default function SettingsPage(): React.JSX.Element {
         <article className="info-panel">
           <h3>手机免费网页版同步</h3>
           <p className="settings-copy">
-            导出 JSON 同步包后，可在 iPhone Safari 打开免费网页版导入，用于查标准、看成绩与快速录入。导入会整表替换对应四类数据。
+            导出 JSON 同步包后，可在 iPhone Safari 打开免费网页版导入，用于看课表、记考勤、查标准和录成绩。导入会整表替换班级、学生、测试，以及同步包里带上的课表和课堂记录。
           </p>
           <div className="settings-health-actions">
             <button type="button" className="btn btn-primary" disabled={working} onClick={() => void handleCompanionExport()}>

@@ -39,7 +39,7 @@ export default function CompanionSyncPage(): React.JSX.Element {
       }
       const snapshot = parseCompanionSnapshot(raw)
       const confirmed = window.confirm(
-        `将用同步包整表替换本机网页数据：\n班级 ${snapshot.classes.length}、学生 ${snapshot.students.length}、测试 ${snapshot.peTests.length}。\n是否继续？`
+        `将用同步包整表替换本机网页数据：\n班级 ${snapshot.classes.length}、学生 ${snapshot.students.length}、测试 ${snapshot.peTests.length}、课表 ${snapshot.schedule?.length ?? '保留原课表'}、课堂 ${snapshot.peSessions?.length ?? '保留原课堂'}。\n是否继续？`
       )
       if (!confirmed) {
         setMessage('已取消导入。')
@@ -107,7 +107,7 @@ export default function CompanionSyncPage(): React.JSX.Element {
         <article className="info-panel">
           <h3>导出回电脑</h3>
           <p className="settings-copy">
-            把当前浏览器里的班级、学生、测试项目与体育测试导出为同步包，再在 Windows 版导入（同样会整表替换对应数据）。
+            把当前浏览器里的班级、学生、课表、课堂考勤、测试项目与体育测试导出为同步包，再在 Windows 版导入（同样会整表替换对应数据）。已安装的 1.0.2 桌面版还不会带回课表和课堂，需要下一版安装包。
           </p>
           <button type="button" className="btn" disabled={working} onClick={() => void handleExport()}>
             {working ? '处理中…' : '导出同步包'}

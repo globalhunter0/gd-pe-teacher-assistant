@@ -4,6 +4,7 @@ import { APP_VERSION } from '../appVersion'
 import { parseClassRecords } from '../class/validate'
 import { defaultAiModelConfig } from '../aiModel/config'
 import { assertCollectionUnchanged } from '../persistence/collectionConflict'
+import { findExistingPeSession } from '../peSession/workbenchToday'
 import { parsePeSessions } from '../peSession/validate'
 import { BUILTIN_TEST_ITEMS, mergeBuiltinTestItems } from '../peTest/builtinItems'
 import { parsePeTestSessions, parseTestItems } from '../peTest/validate'
@@ -68,7 +69,26 @@ export function createBrowserAppApi(store: CompanionDataStore): AppApi {
       importCancel: async () => desktopOnly()
     },
     peSessions: {
-      create: async () => desktopOnly(),
+      create: async (item) => {
+        const parsed = parsePeSessions([item])[0]
+        if (!parsed) {
+          throw new Error('课堂记录无效')
+        }
+        const current = await store.getPeSessions()
+        const existing = findExistingPeSession(current, parsed)
+        if (existing) {
+          return { session: existing, sessions: current }
+        }
+        if (current.some((session) => session.id === parsed.id)) {
+          throw new Error('课堂 ID 已存在，不能改写历史身份')
+        }
+        const saved = await store.setPeSessions([...current, parsed])
+        const created = saved.find((session) => session.id === parsed.id)
+        if (!created) {
+          throw new Error('课堂记录没有写入')
+        }
+        return { session: created, sessions: saved }
+      },
       get: () => store.getPeSessions(),
       save: (items, expected) =>
         saveCollection(store.getPeSessions, store.setPeSessions, parsePeSessions(items), expected)

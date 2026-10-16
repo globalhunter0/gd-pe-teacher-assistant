@@ -1,5 +1,7 @@
 import type { ClassRecord } from '../class/types'
+import type { PEClassSession } from '../peSession/types'
 import type { PETestSession, TestItem } from '../peTest'
+import type { ScheduleItem } from '../schedule/types'
 import type { StudentRecord } from '../student'
 
 export const COMPANION_SNAPSHOT_KIND = 'gdpe-companion' as const
@@ -15,6 +17,10 @@ export interface CompanionSnapshot {
   students: StudentRecord[]
   testItems: TestItem[]
   peTests: PETestSession[]
+  /** Absent on older sync packages: importers keep the existing schedule. */
+  schedule?: ScheduleItem[]
+  /** Absent on older sync packages: importers keep existing classroom records. */
+  peSessions?: PEClassSession[]
 }
 
 export interface CompanionSnapshotBuildInput {
@@ -24,4 +30,6 @@ export interface CompanionSnapshotBuildInput {
   students: StudentRecord[]
   testItems: TestItem[]
   peTests: PETestSession[]
+  schedule?: ScheduleItem[]
+  peSessions?: PEClassSession[]
 }
